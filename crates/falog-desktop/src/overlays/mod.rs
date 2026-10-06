@@ -2,3 +2,4 @@
 
 pub mod command_palette;
 pub mod companies;
+pub mod confirm;
