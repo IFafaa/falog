@@ -29,6 +29,9 @@ pub struct StatusBar<'a> {
     pub summary: Summary,
     pub date: String,
     pub sidebar_open: bool,
+    pub assistant_open: bool,
+    /// The microphone is recording for the assistant.
+    pub listening: bool,
     pub toast: Option<&'a Toast>,
 }
 
@@ -85,6 +88,14 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if icon_toggle(ui, Icon::Sparkle, bar.assistant_open, "Assistant (Ctrl+Shift+A)")
+                        .clicked()
+                    {
+                        actions.push(Action::ToggleAssistant);
+                    }
+                    if bar.listening && item(ui, theme, Icon::Mic, theme.error, "Listening").clicked() {
+                        actions.push(Action::ToggleDictation);
+                    }
                     if icon_button(ui, Icon::Settings, "Settings (Ctrl+,)").clicked() {
                         actions.push(Action::OpenSettings);
                     }

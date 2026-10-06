@@ -1,6 +1,7 @@
 //! Application state and the per-frame orchestration of the workspace.
 
 use crate::action::{Action, Actions};
+use crate::assistant::{self, Assistant};
 use crate::overlays::command_palette::{CommandPalette, Mode, Outcome};
 use crate::overlays::companies::{CompaniesDialog, CompanyEvent};
 use crate::overlays::confirm::{Answer, Confirm};
@@ -40,6 +41,7 @@ pub struct FalogApp {
     board: BoardState,
     agenda: AgendaState,
     task_panel: Option<TaskPanel>,
+    assistant: Assistant,
     palette: Option<CommandPalette>,
     companies_dialog: Option<CompaniesDialog>,
     settings: Option<SettingsDialog>,
@@ -62,6 +64,7 @@ impl FalogApp {
             .and_then(|s| eframe::get_value(s, eframe::APP_KEY))
             .unwrap_or_default();
         theme::install(&cc.egui_ctx, prefs.theme);
+        let assistant = Assistant::new(store.as_ref().ok().and_then(Store::path));
 
         let mut app = Self {
             store: store.map_err(|err| err.to_string()),
@@ -75,6 +78,7 @@ impl FalogApp {
             board: BoardState::default(),
             agenda: AgendaState::default(),
             task_panel: None,
+            assistant,
             palette: None,
             companies_dialog: None,
             settings: None,
@@ -107,11 +111,15 @@ impl FalogApp {
         }
     }
 
-    /// Picks up writes made by the MCP server, refreshing the open task unless it has edits.
+    /// Checks for outside writes at most every [`POLL_INTERVAL`].
     fn poll(&mut self) {
-        if self.last_poll.elapsed() < POLL_INTERVAL {
-            return;
+        if self.last_poll.elapsed() >= POLL_INTERVAL {
+            self.sync();
         }
+    }
+
+    /// Picks up writes made by the MCP server, refreshing the open task unless it has edits.
+    fn sync(&mut self) {
         self.last_poll = Instant::now();
         self.today = date::today();
         let current = self
@@ -288,6 +296,12 @@ impl FalogApp {
             } else if input.consume_key(ctrl, Key::P) {
                 actions.push(Action::OpenTaskFinder);
             }
+            if input.consume_key(ctrl_shift, Key::A) {
+                actions.push(Action::ToggleAssistant);
+            }
+            if input.consume_key(ctrl, Key::Space) {
+                actions.push(Action::ToggleDictation);
+            }
             let bindings = [
                 (Key::N, Action::NewTask(Status::Todo)),
                 (Key::Num1, Action::SetView(View::Board)),
@@ -351,6 +365,19 @@ impl FalogApp {
             Action::Reload => {
                 self.reload();
                 self.notify("Reloaded", ToastKind::Success);
+            }
+            Action::ToggleAssistant => {
+                self.prefs.assistant_open = !self.prefs.assistant_open;
+                self.assistant.focus_composer = self.prefs.assistant_open;
+            }
+            Action::ToggleDictation => {
+                self.prefs.assistant_open = true;
+                self.assistant
+                    .toggle_dictation(ctx, self.prefs.assistant_options());
+            }
+            Action::NewAssistantThread => {
+                self.prefs.assistant_open = true;
+                self.assistant.new_thread();
             }
         }
     }
@@ -466,6 +493,7 @@ impl FalogApp {
                 }
             },
             SettingsEvent::SetTheme(mode) => theme::set_mode(ctx, mode),
+            SettingsEvent::AssistantModelChanged => self.assistant.restart_session(),
             SettingsEvent::Copied => self.notify("Copied to clipboard", ToastKind::Success),
         }
     }
@@ -515,7 +543,16 @@ impl eframe::App for FalogApp {
         }
 
         self.poll();
-        ctx.request_repaint_after(Duration::from_secs(1));
+        if self.assistant.poll(ctx, self.prefs.assistant_options()) {
+            // A tool just ran: show its effect now instead of waiting for the next poll.
+            self.sync();
+        }
+        let repaint = if self.assistant.is_active() {
+            Duration::from_millis(50)
+        } else {
+            Duration::from_secs(1)
+        };
+        ctx.request_repaint_after(repaint);
         if self
             .toast
             .as_ref()
@@ -526,12 +563,18 @@ impl eframe::App for FalogApp {
 
         let mut actions = Actions::default();
         let save = self.shortcuts(ctx, &mut actions);
-        let escape = !self.overlay_open() && ctx.input(|i| i.key_pressed(Key::Escape));
+        let mut escape = !self.overlay_open() && ctx.input(|i| i.key_pressed(Key::Escape));
+        if escape && self.assistant.is_recording() {
+            self.assistant.cancel_dictation();
+            escape = false;
+        }
 
         let bar = StatusBar {
             summary: agenda::summary(&self.tasks, self.today),
             date: self.today.format("%a, %b %-d").to_string(),
             sidebar_open: self.prefs.sidebar_open,
+            assistant_open: self.prefs.assistant_open,
+            listening: self.assistant.is_recording(),
             toast: self.toast.as_ref(),
         };
         status_bar::show(ctx, theme, bar, &mut actions);
@@ -544,6 +587,10 @@ impl eframe::App for FalogApp {
                 self.prefs.company,
                 &mut actions,
             );
+        }
+        if self.prefs.assistant_open {
+            let options = self.prefs.assistant_options();
+            assistant::panel::show(ctx, theme, &mut self.assistant, options, &mut actions);
         }
         let mut panel_events = match &mut self.task_panel {
             Some(panel) => task_panel::show(ctx, theme, panel, &self.companies, self.today),

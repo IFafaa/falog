@@ -4,6 +4,7 @@
 //! dock. [`Assistant`] owns the conversation state and ties them together.
 
 pub mod claude;
+pub mod panel;
 pub mod voice;
 
 use claude::{ClaudeEvent, ClaudeSession, SessionConfig};

@@ -1,3 +1,5 @@
+use crate::assistant::AssistantModel;
+use crate::assistant::voice::{self, VoiceLanguage};
 use crate::components::{
     ButtonStyle, Placement, button, icon_button, modal, modal_header, segmented, switch,
 };
@@ -12,6 +14,7 @@ use std::path::{Path, PathBuf};
 pub enum SettingsEvent {
     SetAutostart(bool),
     SetTheme(ThemeMode),
+    AssistantModelChanged,
     Copied,
 }
 
@@ -79,6 +82,38 @@ impl SettingsDialog {
                         },
                     );
 
+                    section(ui, theme, "Assistant");
+                    setting(ui, theme, "Model", "Claude model used in the assistant panel.", |ui| {
+                        let options: Vec<(AssistantModel, &str)> =
+                            AssistantModel::ALL.iter().map(|m| (*m, m.label())).collect();
+                        if segmented(ui, &mut prefs.assistant_model, &options) {
+                            events.push(SettingsEvent::AssistantModelChanged);
+                        }
+                    });
+                    setting(ui, theme, "Voice language", "Language you dictate in.", |ui| {
+                        let options: Vec<(VoiceLanguage, &str)> =
+                            VoiceLanguage::ALL.iter().map(|l| (*l, l.label())).collect();
+                        segmented(ui, &mut prefs.voice_language, &options);
+                    });
+                    setting(
+                        ui,
+                        theme,
+                        "Send after dictation",
+                        "Send what you said right away instead of leaving it to edit.",
+                        |ui| {
+                            switch(ui, &mut prefs.send_after_dictation);
+                        },
+                    );
+                    let model_status = if voice::model_path().is_file() {
+                        "Speech recognition: Whisper large-v3-turbo, on this computer.".to_owned()
+                    } else {
+                        format!(
+                            "Speech recognition runs on this computer; its model ({} MB) downloads the first time you dictate.",
+                            voice::MODEL_SIZE_MB
+                        )
+                    };
+                    ui.label(RichText::new(model_status).size(12.5).color(theme.text_placeholder));
+
                     section(ui, theme, "Data");
                     let path = self
                         .db_path
@@ -93,9 +128,9 @@ impl SettingsDialog {
                             .spawn();
                     }
 
-                    section(ui, theme, "Assistant (MCP)");
+                    section(ui, theme, "Other assistants (MCP)");
                     ui.label(
-                        RichText::new("Let Claude create and update tasks. Register the server once:")
+                        RichText::new("Use Falog from Claude Code or any MCP client. Register the server once:")
                             .size(13.0)
                             .color(theme.text_muted),
                     );

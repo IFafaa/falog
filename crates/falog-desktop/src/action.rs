@@ -21,6 +21,10 @@ pub enum Action {
     OpenSettings,
     SetTheme(ThemeMode),
     Reload,
+    ToggleAssistant,
+    /// Push-to-talk: start or finish dictating to the assistant.
+    ToggleDictation,
+    NewAssistantThread,
 }
 
 #[derive(Debug, Default)]
