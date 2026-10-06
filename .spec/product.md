@@ -36,4 +36,4 @@ their open tasks number in the tens, rarely hundreds.
 | Requester | The person who asked for the task. |
 | Note | Timestamped entry in a task's activity log. |
 | Agenda | Open tasks grouped by urgency (see [domain.md](domain.md#agenda-buckets)). |
-| Assistant | Any MCP client (Claude Code, Claude Desktop...) using `falog-mcp`. |
+| Assistant | Claude acting on tasks: the in-app assistant dock, or any MCP client using `falog-mcp`. |
