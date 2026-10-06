@@ -55,15 +55,24 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Company colors 
 ## Layout
 
 ```
-┌ native title bar (themed) ──────────────────────────────────────────┐
-│ sidebar │ tab bar: Board · List · Agenda                    🔍 ＋ │ task │
-│ (left   │ toolbar: breadcrumb › view        sort ✓ [search]       │ panel│
-│  dock)  │ view                                                     │(right│
-│         │                                                          │ dock)│
-├─────────┴──────────────────────────────────────────────────────────┴──────┤
-│ status bar: sidebar toggle · counts                   date · ⌘ · ⚙        │
-└───────────────────────────────────────────────────────────────────────────┘
+┌ native title bar (themed) ─────────────────────────────────────────────────────────┐
+│ sidebar │ tab bar: Board · List · Agenda              🔍 ＋ │ task  │ assistant      │
+│ (left   │ toolbar: breadcrumb › view    sort ✓ [search]    │ panel │ thread         │
+│  dock)  │ view                                             │       │ ────────────── │
+│         │                                                  │       │ composer 🎤 ➤  │
+├─────────┴──────────────────────────────────────────────────┴───────┴────────────────┤
+│ status bar: sidebar toggle · counts             listening · ✦ · date · ⌘ · ⚙        │
+└─────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Assistant dock
+
+Modeled on Zed's agent panel. Header (32 px, `tab_bar`) with ✦ title, model name, new thread and
+close. The thread lists user messages (bordered `element` boxes), plain replies (streamed with a ▍
+caret), tool calls as compact bordered cards (spinner → check / warning, action label, first line of
+the result; click opens the task, hover shows the arguments) and errors in `error`. The composer is an
+`editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
+(pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
 
 ## Rules
 
