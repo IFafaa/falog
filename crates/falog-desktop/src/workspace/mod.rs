@@ -4,6 +4,7 @@
 pub mod sidebar;
 pub mod status_bar;
 pub mod tab_bar;
+pub mod task_panel;
 pub mod toolbar;
 
 /// Height shared by the tab bar and dock headers, as in Zed.
