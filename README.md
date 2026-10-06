@@ -17,9 +17,12 @@ it's urgent, needs to ship Friday"* and the task exists, with company, requester
 
 - **Board, List and Agenda views.** Drag cards between *To do*, *In progress*, *Waiting* and *Done*.
   The agenda groups open work into *Overdue*, *Due today*, *Due this week*, and so on.
-- **Built for talking to an assistant.** `falog-mcp` exposes your tasks through the
-  [Model Context Protocol](https://modelcontextprotocol.io), so Claude can create, update, annotate and
-  summarize them. Due dates like "friday", "next week" or "amanhã" are understood.
+- **An assistant you talk to, built in.** Open the assistant dock (`Ctrl+Shift+A`), press `Ctrl+Space`
+  and say what changed: Claude creates, updates and summarizes tasks while the board updates live.
+  Speech is transcribed locally with Whisper, and Claude runs on your own Claude Code login.
+- **Works with any MCP client too.** `falog-mcp` exposes your tasks through the
+  [Model Context Protocol](https://modelcontextprotocol.io). Due dates like "friday", "next week" or
+  "amanhã" are understood.
 - **Several companies, one place.** Each company has a color and a sidebar entry to filter by.
 - **Zed's look and feel.** Same One Dark / One Light palettes, IBM Plex Sans, Lucide icons, a command
   palette (`Ctrl+Shift+P`) and a task finder (`Ctrl+P`).
@@ -33,9 +36,10 @@ it's urgent, needs to ship Friday"* and the task exists, with company, requester
 ## How it works
 
 ```
- you (voice / text) ──► Claude ──► falog-mcp ──┐
-                                               ├──► SQLite  (%APPDATA%\Falog\falog.db)
-                  falog (desktop app)  ◄───────┘    the app reloads when the file changes
+ assistant dock ──► Claude Code (headless) ──┐
+ (speech: Whisper, on device)                ├──► falog-mcp ──┐
+ any MCP client ──► Claude ──────────────────┘                ├──► SQLite (%APPDATA%\Falog\falog.db)
+                       falog (desktop app)  ◄─────────────────┘    the app reloads when the file changes
 ```
 
 The workspace has three crates:
@@ -50,7 +54,10 @@ Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
 
 ## Install (Windows)
 
-Requires [Rust](https://rustup.rs) and the MSVC build tools.
+Requires [Rust](https://rustup.rs) and the MSVC build tools (with CMake). Voice input also needs
+[LLVM](https://llvm.org) at build time (`winget install LLVM.LLVM`); without it the installer builds
+Falog without voice. The assistant dock uses [Claude Code](https://claude.com/claude-code), signed in
+with `claude` once.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
@@ -62,9 +69,14 @@ the assistant workspace to `~\falog-assistant`. `scripts\uninstall.ps1` reverts 
 
 ## Talking to your tasks
 
-Open a Claude Code session in `~\falog-assistant` (its `CLAUDE.md` teaches Claude how to file tasks) or
-just mention tasks in any session, since the server is registered for your user. Dictate with your
-client's microphone or **Win+H**.
+**In Falog:** open the assistant dock with the ✦ button in the status bar or `Ctrl+Shift+A`. Type, or
+press `Ctrl+Space` (or the mic button), speak, and press it again: your words are transcribed on this
+computer and sent. The first time, Falog downloads the Whisper model (~574 MB). Pick the Claude model,
+your voice language and whether dictation sends right away in Settings.
+
+**From Claude Code or another MCP client:** open a session in `~\falog-assistant` (its `CLAUDE.md`
+teaches Claude how to file tasks) or mention tasks in any session, since the server is registered for
+your user.
 
 - *"Got two things from Globex: review Carlos's payments PR today, and upgrade the API to Node 22 by Friday."*
 - *"I'm blocked on the navbar until Lia signs off on the design."*
@@ -82,6 +94,8 @@ Any MCP client works; point it at `falog-mcp.exe`.
 | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` | Board / List / Agenda |
 | `Ctrl+F` | Search |
 | `Ctrl+B` | Toggle sidebar |
+| `Ctrl+Shift+A` | Toggle the assistant |
+| `Ctrl+Space` | Start / finish dictating to the assistant |
 | `Ctrl+S` | Save the task being edited |
 | `Ctrl+,` | Settings |
 | `Esc` | Close the task panel or a dialog |
