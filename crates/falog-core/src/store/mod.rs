@@ -6,6 +6,7 @@
 
 mod companies;
 mod schema;
+mod tasks;
 
 use crate::{Error, Result};
 use rusqlite::Connection;
