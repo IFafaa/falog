@@ -1,0 +1,28 @@
+[package]
+name = "falog-desktop"
+description = "Falog desktop app: a Zed-inspired board, list and agenda for your tasks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "falog"
+path = "src/main.rs"
+
+[dependencies]
+falog-core.workspace = true
+
+anyhow.workspace = true
+chrono.workspace = true
+eframe.workspace = true
+egui_extras.workspace = true
+raw-window-handle.workspace = true
+serde.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winreg.workspace = true
+
+[lints]
+workspace = true
