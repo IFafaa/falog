@@ -4,6 +4,7 @@
 //! connection runs in WAL mode with a busy timeout, and the app polls [`Store::data_version`]
 //! to notice writes made by the other process.
 
+mod companies;
 mod schema;
 
 use crate::{Error, Result};
