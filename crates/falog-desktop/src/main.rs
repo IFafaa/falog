@@ -2,5 +2,6 @@
 
 //! Falog desktop app.
 
+mod fonts;
 
 fn main() {}
