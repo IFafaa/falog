@@ -3,5 +3,6 @@
 //! Falog desktop app.
 
 mod fonts;
+mod icons;
 
 fn main() {}
