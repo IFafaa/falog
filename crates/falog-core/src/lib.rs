@@ -5,6 +5,8 @@ pub mod agenda;
 pub mod date;
 pub mod domain;
 pub mod error;
+pub mod store;
 pub mod text;
 
 pub use error::{Error, Result};
+pub use store::Store;
