@@ -1,6 +1,7 @@
 //! The three ways to look at tasks, shown as tabs.
 
 pub mod board;
+pub mod list;
 
 use crate::icons::Icon;
 use crate::prefs::Prefs;
