@@ -1,0 +1,97 @@
+//! The three ways to look at tasks, shown as tabs.
+
+
+use crate::icons::Icon;
+use crate::prefs::Prefs;
+use crate::theme::Theme;
+use chrono::NaiveDate;
+use falog_core::agenda::{by_urgency, cmp_due};
+use falog_core::domain::{Company, Task, TaskId};
+use falog_core::text::fold;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum View {
+    #[default]
+    Board,
+    List,
+    Agenda,
+}
+
+impl View {
+    pub const ALL: [Self; 3] = [Self::Board, Self::List, Self::Agenda];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Board => "Board",
+            Self::List => "List",
+            Self::Agenda => "Agenda",
+        }
+    }
+
+    pub const fn icon(self) -> Icon {
+        match self {
+            Self::Board => Icon::Board,
+            Self::List => Icon::List,
+            Self::Agenda => Icon::Reader,
+        }
+    }
+
+    pub const fn shortcut(self) -> &'static str {
+        match self {
+            Self::Board => "Ctrl+1",
+            Self::List => "Ctrl+2",
+            Self::Agenda => "Ctrl+3",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SortOrder {
+    #[default]
+    Urgency,
+    DueDate,
+    Company,
+    Newest,
+}
+
+impl SortOrder {
+    pub const ALL: [Self; 4] = [Self::Urgency, Self::DueDate, Self::Company, Self::Newest];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Urgency => "Urgency",
+            Self::DueDate => "Due date",
+            Self::Company => "Company",
+            Self::Newest => "Newest",
+        }
+    }
+
+    pub fn sort(self, tasks: &mut [&Task]) {
+        match self {
+            Self::Urgency => tasks.sort_by(|a, b| by_urgency(a, b)),
+            Self::DueDate => tasks.sort_by(|a, b| cmp_due(a.due, b.due).then_with(|| by_urgency(a, b))),
+            Self::Company => tasks.sort_by(|a, b| {
+                fold(a.company_name())
+                    .cmp(&fold(b.company_name()))
+                    .then_with(|| by_urgency(a, b))
+            }),
+            Self::Newest => tasks.sort_by_key(|t| std::cmp::Reverse(t.id)),
+        }
+    }
+}
+
+/// Read-only state shared by every view for one frame.
+#[derive(Debug)]
+pub struct ViewCx<'a> {
+    pub theme: &'static Theme,
+    pub today: NaiveDate,
+    /// Tasks after the company filter and search.
+    pub tasks: &'a [Task],
+    pub companies: &'a [Company],
+    pub prefs: &'a Prefs,
+    /// The task open in the side panel.
+    pub selected: Option<TaskId>,
+    /// Whether any task exists at all, to tell "empty" from "filtered out".
+    pub has_any_task: bool,
+}

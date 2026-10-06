@@ -2,10 +2,13 @@
 
 //! Falog desktop app.
 
+mod action;
 mod components;
 mod fonts;
 mod icons;
 mod platform;
+mod prefs;
 mod theme;
+mod views;
 
 fn main() {}
