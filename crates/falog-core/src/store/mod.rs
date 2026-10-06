@@ -39,8 +39,14 @@ impl Store {
         Self::open(default_path())
     }
 
+    /// Opens (creating if needed) the database at `path`. The path is made absolute so other
+    /// processes started from a different directory (the assistant's MCP server) find the same file.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
+        let path = std::path::absolute(path.as_ref()).map_err(|source| Error::DataDir {
+            path: path.as_ref().to_path_buf(),
+            source,
+        })?;
+        let path = path.as_path();
         if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
             std::fs::create_dir_all(dir).map_err(|source| Error::DataDir {
                 path: dir.to_path_buf(),
@@ -71,5 +77,28 @@ impl Store {
     /// Changes whenever *another* connection commits to the database.
     pub fn data_version(&self) -> Result<i64> {
         Ok(self.conn.query_row("PRAGMA data_version", [], |r| r.get(0))?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remembers_an_absolute_path() {
+        let name = format!("falog-store-test-{}.db", std::process::id());
+        let dir = std::env::temp_dir();
+        let previous = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+        let store = Store::open(&name);
+        std::env::set_current_dir(previous).unwrap();
+
+        let store = store.unwrap();
+        assert!(store.path().unwrap().is_absolute());
+        assert_eq!(store.path().unwrap(), dir.join(&name));
+        drop(store);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(dir.join(format!("{name}{suffix}")));
+        }
     }
 }
