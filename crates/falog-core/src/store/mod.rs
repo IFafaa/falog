@@ -5,6 +5,7 @@
 //! to notice writes made by the other process.
 
 mod companies;
+mod notes;
 mod schema;
 mod tasks;
 
