@@ -2,6 +2,7 @@
 
 //! Falog desktop app.
 
+mod components;
 mod fonts;
 mod icons;
 mod platform;
