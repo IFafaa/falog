@@ -1,5 +1,6 @@
 //! The three ways to look at tasks, shown as tabs.
 
+pub mod agenda;
 pub mod board;
 pub mod list;
 
