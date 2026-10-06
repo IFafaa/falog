@@ -4,5 +4,6 @@
 
 mod fonts;
 mod icons;
+mod theme;
 
 fn main() {}
