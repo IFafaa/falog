@@ -2,3 +2,4 @@
 
 pub mod autostart;
 pub mod single_instance;
+pub mod title_bar;
