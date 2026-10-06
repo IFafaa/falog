@@ -6,6 +6,7 @@ mod action;
 mod components;
 mod fonts;
 mod icons;
+mod overlays;
 mod platform;
 mod prefs;
 mod theme;
