@@ -61,6 +61,7 @@ src/
   main.rs        single instance, window options, run loop
   app.rs         FalogApp: state, per-frame layout, action handling, persistence of prefs
   action.rs      Action enum: user intents emitted by widgets
+  assistant/     assistant dock: Claude Code session, voice capture + Whisper, panel UI
   prefs.rs       persisted UI preferences
   theme.rs       Zed color tokens -> egui visuals
   fonts.rs, icons.rs
@@ -74,11 +75,28 @@ src/
 ### Frame flow
 
 1. `poll()` checks `PRAGMA data_version` every 800 ms and reloads when another process wrote.
-2. Panels are laid out in a fixed order: status bar, sidebar (left dock), task panel (right dock),
-   tab bar, toolbar, central view, then overlays.
+2. Panels are laid out in a fixed order: status bar, sidebar (left dock), assistant (outer right
+   dock), task panel (right dock), tab bar, toolbar, central view, then overlays.
 3. Widgets never mutate app data. They push `Action`s (or return events such as `PanelEvent`); the app
    applies them after drawing. This keeps rendering free of borrow conflicts and side effects.
 4. Every write goes through `FalogApp::write`, which reloads data on success and shows a toast on error.
+
+### Assistant
+
+The assistant dock talks to **Claude Code in headless mode** on the user's own login (no API key):
+one long-lived `claude --print --input-format stream-json --output-format stream-json` process per
+conversation (`assistant/claude.rs`). Built-in tools are disabled (`--tools ""`); the only tools are
+those of a `falog-mcp` child with `FALOG_DB` set to the app's database (`--strict-mcp-config
+--allowedTools mcp__falog --permission-mode dontAsk --setting-sources ""`). The system prompt is
+`assets/assistant-prompt.md`; the working directory is `<data dir>/assistant`, so no project
+`CLAUDE.md` leaks in. A reader thread maps stream-json lines to `ClaudeEvent`s (text deltas, tool use and
+results, turn end, exit). Stopping kills the process; the next message resumes the conversation with
+`--resume <session>`. When a tool result arrives the app syncs immediately instead of waiting for the poll.
+
+Voice (`assistant/voice.rs`): `cpal` records the default microphone, mixes to mono and resamples to
+16 kHz; a worker thread runs whisper.cpp (`whisper-rs`, model `ggml-large-v3-turbo-q5_0.bin` in
+`<data dir>/models`, downloaded on first use) and unloads it after 5 idle minutes. Whisper sits behind the
+`whisper` cargo feature (default on) because it needs CMake and libclang to build.
 
 ### OS integration
 
