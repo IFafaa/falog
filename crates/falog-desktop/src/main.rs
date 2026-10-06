@@ -4,6 +4,7 @@
 
 mod action;
 mod app;
+mod assistant;
 mod components;
 mod fonts;
 mod icons;
