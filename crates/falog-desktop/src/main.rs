@@ -10,5 +10,6 @@ mod platform;
 mod prefs;
 mod theme;
 mod views;
+mod workspace;
 
 fn main() {}
