@@ -1,6 +1,7 @@
 //! The window chrome around the views, laid out like a Zed workspace: a left dock (sidebar),
 //! a right dock (task panel), a tab bar with a breadcrumb toolbar, and a status bar.
 
+pub mod sidebar;
 pub mod status_bar;
 pub mod tab_bar;
 pub mod toolbar;
