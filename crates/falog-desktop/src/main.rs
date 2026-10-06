@@ -4,6 +4,7 @@
 
 mod fonts;
 mod icons;
+mod platform;
 mod theme;
 
 fn main() {}
