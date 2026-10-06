@@ -1,0 +1,35 @@
+# Falog: guide for AI assistants and contributors
+
+Falog is a local-first task board for developers who work for several companies at once. Tasks are
+filed by talking to an AI assistant through an MCP server, and shown in a Zed-inspired desktop app.
+Everything is Rust; data lives in one SQLite file.
+
+This folder (`.spec/`) is the source of truth for how the project works and how to change it.
+Read the spec for the area you are touching **before** writing code, and update it in the same change
+when behavior or structure changes.
+
+| Spec | Read it when you... |
+|---|---|
+| [product.md](product.md) | need the why: users, goals, non-goals, vocabulary |
+| [architecture.md](architecture.md) | add a module or crate, touch persistence, sync or startup |
+| [domain.md](domain.md) | change tasks, statuses, priorities, dates or the agenda |
+| [mcp.md](mcp.md) | add or change an MCP tool or its output |
+| [design-system.md](design-system.md) | build or restyle any UI |
+| [conventions.md](conventions.md) | write code, tests or commits (always) |
+| [roadmap.md](roadmap.md) | pick the next thing to build |
+| [tasks/](tasks/README.md) | plan a feature: one spec file per task |
+
+## Commands
+
+```powershell
+cargo fmt --all                          # format
+cargo clippy --workspace --all-targets   # lint (CI denies warnings)
+cargo test --workspace                   # tests
+cargo run -p falog-desktop               # run the app (FALOG_DB=path to use another database)
+.\scripts\seed-demo.ps1                  # demo data in target\demo.db
+.\scripts\install.ps1                    # release build + install for the current user
+```
+
+## Rules that always apply
+
+@conventions.md
