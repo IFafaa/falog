@@ -202,6 +202,24 @@ impl CommandPalette {
             Action::ToggleSidebar,
         ));
         items.push(command(
+            Icon::Sparkle,
+            "assistant: toggle panel".into(),
+            Some("Ctrl+Shift+A"),
+            Action::ToggleAssistant,
+        ));
+        items.push(command(
+            Icon::Mic,
+            "assistant: dictate".into(),
+            Some("Ctrl+Space"),
+            Action::ToggleDictation,
+        ));
+        items.push(command(
+            Icon::Plus,
+            "assistant: new thread".into(),
+            None,
+            Action::NewAssistantThread,
+        ));
+        items.push(command(
             Icon::Search,
             "workspace: focus search".into(),
             Some("Ctrl+F"),
