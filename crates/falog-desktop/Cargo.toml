@@ -16,13 +16,23 @@ falog-core.workspace = true
 
 anyhow.workspace = true
 chrono.workspace = true
+cpal.workspace = true
+dirs.workspace = true
 eframe.workspace = true
 egui_extras.workspace = true
 raw-window-handle.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+ureq.workspace = true
+whisper-rs = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true
+
+[features]
+default = ["whisper"]
+# Local speech recognition. Needs CMake and LLVM (libclang) at build time.
+whisper = ["dep:whisper-rs"]
 
 [lints]
 workspace = true
