@@ -1,0 +1,95 @@
+use serde_json::{Value, json};
+
+/// Tool definitions returned by `tools/list`.
+pub fn catalog() -> Value {
+    let task_id = json!({
+        "type": ["integer", "string"],
+        "description": "Task id, e.g. 12 or \"#12\""
+    });
+    let status = json!({
+        "type": "string",
+        "enum": ["todo", "in_progress", "waiting", "done"],
+        "description": "waiting = blocked on someone else (review, an answer, a deploy)"
+    });
+    let priority = json!({ "type": "string", "enum": ["low", "medium", "high", "urgent"] });
+
+    json!([
+        {
+            "name": "get_agenda",
+            "description": "What needs attention: overdue, due today, due this week, in progress, waiting, upcoming, backlog, plus tasks completed in the last 7 days. Use it when the user wants to catch up or plan their day/week.",
+            "inputSchema": { "type": "object", "properties": {
+                "company": { "type": "string", "description": "Only this company" }
+            }}
+        },
+        {
+            "name": "list_companies",
+            "description": "Registered companies with their number of open tasks.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "create_company",
+            "description": "Registers a new company. Only when the user confirms it is new (not a nickname of an existing one).",
+            "inputSchema": { "type": "object", "properties": {
+                "name": { "type": "string" },
+                "color": { "type": "string", "description": "Optional hex color, e.g. #74ade8" }
+            }, "required": ["name"] }
+        },
+        {
+            "name": "create_task",
+            "description": "Creates a task and returns it with its id.",
+            "inputSchema": { "type": "object", "properties": {
+                "title": { "type": "string", "description": "Short and actionable, starting with a verb, e.g. 'Fix Google login on Android'" },
+                "company": { "type": "string", "description": "Company name or a unique part of it; must already exist" },
+                "description": { "type": "string", "description": "Full context: what was asked, details, links, acceptance criteria, open questions. Keep everything that helps the user remember later." },
+                "priority": priority,
+                "due_date": { "type": "string", "description": "YYYY-MM-DD (also accepts 'today', 'tomorrow', 'friday', DD/MM)" },
+                "requester": { "type": "string", "description": "Who asked for it" },
+                "status": status
+            }, "required": ["title"] }
+        },
+        {
+            "name": "update_task",
+            "description": "Changes only the given fields. Use status=done to complete a task. Can append a note to the activity log in the same call.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": task_id,
+                "title": { "type": "string" },
+                "company": { "type": "string", "description": "New company; empty string removes it" },
+                "description": { "type": "string", "description": "Replaces the whole description" },
+                "priority": priority,
+                "due_date": { "type": "string", "description": "YYYY-MM-DD; empty string removes the due date" },
+                "requester": { "type": "string" },
+                "status": status,
+                "note": { "type": "string", "description": "Entry for the activity log, e.g. 'client changed the scope: ...'" }
+            }, "required": ["id"] }
+        },
+        {
+            "name": "add_note",
+            "description": "Adds a timestamped note to a task's activity log (progress, decisions, new information) without touching the description.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": task_id,
+                "note": { "type": "string" }
+            }, "required": ["id", "note"] }
+        },
+        {
+            "name": "list_tasks",
+            "description": "Lists or searches tasks. Open tasks only unless include_done or status=done.",
+            "inputSchema": { "type": "object", "properties": {
+                "company": { "type": "string" },
+                "status": status,
+                "search": { "type": "string", "description": "Matches title, description, requester or company" },
+                "include_done": { "type": "boolean" },
+                "limit": { "type": "integer", "description": "Default 100" }
+            }}
+        },
+        {
+            "name": "get_task",
+            "description": "All details of a task, including its description and activity log.",
+            "inputSchema": { "type": "object", "properties": { "id": task_id }, "required": ["id"] }
+        },
+        {
+            "name": "delete_task",
+            "description": "Permanently deletes a task. Prefer status=done for finished work; delete only when the user asks (e.g. created by mistake).",
+            "inputSchema": { "type": "object", "properties": { "id": task_id }, "required": ["id"] }
+        }
+    ])
+}
