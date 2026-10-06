@@ -3,6 +3,7 @@
 //! Falog desktop app.
 
 mod action;
+mod app;
 mod components;
 mod fonts;
 mod icons;
@@ -13,4 +14,40 @@ mod theme;
 mod views;
 mod workspace;
 
-fn main() {}
+use app::FalogApp;
+use eframe::egui;
+use falog_core::Store;
+use platform::single_instance::{self, Claim};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
+fn main() -> eframe::Result {
+    let listener = match single_instance::claim() {
+        Claim::AlreadyRunning => return Ok(()),
+        Claim::Primary(listener) => Some(listener),
+        Claim::Unavailable => None,
+    };
+
+    let store = Store::open_default();
+    let show_requested = Arc::new(AtomicBool::new(false));
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_title("Falog")
+            .with_app_id("falog")
+            .with_inner_size([1360.0, 840.0])
+            .with_min_inner_size([820.0, 520.0])
+            .with_icon(icons::app_icon()),
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "Falog",
+        options,
+        Box::new(move |cc| {
+            if let Some(listener) = listener {
+                single_instance::listen(listener, cc.egui_ctx.clone(), show_requested.clone());
+            }
+            Ok(Box::new(FalogApp::new(cc, store, show_requested)))
+        }),
+    )
+}
