@@ -29,6 +29,9 @@ whisper-rs = { workspace = true, optional = true }
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true
 
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 [features]
 default = ["whisper"]
 # Local speech recognition. Needs CMake and LLVM (libclang) at build time.
