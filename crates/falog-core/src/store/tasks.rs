@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn creates_and_reads_back_all_fields() {
         let store = store();
-        let area = store.create_area("Acme", None).unwrap();
+        let area = store.create_area("Work", None).unwrap();
         let due = NaiveDate::from_ymd_opt(2026, 10, 9);
         let task = store
             .create_task(&NewTask {
@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn deleting_a_area_keeps_its_tasks() {
         let store = store();
-        let area = store.create_area("Acme", None).unwrap();
+        let area = store.create_area("Work", None).unwrap();
         let task = store
             .create_task(&NewTask {
                 area_id: Some(area.id),

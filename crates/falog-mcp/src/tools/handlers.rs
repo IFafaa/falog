@@ -47,7 +47,7 @@ fn list_areas(store: &Store) -> Result<String> {
     let areas = store.areas()?;
     if areas.is_empty() {
         return Ok(
-            "No areas yet. Ask the user what to track (each employer or client, Personal, Health...) and call create_area.".into(),
+            "No areas yet. Ask the user what to track (Work, Personal, Health, Home...) and call create_area.".into(),
         );
     }
     let tasks = store.tasks()?;

@@ -86,7 +86,7 @@ impl Store {
     }
 
     /// Resolves an area from a name or a unique fragment of it, ignoring case and accents
-    /// (`"acme"` finds `"Acme Café"`).
+    /// (`"work"` finds `"Work Café"`).
     pub fn find_area(&self, query: &str) -> Result<Area> {
         let needle = fold(query);
         let areas = self.areas()?;
@@ -125,12 +125,12 @@ mod tests {
     #[test]
     fn creates_with_palette_colors_and_rejects_duplicates() {
         let store = store();
-        let a = store.create_area("Acme Café", None).unwrap();
-        let b = store.create_area("Globex", None).unwrap();
+        let a = store.create_area("Work Café", None).unwrap();
+        let b = store.create_area("Home", None).unwrap();
         assert_eq!(a.color, PALETTE[0]);
         assert_eq!(b.color, PALETTE[1]);
         assert!(matches!(
-            store.create_area("acme cafe", None),
+            store.create_area("work cafe", None),
             Err(Error::DuplicateArea(_))
         ));
         assert!(store.create_area("  ", None).is_err());
@@ -139,12 +139,12 @@ mod tests {
     #[test]
     fn finds_by_fragment_ignoring_accents() {
         let store = store();
-        let acme = store.create_area("Acme Café", None).unwrap();
-        store.create_area("Globex", None).unwrap();
-        assert_eq!(store.find_area("ACME CAFE").unwrap(), acme);
-        assert_eq!(store.find_area("acme").unwrap(), acme);
+        let work = store.create_area("Work Café", None).unwrap();
+        store.create_area("Home", None).unwrap();
+        assert_eq!(store.find_area("WORK CAFE").unwrap(), work);
+        assert_eq!(store.find_area("work").unwrap(), work);
         assert!(matches!(
-            store.find_area("initech"),
+            store.find_area("studies"),
             Err(Error::AreaNotFound { .. })
         ));
     }
@@ -152,10 +152,10 @@ mod tests {
     #[test]
     fn reports_ambiguous_fragments() {
         let store = store();
-        store.create_area("Acme Labs", None).unwrap();
-        store.create_area("Acme Retail", None).unwrap();
+        store.create_area("Work Projects", None).unwrap();
+        store.create_area("Work Admin", None).unwrap();
         assert!(matches!(
-            store.find_area("acme"),
+            store.find_area("work"),
             Err(Error::AmbiguousArea { .. })
         ));
     }
@@ -163,8 +163,8 @@ mod tests {
     #[test]
     fn updates_and_deletes() {
         let store = store();
-        let area = store.create_area("Acme", None).unwrap();
-        let renamed = store.update_area(area.id, "Acme Inc", PALETTE[3]).unwrap();
+        let area = store.create_area("Work", None).unwrap();
+        let renamed = store.update_area(area.id, "Office", PALETTE[3]).unwrap();
         assert_eq!(store.area(area.id).unwrap(), Some(renamed));
         store.delete_area(area.id).unwrap();
         assert!(store.areas().unwrap().is_empty());

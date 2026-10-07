@@ -51,7 +51,7 @@ impl AreasDialog {
                 .inner_margin(Margin::symmetric(16.0, 12.0))
                 .show(ui, |ui| {
                     ui.label(
-                        RichText::new("Employers, clients and parts of your personal life. The color marks their tasks everywhere.")
+                        RichText::new("The parts of your life you organize: work, personal, health, home... The color marks their tasks everywhere.")
                             .size(13.0)
                             .color(theme.text_muted),
                     );

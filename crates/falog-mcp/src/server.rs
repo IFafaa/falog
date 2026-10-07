@@ -5,9 +5,9 @@ use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
 
 /// Sent to the client on `initialize`; assistants use it as guidance for the whole session.
-const INSTRUCTIONS: &str = "Falog is the user's personal task tracker; they are a developer working for \
-several companies at once who also tracks personal tasks and appointments, and they usually dictate by \
-voice. Tasks belong to areas: one per employer or client, plus personal ones (Personal, Health...). When \
+const INSTRUCTIONS: &str = "Falog is the user's personal organizer: tasks, errands and appointments for \
+work and personal life, usually dictated by voice. Tasks belong to areas the user chose (Work, Personal, \
+Health, Home...). When \
 they describe a request (\"I got a task\", \"so-and-so asked\", \"I need to\", \"I have a doctor's \
 appointment\"), call create_task with a short actionable title, the area, a \
 description that keeps ALL the context they gave, the requester, the due date as YYYY-MM-DD (resolve \
@@ -173,16 +173,16 @@ mod tests {
     #[test]
     fn creates_updates_and_reads_tasks() {
         let server = server();
-        call(&server, 1, "create_area", json!({ "name": "Acme Café" }));
+        call(&server, 1, "create_area", json!({ "name": "Work Café" }));
         let created = call(
             &server,
             2,
             "create_task",
-            json!({ "title": "Fix Google login", "area": "acme", "priority": "high",
+            json!({ "title": "Fix Google login", "area": "work", "priority": "high",
                     "due_date": "2026-10-09", "requester": "Ana" }),
         );
         assert!(
-            text(&created).starts_with("Created #1 [Acme Café] Fix Google login"),
+            text(&created).starts_with("Created #1 [Work Café] Fix Google login"),
             "{}",
             text(&created)
         );
@@ -203,19 +203,19 @@ mod tests {
     #[test]
     fn recolors_and_renames_areas() {
         let server = server();
-        call(&server, 1, "create_area", json!({ "name": "Globex" }));
+        call(&server, 1, "create_area", json!({ "name": "Home" }));
         let updated = call(
             &server,
             2,
             "update_area",
-            json!({ "area": "globex", "color": "#39ff14" }),
+            json!({ "area": "home", "color": "#39ff14" }),
         );
-        assert_eq!(text(&updated), "Updated area Globex (#39ff14)");
+        assert_eq!(text(&updated), "Updated area Home (#39ff14)");
         let renamed = call(
             &server,
             3,
             "update_area",
-            json!({ "area": "glob", "name": "House" }),
+            json!({ "area": "hom", "name": "House" }),
         );
         assert_eq!(text(&renamed), "Updated area House (#39ff14)");
         let bad = call(

@@ -28,7 +28,7 @@ pub fn catalog() -> Value {
         },
         {
             "name": "create_area",
-            "description": "Registers a new area: an employer, a client or a part of personal life (Personal, Health, Home...). Only when the user confirms it is new (not a nickname of an existing one).",
+            "description": "Registers a new area, a part of the user's life (Work, Personal, Health, Home...). Only when the user confirms it is new (not a nickname of an existing one).",
             "inputSchema": { "type": "object", "properties": {
                 "name": { "type": "string" },
                 "color": { "type": "string", "description": "Optional hex color, e.g. #74ade8" }

@@ -260,7 +260,7 @@ mod tests {
         fs::create_dir_all(old.join("models")).unwrap();
         fs::write(old.join("models").join("model.bin"), "weights").unwrap();
         let store = Store::open(old.join(DATABASE_FILE)).unwrap();
-        store.create_area("Acme", None).unwrap();
+        store.create_area("Work", None).unwrap();
         drop(store);
         let preferences = root.join("eframe").join(PREFERENCES_FILE);
         fs::create_dir_all(preferences.parent().unwrap()).unwrap();
@@ -284,7 +284,7 @@ mod tests {
 
         migrate(&home, &legacy, Duration::ZERO).unwrap();
 
-        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Acme"]);
+        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Work"]);
         let old = legacy.home.as_ref().unwrap();
         assert!(!old.join(DATABASE_FILE).exists());
         assert!(old.join(MOVED_DATABASE_FILE).exists());
@@ -306,14 +306,14 @@ mod tests {
         let root = TempDir::new("wal");
         let legacy = old_layout(&root.0);
         let old_store = Store::open(legacy.home.as_ref().unwrap().join(DATABASE_FILE)).unwrap();
-        old_store.create_area("Globex", None).unwrap();
+        old_store.create_area("Home", None).unwrap();
         let home = root.0.join(".falog");
 
         migrate(&home, &legacy, Duration::ZERO).unwrap();
 
         let mut names = area_names(&home.join(DATABASE_FILE));
         names.sort();
-        assert_eq!(names, ["Acme", "Globex"]);
+        assert_eq!(names, ["Home", "Work"]);
     }
 
     #[test]
@@ -361,7 +361,7 @@ mod tests {
 
         migrate(&home, &legacy, Duration::ZERO).unwrap();
 
-        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Acme"]);
+        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Work"]);
     }
 
     #[test]
@@ -378,7 +378,7 @@ mod tests {
         });
 
         assert!(results.iter().all(Result::is_ok), "{results:?}");
-        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Acme"]);
+        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Work"]);
         assert!(home.join("models").join("model.bin").exists());
     }
 

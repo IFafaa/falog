@@ -25,7 +25,7 @@ const ZOOMED_WIDTH: f32 = 820.0;
 
 const EXAMPLES: [&str; 3] = [
     "What's on my plate today?",
-    "Ana from Acme asked me to fix the Google sign-in on Android, it's urgent, due Friday",
+    "Remind me to renew the car insurance by Friday, it's important",
     "I finished the payments PR review",
 ];
 
@@ -953,7 +953,7 @@ mod tests {
     #[test]
     fn finds_the_first_task_id() {
         assert_eq!(
-            first_task_id("Created #12 [Acme] Fix login — High"),
+            first_task_id("Created #12 [Work] Fix login — High"),
             Some(TaskId(12))
         );
         assert_eq!(first_task_id("Color #74ade8 and task #3"), Some(TaskId(3)));

@@ -648,7 +648,7 @@ mod tests {
     fn a_refresh_keeps_what_it_did_not_or_could_not_fetch() {
         let mut state = CalendarState::new(None);
         state.config.upsert(Account {
-            email: "me@acme.com".into(),
+            email: "me@work.com".into(),
             refresh_token: "t".into(),
             calendars: Vec::new(),
             needs_sign_in: false,
@@ -670,7 +670,7 @@ mod tests {
             .id
             .clone();
         state.cache.events = vec![
-            event("me@acme.com", "me@acme.com", "Account meeting"),
+            event("me@work.com", "me@work.com", "Account meeting"),
             event("", &work, "Old work"),
             event("", &home, "Old home"),
         ];

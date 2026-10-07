@@ -457,11 +457,8 @@ mod tests {
 
     #[test]
     fn parses_text_deltas_and_ignores_other_stream_events() {
-        let delta = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Globex has"}}}"#;
-        assert_eq!(
-            parse_line(delta),
-            vec![AgentEvent::TextDelta("Globex has".into())]
-        );
+        let delta = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Home has"}}}"#;
+        assert_eq!(parse_line(delta), vec![AgentEvent::TextDelta("Home has".into())]);
         let thinking = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"..."}}}"#;
         assert!(parse_line(thinking).is_empty());
     }

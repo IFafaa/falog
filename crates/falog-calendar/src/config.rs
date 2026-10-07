@@ -339,24 +339,24 @@ mod tests {
     #[test]
     fn each_email_has_one_area_and_an_area_many_emails() {
         let mut config = CalendarConfig::default();
-        config.upsert(account("me@acme.example", vec![calendar("work", true)]));
+        config.upsert(account("me@work.example", vec![calendar("work", true)]));
         config.upsert(account("me@gmail.example", vec![calendar("home", true)]));
-        config.upsert(account("me@globex.example", vec![calendar("med", true)]));
+        config.upsert(account("me@home.example", vec![calendar("home", true)]));
         config
             .add_link("Team", "https://example.com/team.ics", None)
             .unwrap();
         let link = config.links[0].calendar.id.clone();
 
-        config.set_area("me@acme.example", Some(1));
-        config.set_area("me@globex.example", Some(1));
+        config.set_area("me@work.example", Some(1));
+        config.set_area("me@home.example", Some(1));
         config.set_area(&link, Some(2));
-        config.set_area("me@acme.example", Some(3));
+        config.set_area("me@work.example", Some(3));
         let emails: Vec<&str> = config
             .accounts_of_area(1)
             .iter()
             .map(|a| a.email.as_str())
             .collect();
-        assert_eq!(emails, vec!["me@globex.example"]);
+        assert_eq!(emails, vec!["me@home.example"]);
 
         let event = |account: &str, calendar: &str| Event {
             account: account.into(),
@@ -371,16 +371,16 @@ mod tests {
             join_link: None,
             html_link: None,
         };
-        assert_eq!(config.area_of(&event("me@acme.example", "work")), Some(3));
+        assert_eq!(config.area_of(&event("me@work.example", "work")), Some(3));
         assert_eq!(config.area_of(&event("", &link)), Some(2));
         assert_eq!(config.area_of(&event("me@gmail.example", "home")), None);
 
         // Reconnecting brings a fresh account from Google; the area stays.
-        config.upsert(account("me@acme.example", vec![calendar("work", true)]));
-        assert_eq!(config.area_of(&event("me@acme.example", "work")), Some(3));
+        config.upsert(account("me@work.example", vec![calendar("work", true)]));
+        assert_eq!(config.area_of(&event("me@work.example", "work")), Some(3));
 
         config.forget_area(3);
-        assert_eq!(config.area_of(&event("me@acme.example", "work")), None);
+        assert_eq!(config.area_of(&event("me@work.example", "work")), None);
         assert_eq!(config.accounts_of_area(1).len(), 1);
     }
 
@@ -388,17 +388,17 @@ mod tests {
     fn reconnecting_keeps_calendar_choices() {
         let mut config = CalendarConfig::default();
         config.upsert(account(
-            "me@acme.com",
+            "me@work.com",
             vec![calendar("work", true), calendar("team", true)],
         ));
-        config.set_visible("me@acme.com", "team", false);
+        config.set_visible("me@work.com", "team", false);
         config.upsert(account(
-            "me@acme.com",
+            "me@work.com",
             vec![calendar("work", true), calendar("team", true)],
         ));
         assert_eq!(config.accounts.len(), 1);
-        assert!(!config.calendar("me@acme.com", "team").unwrap().visible);
-        assert!(config.remove("me@acme.com").is_some());
+        assert!(!config.calendar("me@work.com", "team").unwrap().visible);
+        assert!(config.remove("me@work.com").is_some());
         assert!(config.accounts.is_empty());
     }
 
@@ -422,8 +422,8 @@ mod tests {
 
     #[test]
     fn files_without_links_still_load() {
-        let old = r##"{ "client": { "id": "id", "secret": "s" }, "accounts": [ { "email": "me@acme.com",
-            "refresh_token": "t", "calendars": [ { "id": "me@acme.com", "name": "Acme",
+        let old = r##"{ "client": { "id": "id", "secret": "s" }, "accounts": [ { "email": "me@work.com",
+            "refresh_token": "t", "calendars": [ { "id": "me@work.com", "name": "Work",
             "color": "#9fe1e7", "primary": true, "visible": true } ] } ] }"##;
         let config: CalendarConfig = serde_json::from_str(old).unwrap();
         assert_eq!(config.accounts.len(), 1);
@@ -433,7 +433,7 @@ mod tests {
     #[test]
     fn links_get_ids_and_unused_colors_and_round_trip() {
         let mut config = CalendarConfig::default();
-        config.upsert(account("me@acme.com", vec![calendar("work", true)]));
+        config.upsert(account("me@work.com", vec![calendar("work", true)]));
         let url = "https://calendar.google.com/calendar/ical/me%40gmail.com/private-s3cr3t/basic.ics";
         let link = config.add_link(" Personal ", url, None).unwrap().clone();
         assert!(link.calendar.id.starts_with("link-"));
@@ -448,7 +448,7 @@ mod tests {
         assert_ne!(second.calendar.id, link.calendar.id);
 
         assert_eq!(config.calendar("", &link.calendar.id), Some(&link.calendar));
-        assert_eq!(config.calendar("me@acme.com", &link.calendar.id), None);
+        assert_eq!(config.calendar("me@work.com", &link.calendar.id), None);
         assert!(!format!("{link:?}").contains("s3cr3t"));
 
         let json = serde_json::to_string(&config).unwrap();

@@ -333,17 +333,17 @@ mod tests {
     #[test]
     fn parses_calendars() {
         let json = json!({ "items": [
-            { "id": "me@acme.com", "summary": "me@acme.com", "summaryOverride": "Acme",
+            { "id": "me@work.com", "summary": "me@work.com", "summaryOverride": "Work",
               "backgroundColor": "#9fe1e7", "primary": true, "selected": true },
             { "id": "holidays", "summary": "Holidays in Brazil", "backgroundColor": "#16a765" },
             { "id": "gone", "summary": "Old", "deleted": true },
         ]});
         let calendars = parse_calendars(&json);
         assert_eq!(calendars.len(), 2);
-        assert_eq!(calendars[0].name, "Acme");
+        assert_eq!(calendars[0].name, "Work");
         assert!(calendars[0].primary && calendars[0].visible);
         assert!(!calendars[1].visible);
-        assert_eq!(account_email(&calendars), Some("me@acme.com"));
+        assert_eq!(account_email(&calendars), Some("me@work.com"));
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod tests {
             { "id": "e", "summary": "Declined", "attendees": [ { "self": true, "responseStatus": "declined" } ],
               "start": { "date": "2026-10-09" }, "end": { "date": "2026-10-10" } },
         ]});
-        let events = parse_events(&json, "me@acme.com", "primary");
+        let events = parse_events(&json, "me@work.com", "primary");
         assert_eq!(events.len(), 2);
 
         let standup = &events[0];

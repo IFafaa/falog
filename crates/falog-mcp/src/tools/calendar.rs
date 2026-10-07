@@ -406,14 +406,14 @@ mod tests {
     #[test]
     fn picks_the_account_of_an_area() {
         let store = Store::open_in_memory().unwrap();
-        let acme = store.create_area("Acme", None).unwrap();
-        let med = store.create_area("Globex", None).unwrap();
-        store.create_area("Initech", None).unwrap();
+        let work = store.create_area("Work", None).unwrap();
+        let home = store.create_area("Home", None).unwrap();
+        store.create_area("Studies", None).unwrap();
         let config = CalendarConfig {
             accounts: vec![
-                account("me@acme.example", Some(acme.id.0)),
-                account("me@med.example", Some(med.id.0)),
-                account("me@med2.example", Some(med.id.0)),
+                account("me@work.example", Some(work.id.0)),
+                account("me@home.example", Some(home.id.0)),
+                account("me@home2.example", Some(home.id.0)),
                 account("me@gmail.example", None),
             ],
             ..CalendarConfig::default()
@@ -421,16 +421,16 @@ mod tests {
         let pick = |area: Option<&str>, calendar: Option<&str>| {
             target_account(&store, &config, area, calendar).map(|a| a.email.clone())
         };
-        assert_eq!(pick(Some("acme"), None).unwrap(), "me@acme.example");
+        assert_eq!(pick(Some("work"), None).unwrap(), "me@work.example");
         assert!(
-            pick(Some("globex"), None)
+            pick(Some("home"), None)
                 .unwrap_err()
                 .to_string()
                 .contains("several accounts")
         );
-        assert_eq!(pick(Some("globex"), Some("med2")).unwrap(), "me@med2.example");
+        assert_eq!(pick(Some("home"), Some("home2")).unwrap(), "me@home2.example");
         assert!(
-            pick(Some("initech"), None)
+            pick(Some("studies"), None)
                 .unwrap_err()
                 .to_string()
                 .contains("no Google account is linked")
@@ -442,7 +442,7 @@ mod tests {
                 .contains("pass the area or the calendar")
         );
         assert!(
-            pick(None, Some("med"))
+            pick(None, Some("home"))
                 .unwrap_err()
                 .to_string()
                 .contains("several accounts")
@@ -451,7 +451,7 @@ mod tests {
 
     #[test]
     fn finds_the_owner_of_a_calendar() {
-        let mut work = account("me@acme.example", None);
+        let mut work = account("me@work.example", None);
         work.calendars.push(Calendar {
             id: "team@group.calendar.google.com".into(),
             name: "Team".into(),
@@ -465,7 +465,7 @@ mod tests {
         };
         assert_eq!(
             owner(&config, "team@group.calendar.google.com").unwrap().email,
-            "me@acme.example"
+            "me@work.example"
         );
         assert_eq!(
             owner(&config, "me@gmail.example").unwrap().email,
@@ -490,8 +490,8 @@ mod tests {
     fn writes_one_line_per_event_with_its_address() {
         let day = NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();
         let event = Event {
-            account: "me@acme.example".into(),
-            calendar_id: "me@acme.example".into(),
+            account: "me@work.example".into(),
+            calendar_id: "me@work.example".into(),
             id: "abc".into(),
             ical_uid: String::new(),
             title: "Call with Ana".into(),
@@ -503,9 +503,9 @@ mod tests {
             html_link: None,
         };
         assert_eq!(
-            event_line(&event, Some("Acme")),
-            "Thu Oct 8 15:00–15:30 · Call with Ana [Acme] · join https://meet.google.com/x \
-             (calendar: me@acme.example, id: abc)"
+            event_line(&event, Some("Work")),
+            "Thu Oct 8 15:00–15:30 · Call with Ana [Work] · join https://meet.google.com/x \
+             (calendar: me@work.example, id: abc)"
         );
     }
 }

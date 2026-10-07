@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn folds_case_and_accents() {
-        assert_eq!(fold("  Acme CAFÉ "), "acme cafe");
+        assert_eq!(fold("  Work CAFÉ "), "work cafe");
         assert_eq!(fold("Résumé"), "resume");
     }
 

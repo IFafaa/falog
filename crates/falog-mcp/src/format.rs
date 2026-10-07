@@ -5,7 +5,7 @@ use falog_core::agenda;
 use falog_core::date;
 use falog_core::domain::{Note, Task};
 
-/// `#12 [Acme] Fix login — High · due 2026-10-09 (Fri Oct 9) · In progress · requested by Ana`
+/// `#12 [Work] Fix login — High · due 2026-10-09 (Fri Oct 9) · In progress · requested by Ana`
 pub fn task_line(task: &Task, today: NaiveDate) -> String {
     let mut facts = vec![task.priority.label().to_string()];
     if let Some(due) = task.due {
