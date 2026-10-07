@@ -340,6 +340,22 @@ fn reads_google_addresses() {
     assert!(web_address("calendar.google.com/x").is_err());
 }
 
+#[test]
+fn explains_the_other_google_addresses() {
+    let embed = "https://calendar.google.com/calendar/embed?src=me%40example.com&ctz=America%2FSao_Paulo";
+    let public = "https://calendar.google.com/calendar/ical/me%40example.com/public/basic.ics";
+    for (url, hint) in [(embed, "embed"), (public, "public address")] {
+        match web_address(url) {
+            Err(Error::Link(message)) => {
+                assert!(message.contains(hint), "{message}");
+                assert!(message.contains("Secret address in iCal format"), "{message}");
+            }
+            other => panic!("{url} gave {other:?}"),
+        }
+    }
+    assert!(web_address(&embed.replace("embed?src", "ical")).is_ok());
+}
+
 /// Serves one HTTP answer on a random local port and returns the address of a "secret" feed.
 fn serve_once(status: &str, body: &'static str) -> String {
     let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();

@@ -75,6 +75,18 @@ fn web_address(url: &str) -> Result<String> {
         return Ok(format!("https://{rest}"));
     }
     if url.starts_with("https://") || url.starts_with("http://") {
+        // Google's "Integrate calendar" section lists three addresses; only the secret one works for
+        // a calendar that is not public, and the first one is a web page, not a feed.
+        if url.contains("calendar.google.com") && url.contains("/embed") {
+            return Err(Error::Link(
+                "this is the link to embed the calendar in a web page; copy the \"Secret address in iCal format\" instead (it ends in basic.ics)".into(),
+            ));
+        }
+        if url.contains("calendar.google.com") && url.contains("/public/basic.ics") {
+            return Err(Error::Link(
+                "this is the public address, which works only for public calendars; copy the \"Secret address in iCal format\" instead (it has private- in it)".into(),
+            ));
+        }
         return Ok(url.to_owned());
     }
     Err(Error::Link(
