@@ -28,7 +28,7 @@ pub fn task_details(task: &Task, notes: &[Note], today: NaiveDate) -> String {
     let mut out = vec![
         format!("#{} {}", task.id, task.title),
         format!(
-            "Company: {} | Status: {} | Priority: {}",
+            "Area: {} | Status: {} | Priority: {}",
             task.area_name(),
             task.status,
             task.priority
@@ -55,7 +55,7 @@ pub fn task_details(task: &Task, notes: &[Note], today: NaiveDate) -> String {
     out.join("\n")
 }
 
-/// Markdown agenda: headline numbers, open tasks per company, then each non-empty bucket.
+/// Markdown agenda: headline numbers, open tasks per area, then each non-empty bucket.
 pub fn agenda(tasks: &[Task], today: NaiveDate) -> String {
     let summary = agenda::summary(tasks, today);
     let mut out = format!(
@@ -67,20 +67,17 @@ pub fn agenda(tasks: &[Task], today: NaiveDate) -> String {
         summary.due_this_week,
     );
 
-    let mut per_company: Vec<(&str, usize)> = Vec::new();
+    let mut per_area: Vec<(&str, usize)> = Vec::new();
     for task in tasks.iter().filter(|t| t.is_open()) {
-        match per_company.iter_mut().find(|(name, _)| *name == task.area_name()) {
+        match per_area.iter_mut().find(|(name, _)| *name == task.area_name()) {
             Some((_, count)) => *count += 1,
-            None => per_company.push((task.area_name(), 1)),
+            None => per_area.push((task.area_name(), 1)),
         }
     }
-    per_company.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
-    if !per_company.is_empty() {
-        let parts: Vec<String> = per_company
-            .iter()
-            .map(|(name, n)| format!("{name}: {n}"))
-            .collect();
-        out.push_str(&format!("By company: {}\n", parts.join(" · ")));
+    per_area.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+    if !per_area.is_empty() {
+        let parts: Vec<String> = per_area.iter().map(|(name, n)| format!("{name}: {n}")).collect();
+        out.push_str(&format!("By area: {}\n", parts.join(" · ")));
     }
 
     for section in agenda::sections(tasks, today)

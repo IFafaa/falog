@@ -6,11 +6,11 @@ use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct AgendaArgs {
-    pub company: Option<String>,
+    pub area: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateCompanyArgs {
+pub struct CreateAreaArgs {
     pub name: String,
     pub color: Option<String>,
 }
@@ -18,7 +18,7 @@ pub struct CreateCompanyArgs {
 #[derive(Debug, Deserialize)]
 pub struct CreateTaskArgs {
     pub title: String,
-    pub company: Option<String>,
+    pub area: Option<String>,
     #[serde(default)]
     pub description: String,
     #[serde(default, deserialize_with = "lenient_string")]
@@ -35,7 +35,7 @@ pub struct CreateTaskArgs {
 pub struct UpdateTaskArgs {
     pub id: TaskRef,
     pub title: Option<String>,
-    pub company: Option<String>,
+    pub area: Option<String>,
     pub description: Option<String>,
     #[serde(default, deserialize_with = "lenient_string")]
     pub priority: Option<String>,
@@ -55,7 +55,7 @@ pub struct AddNoteArgs {
 
 #[derive(Debug, Deserialize)]
 pub struct ListTasksArgs {
-    pub company: Option<String>,
+    pub area: Option<String>,
     #[serde(default, deserialize_with = "lenient_string")]
     pub status: Option<String>,
     pub search: Option<String>,

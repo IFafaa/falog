@@ -6,8 +6,10 @@ use std::io::{self, BufRead, Write};
 
 /// Sent to the client on `initialize`; assistants use it as guidance for the whole session.
 const INSTRUCTIONS: &str = "Falog is the user's personal task tracker; they are a developer working for \
-several companies at once and usually dictate by voice. When they describe a request (\"I got a task\", \
-\"so-and-so asked\", \"I need to\"), call create_task with a short actionable title, the company, a \
+several companies at once who also tracks personal tasks and appointments, and they usually dictate by \
+voice. Tasks belong to areas: one per employer or client, plus personal ones (Personal, Health...). When \
+they describe a request (\"I got a task\", \"so-and-so asked\", \"I need to\", \"I have a doctor's \
+appointment\"), call create_task with a short actionable title, the area, a \
 description that keeps ALL the context they gave, the requester, the due date as YYYY-MM-DD (resolve \
 relative dates against today) and a priority. One message may contain several requests: create one task \
 each. Before updating a task mentioned by name, find its id with list_tasks. When they ask what to work \
@@ -169,12 +171,12 @@ mod tests {
     #[test]
     fn creates_updates_and_reads_tasks() {
         let server = server();
-        call(&server, 1, "create_company", json!({ "name": "Acme Café" }));
+        call(&server, 1, "create_area", json!({ "name": "Acme Café" }));
         let created = call(
             &server,
             2,
             "create_task",
-            json!({ "title": "Fix Google login", "company": "acme", "priority": "high",
+            json!({ "title": "Fix Google login", "area": "acme", "priority": "high",
                     "due_date": "2026-10-09", "requester": "Ana" }),
         );
         assert!(
@@ -203,7 +205,7 @@ mod tests {
             &server,
             1,
             "create_task",
-            json!({ "title": "X", "company": "nowhere" }),
+            json!({ "title": "X", "area": "nowhere" }),
         );
         assert_eq!(result["isError"], true);
         assert!(text(&result).contains("not found"));

@@ -18,17 +18,17 @@ pub fn catalog() -> Value {
             "name": "get_agenda",
             "description": "What needs attention: overdue, due today, due this week, in progress, waiting, upcoming, backlog, plus tasks completed in the last 7 days. Use it when the user wants to catch up or plan their day/week.",
             "inputSchema": { "type": "object", "properties": {
-                "company": { "type": "string", "description": "Only this company" }
+                "area": { "type": "string", "description": "Only this area" }
             }}
         },
         {
-            "name": "list_companies",
-            "description": "Registered companies with their number of open tasks.",
+            "name": "list_areas",
+            "description": "Registered areas with their number of open tasks.",
             "inputSchema": { "type": "object", "properties": {} }
         },
         {
-            "name": "create_company",
-            "description": "Registers a new company. Only when the user confirms it is new (not a nickname of an existing one).",
+            "name": "create_area",
+            "description": "Registers a new area: an employer, a client or a part of personal life (Personal, Health, Home...). Only when the user confirms it is new (not a nickname of an existing one).",
             "inputSchema": { "type": "object", "properties": {
                 "name": { "type": "string" },
                 "color": { "type": "string", "description": "Optional hex color, e.g. #74ade8" }
@@ -39,7 +39,7 @@ pub fn catalog() -> Value {
             "description": "Creates a task and returns it with its id.",
             "inputSchema": { "type": "object", "properties": {
                 "title": { "type": "string", "description": "Short and actionable, starting with a verb, e.g. 'Fix Google login on Android'" },
-                "company": { "type": "string", "description": "Company name or a unique part of it; must already exist" },
+                "area": { "type": "string", "description": "Area name or a unique part of it; must already exist. Personal errands and appointments go to a personal area" },
                 "description": { "type": "string", "description": "Full context: what was asked, details, links, acceptance criteria, open questions. Keep everything that helps the user remember later." },
                 "priority": priority,
                 "due_date": { "type": "string", "description": "YYYY-MM-DD (also accepts 'today', 'tomorrow', 'friday', DD/MM)" },
@@ -53,7 +53,7 @@ pub fn catalog() -> Value {
             "inputSchema": { "type": "object", "properties": {
                 "id": task_id,
                 "title": { "type": "string" },
-                "company": { "type": "string", "description": "New company; empty string removes it" },
+                "area": { "type": "string", "description": "New area; empty string removes it" },
                 "description": { "type": "string", "description": "Replaces the whole description" },
                 "priority": priority,
                 "due_date": { "type": "string", "description": "YYYY-MM-DD; empty string removes the due date" },
@@ -74,9 +74,9 @@ pub fn catalog() -> Value {
             "name": "list_tasks",
             "description": "Lists or searches tasks. Open tasks only unless include_done or status=done.",
             "inputSchema": { "type": "object", "properties": {
-                "company": { "type": "string" },
+                "area": { "type": "string" },
                 "status": status,
-                "search": { "type": "string", "description": "Matches title, description, requester or company" },
+                "search": { "type": "string", "description": "Matches title, description, requester or area" },
                 "include_done": { "type": "boolean" },
                 "limit": { "type": "integer", "description": "Default 100" }
             }}
