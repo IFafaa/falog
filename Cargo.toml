@@ -29,6 +29,8 @@ sha2 = "0.10"
 thiserror = "2"
 ureq = "2"
 whisper-rs = "0.16"
+# Only to pick the GPU backend of the `gpu` feature (see crates/falog-desktop); whisper-rs depends on it.
+whisper-rs-sys = "0.15"
 winreg = "0.55"
 
 [workspace.lints.rust]

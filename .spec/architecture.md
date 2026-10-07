@@ -106,13 +106,17 @@ they change and when eframe saves its state. Falog opens on a fresh thread, as Z
 Voice (`assistant/voice.rs`): `cpal` records the default microphone, mixes to mono and resamples to
 16 kHz; a worker thread runs whisper.cpp (`whisper-rs`, model `ggml-large-v3-turbo-q5_0.bin` in
 `<data dir>/models`, downloaded on first use) and unloads it after 5 idle minutes. Whisper sits behind the
-`whisper` cargo feature (default on) because it needs CMake and libclang to build.
+`whisper` cargo feature (default on) because it needs CMake and libclang to build. The `gpu` feature runs
+it on the GPU (Settings has a switch): Metal on macOS, Vulkan on Windows and Linux. Cargo features cannot
+depend on the target, so `gpu` enables whisper-rs's `whisper-rs-sys` dependency, declared once per
+target with the backend feature.
 
 Performance notes (Ryzen 7 5700X, CPU busy with other apps, 6 s clip): `cmake/whisper.cmake` (a CMake
 project include that `.cargo/config.toml` points whisper-rs-sys at) forces `/O2` and AVX2 for whisper.cpp
-under MSVC only (without it: ~290 s); GCC and Clang keep ggml's native CPU tuning; `audio_ctx` is sized to the clip instead of the fixed
-30 s window (~20 s → ~8 s). The default voice language follows the regional format, because `Auto` adds a
-full-window language detection pass (~+20 s). OpenMP and flash attention made no measurable difference.
+under MSVC only (without it: ~290 s; GCC and Clang keep ggml's native CPU tuning); `audio_ctx` is sized
+to the clip instead of the fixed 30 s window (~20 s → ~8 s). The default voice language follows the
+regional format, because `Auto` adds a full-window language detection pass (~+20 s).
+OpenMP and flash attention made no measurable difference.
 
 ### Calendar
 

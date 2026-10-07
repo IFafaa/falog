@@ -30,12 +30,22 @@ whisper-rs = { workspace = true, optional = true }
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true
 
+# The `gpu` feature turns on the GPU backend that fits the platform. Cargo features cannot depend on the
+# target, so it enables whisper-rs's own whisper-rs-sys, declared per target with the backend feature.
+# (whisper-rs's `metal`/`vulkan` features only forward to these; it rejects a second, renamed copy.)
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs-sys = { workspace = true, optional = true, features = ["metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+whisper-rs-sys = { workspace = true, optional = true, features = ["vulkan"] }
+
 [features]
 default = ["whisper"]
 # Local speech recognition. Needs CMake and LLVM (libclang) at build time.
 whisper = ["dep:whisper-rs"]
-# Runs Whisper on the GPU through Vulkan. Needs the Vulkan SDK at build time and a Vulkan driver at run time.
-gpu = ["whisper", "whisper-rs/vulkan"]
+# Runs Whisper on the GPU: Metal on macOS; Vulkan on Windows and Linux, which needs the Vulkan SDK at
+# build time and a Vulkan driver at run time.
+gpu = ["whisper", "dep:whisper-rs-sys"]
 
 [lints]
 workspace = true
