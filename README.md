@@ -41,7 +41,7 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
 ```
  assistant dock ──► Claude Code (headless) ──┐
  (speech: Whisper, on device)                ├──► falog-mcp ──┐
- any MCP client ──► Claude ──────────────────┘                ├──► SQLite (%APPDATA%\Falog\falog.db)
+ any MCP client ──► Claude ──────────────────┘                ├──► SQLite (falog.db)
                        falog (desktop app)  ◄─────────────────┘    the app reloads when the file changes
 ```
 
@@ -50,26 +50,69 @@ The workspace has four crates:
 | Crate | What it is |
 |---|---|
 | `falog-core` | Domain model, natural-language due dates, agenda rules and the SQLite store |
-| `falog-mcp` | MCP server over stdio (`falog-mcp.exe`) |
+| `falog-mcp` | MCP server over stdio (`falog-mcp`) |
 | `falog-calendar` | Read-only Google Calendar: OAuth sign-in, calendars, events, local cache |
-| `falog-desktop` | The egui desktop app (`falog.exe`) |
+| `falog-desktop` | The egui desktop app (`falog`) |
 
 Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
 
-## Install (Windows)
+## Install
 
-Requires [Rust](https://rustup.rs) and the MSVC build tools (with CMake). Voice input also needs
-[LLVM](https://llvm.org) at build time (`winget install LLVM.LLVM`); without it the installer builds
-Falog without voice. The assistant dock uses [Claude Code](https://claude.com/claude-code), signed in
-with `claude` once.
+Falog runs on Windows, macOS and Linux. Every platform needs [Rust](https://rustup.rs) to build it, and
+the assistant dock uses [Claude Code](https://claude.com/claude-code), signed in with `claude` once.
+Voice input compiles whisper.cpp, which needs CMake and libclang at build time; when they are missing
+the installers build Falog without voice.
+
+The installers build in release mode, install for the current user, enable launch at sign-in, register
+the MCP server with Claude Code (`claude mcp add --scope user falog`), copy the assistant workspace to
+`~/falog-assistant` and start Falog. The uninstallers revert it and keep your tasks unless you ask.
+Your tasks live in one SQLite file, `falog.db`, in `%APPDATA%\Falog` on Windows,
+`~/Library/Application Support/Falog` on macOS and `~/.local/share/Falog` on Linux (`FALOG_DB`
+points both binaries at another file).
+
+### Windows
+
+Requires the MSVC build tools (with CMake). For voice, [LLVM](https://llvm.org)
+(`winget install LLVM.LLVM`); for speech recognition on the GPU, the
+[Vulkan SDK](https://vulkan.lunarg.com).
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
-This builds in release mode, installs to `%LOCALAPPDATA%\Falog`, enables launch at sign-in, adds a Start
-menu shortcut, registers the MCP server with Claude Code (`claude mcp add --scope user falog`) and copies
-the assistant workspace to `~\falog-assistant`. `scripts\uninstall.ps1` reverts it.
+Installs to `%LOCALAPPDATA%\Falog` with a Start menu shortcut. `scripts\uninstall.ps1 [-RemoveData]`
+reverts it. Keep the checkout path short (like `C:\Projects\falog`) when building with the GPU: the
+Vulkan shader build fails past Windows' 260-character path limit.
+
+### macOS
+
+Requires the Xcode command line tools (`xcode-select --install`) and, for voice, CMake
+(`brew install cmake`). Speech recognition runs on the GPU through Metal.
+
+```sh
+./scripts/install.sh
+```
+
+Installs `~/Applications/Falog.app` (in Launchpad, Spotlight and the Dock) with `falog-mcp` inside it,
+and a LaunchAgent for launch at sign-in. macOS asks for the microphone the first time you dictate; the
+app is signed ad hoc on your Mac, so it asks again after a reinstall. `scripts/uninstall.sh
+[--remove-data]` reverts it.
+
+### Linux
+
+Requires a C toolchain, `pkg-config` and the ALSA headers; for voice, CMake and libclang. On Debian and
+Ubuntu:
+
+```sh
+sudo apt install build-essential pkg-config libasound2-dev cmake libclang-dev
+./scripts/install.sh
+```
+
+Installs `falog` and `falog-mcp` to `~/.local/bin`, an app menu entry and icon, and an XDG autostart
+entry. Speech recognition runs on the GPU through Vulkan when the Vulkan headers and `glslc` are
+present at build time (`sudo apt install libvulkan-dev glslc`); pass `--no-gpu` to skip it.
+`scripts/uninstall.sh [--remove-data]` reverts it. Falog runs on X11 and Wayland; on Wayland a second
+launch may not be able to bring the existing window to the front.
 
 ## Talking to your tasks
 
@@ -80,7 +123,7 @@ your voice language and whether dictation sends right away in Settings. Like Zed
 is a thread: `+` starts a new one and the clock button lists past threads, so you can keep one per
 area and pick up any of them later, even after a restart.
 
-**From Claude Code or another MCP client:** open a session in `~\falog-assistant` (its `CLAUDE.md`
+**From Claude Code or another MCP client:** open a session in `~/falog-assistant` (its `CLAUDE.md`
 teaches Claude how to file tasks) or mention tasks in any session, since the server is registered for
 your user.
 
@@ -89,7 +132,7 @@ your user.
 - *"Dentist on Thursday at 3, put it in Personal."*
 - *"Good morning, what's on my plate this week?"*
 
-Any MCP client works; point it at `falog-mcp.exe`.
+Any MCP client works; point it at `falog-mcp`.
 
 ## Google Calendar
 
@@ -114,6 +157,8 @@ cache live in `calendar/` next to the database; removing an account in Settings 
 Work accounts whose admins block third-party apps cannot connect.
 
 ## Keyboard shortcuts
+
+On macOS, `Cmd` takes the place of `Ctrl`.
 
 | Keys | Action |
 |---|---|
