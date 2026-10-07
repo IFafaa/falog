@@ -1,8 +1,8 @@
 # Falog
 
 **A task board you talk to.** Falog is a local-first desktop app for developers who juggle work for
-several companies at once. You tell your AI assistant about a request, by voice or text, and it files
-the task for you; Falog shows everything on a Zed-inspired board, list and agenda.
+several companies at once and still have a life to run. You tell your AI assistant about a request or
+an appointment, by voice or text, and it files the task for you; Falog shows everything on a Zed-inspired board, list and agenda.
 
 ![Falog board with the task panel open](docs/screenshots/board.png)
 
@@ -11,7 +11,7 @@ the task for you; Falog shows everything on a Zed-inspired board, list and agend
 Requests arrive everywhere: a call, a chat message, a hallway comment. Writing each one down breaks your
 flow, so many never get written down, and Monday morning starts with an hour of "what was I supposed to
 do?". Falog removes the friction: say *"Ana from Acme asked me to fix the Google sign-in on Android,
-it's urgent, needs to ship Friday"* and the task exists, with company, requester, due date and priority.
+it's urgent, needs to ship Friday"* and the task exists, with area, requester, due date and priority.
 
 ## Features
 
@@ -23,7 +23,8 @@ it's urgent, needs to ship Friday"* and the task exists, with company, requester
 - **Works with any MCP client too.** `falog-mcp` exposes your tasks through the
   [Model Context Protocol](https://modelcontextprotocol.io). Due dates like "friday", "next week" or
   "amanhã" are understood.
-- **Several companies, one place.** Each company has a color and a sidebar entry to filter by.
+- **Work and life, one place.** Tasks belong to areas: each employer or client, plus personal ones like
+  *Personal* or *Health*. Each area has a color and a sidebar entry to filter by.
 - **Zed's look and feel.** Same One Dark / One Light palettes, IBM Plex Sans, Lucide icons, a command
   palette (`Ctrl+Shift+P`) and a task finder (`Ctrl+P`).
 - **Local and private.** A single SQLite file on your machine. No account, no server.
@@ -74,7 +75,7 @@ press `Ctrl+Space` (or the mic button), speak, and press it again: your words ar
 computer and sent. The first time, Falog downloads the Whisper model (~574 MB). Pick the Claude model,
 your voice language and whether dictation sends right away in Settings. Like Zed, each conversation
 is a thread: `+` starts a new one and the clock button lists past threads, so you can keep one per
-company and pick up any of them later, even after a restart.
+area and pick up any of them later, even after a restart.
 
 **From Claude Code or another MCP client:** open a session in `~\falog-assistant` (its `CLAUDE.md`
 teaches Claude how to file tasks) or mention tasks in any session, since the server is registered for
@@ -82,6 +83,7 @@ your user.
 
 - *"Got two things from Globex: review Carlos's payments PR today, and upgrade the API to Node 22 by Friday."*
 - *"I'm blocked on the navbar until Lia signs off on the design."*
+- *"Dentist on Thursday at 3, put it in Personal."*
 - *"Good morning, what's on my plate this week?"*
 
 Any MCP client works; point it at `falog-mcp.exe`.
