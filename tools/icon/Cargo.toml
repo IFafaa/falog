@@ -1,0 +1,13 @@
+[package]
+name = "falog-icon"
+description = "Rasterizes the Falog app icon into PNG, ICO and ICNS files"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+# Kept out of the main workspace so `cargo build --workspace` does not compile the rasterizer.
+[workspace]
+
+[dependencies]
+resvg = { version = "0.37", default-features = false }

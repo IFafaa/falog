@@ -127,43 +127,20 @@ impl Icon {
     }
 }
 
-/// The window/taskbar icon, drawn in code: a rounded One Dark tile with an accent check mark.
+/// The window and taskbar icon: `assets/icon/falog.svg` as rasterized by `tools/icon`. eframe scales
+/// it down to the sizes the OS asks for.
 pub fn app_icon() -> egui::IconData {
-    const SIZE: usize = 64;
-    fn segment_distance(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
-        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
-        let t = (((p.0 - a.0) * dx + (p.1 - a.1) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
-        ((p.0 - a.0 - t * dx).powi(2) + (p.1 - a.1 - t * dy).powi(2)).sqrt()
-    }
+    eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon/png/falog-256.png")).unwrap_or_default()
+}
 
-    let mut rgba = vec![0u8; SIZE * SIZE * 4];
-    let (half, radius) = (SIZE as f32 / 2.0, 14.0f32);
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let p = (x as f32 + 0.5, y as f32 + 0.5);
-            let qx = (p.0 - half).abs() - (half - radius - 1.0);
-            let qy = (p.1 - half).abs() - (half - radius - 1.0);
-            let outside = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() - radius;
-            if outside > 0.0 {
-                continue;
-            }
-            let alpha = ((-outside).min(1.0) * 255.0) as u8;
-            let check = segment_distance(p, (18.0, 33.0), (28.0, 43.0)).min(segment_distance(
-                p,
-                (28.0, 43.0),
-                (47.0, 22.0),
-            ));
-            let pixel = if check < 4.0 {
-                [0x74, 0xad, 0xe8, alpha]
-            } else {
-                [0x28, 0x2c, 0x33, alpha]
-            };
-            rgba[(y * SIZE + x) * 4..][..4].copy_from_slice(&pixel);
-        }
-    }
-    egui::IconData {
-        rgba,
-        width: SIZE as u32,
-        height: SIZE as u32,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_icon_decodes() {
+        let icon = app_icon();
+        assert_eq!((icon.width, icon.height), (256, 256));
+        assert_eq!(icon.rgba.len(), 256 * 256 * 4);
     }
 }

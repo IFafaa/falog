@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Falog app icon, master for 32 px and up. Hinted copies: falog-16.svg, falog-24.svg.
+       An F whose middle arm is a voice fading out: what you say becomes a line in the log. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#31363f"/>
+      <stop offset="1" stop-color="#22262c"/>
+    </linearGradient>
+    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="51" x2="0" y2="205">
+      <stop offset="0" stop-color="#8cbcf0"/>
+      <stop offset="1" stop-color="#5f9fe2"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
+  <rect x="9.5" y="9.5" width="237" height="237" rx="54.5" fill="none" stroke="#464b57" stroke-width="3"/>
+  <path d="M74 64 H182 M74 64 V192" fill="none" stroke="url(#ink)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="97" y="90" width="26" height="76" rx="13" fill="url(#ink)"/>
+  <rect x="133" y="103" width="26" height="50" rx="13" fill="url(#ink)"/>
+  <circle cx="182" cy="128" r="13" fill="url(#ink)"/>
+</svg>
