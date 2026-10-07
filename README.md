@@ -79,6 +79,10 @@ voice input (no CMake or libclang needed); `--features falog-desktop/gpu` runs i
 macOS, Vulkan elsewhere). The Windows installer is built with
 [Inno Setup 6](https://jrsoftware.org/isinfo.php) by `.\scripts\build-installer.ps1`.
 
+Before pushing, `.scriptseck.ps1` (or `./scripts/check.sh`) runs what the CI quality gate checks.
+
+Before pushing, `.\scripts\check.ps1` (or `./scripts/check.sh`) runs what the CI quality gate checks.
+
 Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
 
 ## Credits

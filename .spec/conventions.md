@@ -46,10 +46,34 @@ what the feature is about.
 
 - **Atomic**: one logical change per commit, and every commit builds and passes tests.
 - [Conventional Commits](https://www.conventionalcommits.org): `type(scope): summary`
-  - types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `build`, `ci`, `chore`
-  - scopes: `core`, `mcp`, `desktop`, `assistant`, `scripts`, `spec`
-  - imperative, lowercase, no trailing period, ≤ 72 chars; body explains why when not obvious.
+  - types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `build`, `ci`, `chore`,
+    `revert`; `!` after the type or scope marks a breaking change
+  - scopes (optional, lowercase): `core`, `mcp`, `calendar`, `desktop`, `assistant`, `scripts`, `spec`
+  - imperative, lowercase, no trailing period, ≤ 72 chars for the whole subject; body explains why
+    when not obvious. CI checks the subjects of every pull request ([CI](#ci)).
 - Specs change in the same commit as the behavior they describe.
+
+## CI
+
+Every push and pull request to `main` runs [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+Branch protection requires one check, **quality-gate**, which fails when any job below failed or was
+cancelled. Run the same checks before pushing with `.\scripts\check.ps1` or `./scripts/check.sh`
+(`-NoVoice` / `--no-voice` skips the builds that need CMake and libclang; cargo-deny and typos run
+when installed: `cargo install --locked cargo-deny typos-cli`).
+
+| Job | Checks | When it fails |
+|---|---|---|
+| `format` | `cargo fmt --all -- --check` | Run `cargo fmt --all` |
+| `lint` | `cargo clippy --workspace --all-targets -- -D warnings` on Windows, macOS and Ubuntu, with `--no-default-features`, default features and `--features falog-desktop/gpu` (macOS and Ubuntu only: the Windows runner has no Vulkan SDK) | Fix the warning; `#[allow]` only with a comment saying why. Code behind `cfg(windows)` / `cfg(target_os)` is only linted on its OS, so read the log of the failing one |
+| `docs` | `cargo doc --workspace --no-deps --document-private-items` with `RUSTDOCFLAGS=-D warnings` | Usually a broken or ambiguous intra-doc link: link `` [`name()`] `` for a function, `` [`mod@name`] `` for a module |
+| `test` | `cargo test --workspace` on the three OSes, with and without default features | Reproduce with the same features locally; on another OS, read the test's assertion in the log |
+| `coverage` | `cargo llvm-cov` on Ubuntu without default features; the lcov report is the `lcov` artifact of the run; fails under `MIN_LINE_COVERAGE` (42%, set at 44.9% measured on 2026-10-07) | Add tests for the code you changed. The minimum only goes up: raise it when coverage grows, never lower it to let a change pass |
+| `msrv` | `cargo check --workspace --all-targets` with the `rust-version` of `Cargo.toml` (1.88: let chains) | Avoid the newer API or language feature, or raise `rust-version` on purpose in its own commit |
+| `dependencies` | `cargo deny check` with [`deny.toml`](../deny.toml): advisories (vulnerabilities, yanked, unmaintained direct dependencies), licenses compatible with MIT distribution, wildcard versions, sources other than crates.io; duplicate versions are warnings | Update the crate (`cargo update -p name`). An advisory that does not apply goes in `ignore` with the reason; a new license only after checking it allows shipping Falog under MIT |
+| `policy` | [`scripts/check-policy.sh`](../scripts/check-policy.sh): secrets (Google client secrets, OAuth tokens and secret iCal addresses, private keys, GitHub, Anthropic, AWS and Slack tokens), database and credential files, other apps named as design models ([Naming other products](#naming-other-products)), merge conflict markers; typos with [`_typos.toml`](../_typos.toml); shellcheck; actionlint | Remove the secret and rotate it (it is public once pushed); rephrase the text on Falog's own terms; for a word typos gets wrong on purpose (a Portuguese parsing word), add it to `_typos.toml` with the reason |
+| `commits` | Pull requests only: [`scripts/check-commits.sh`](../scripts/check-commits.sh) on the commits the PR adds ([Commits](#commits)) | `git rebase -i` and reword the commit |
+
+Coverage, the minimum Rust version and the operating systems other than yours run only in CI.
 
 ## Workflow for a task
 
