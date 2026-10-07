@@ -5,9 +5,9 @@
 //! [`config`]. [`google`] lists calendars and events over the REST API, and [`layout`] holds the
 //! pure rules the week view uses to place events. Nothing here knows about the UI.
 
-
 pub mod config;
 mod error;
+pub mod google;
 pub mod layout;
 pub mod model;
 pub mod oauth;
