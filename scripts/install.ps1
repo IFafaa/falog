@@ -54,6 +54,7 @@ Get-Process falog, falog-mcp -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
 New-Item -ItemType Directory -Force $dest | Out-Null
 Copy-Item "$root\target\release\falog.exe", "$root\target\release\falog-mcp.exe" $dest -Force
+Copy-Item "$root\crates\falog-desktop\assets\icon\falog.ico" $dest -Force
 
 Write-Host '==> Launch at sign-in'
 Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Falog' -Value "`"$dest\falog.exe`""
@@ -64,6 +65,8 @@ $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut(
 $shortcut.TargetPath = "$dest\falog.exe"
 $shortcut.WorkingDirectory = $dest
 $shortcut.Description = 'Falog task board'
+# falog.exe carries the icon too; the separate file keeps the shortcut right if embedding it failed.
+$shortcut.IconLocation = "$dest\falog.ico,0"
 $shortcut.Save()
 
 Write-Host '==> Registering the MCP server with Claude Code'
