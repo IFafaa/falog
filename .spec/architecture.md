@@ -141,6 +141,10 @@ instead of dropping its cached events.
   `~/Library/LaunchAgents/app.falog.Falog.plist`; Linux: an XDG autostart entry,
   `~/.config/autostart/falog.desktop`. Each starts the executable that wrote it.
 - **Title bar:** DWM caption/text/border colors follow the theme (Windows 11).
+- **Finding `claude`** (`platform/paths.rs`): `PATH`, then `~/.local/bin` (Claude Code's native
+  installer) and, on macOS and Linux, `~/.claude/local`, `~/.npm-global/bin`, `/opt/homebrew/bin` and
+  `/usr/local/bin`. Apps started from Finder, the Dock, a LaunchAgent or a desktop autostart do not get
+  the shell's `PATH`. `falog-mcp` is always the one next to the running executable.
 
 ## Concurrency and consistency
 

@@ -181,27 +181,10 @@ fn mcp_config_json(config: &SessionConfig) -> Value {
     })
 }
 
-/// Locates the native `claude` executable: on `PATH`, then in `~/.local/bin`.
+/// Locates the `claude` executable: on `PATH`, then in the usual install folders (see
+/// [`find_executable`](crate::platform::paths::find_executable)).
 pub fn find_claude() -> Option<PathBuf> {
-    let name = format!("claude{}", std::env::consts::EXE_SUFFIX);
-    let on_path = std::env::var_os("PATH")
-        .map(|paths| {
-            std::env::split_paths(&paths)
-                .map(|dir| dir.join(&name))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let home = dirs_home().map(|home| home.join(".local").join("bin").join(&name));
-    on_path
-        .into_iter()
-        .chain(home)
-        .find(|candidate| candidate.is_file())
-}
-
-fn dirs_home() -> Option<PathBuf> {
-    std::env::var_os("USERPROFILE")
-        .or_else(|| std::env::var_os("HOME"))
-        .map(PathBuf::from)
+    crate::platform::paths::find_executable("claude")
 }
 
 /// The `falog-mcp` executable shipped next to the app.
