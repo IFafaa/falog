@@ -18,6 +18,7 @@ use eframe::egui::{
     Rounding, ScrollArea, Sense, Stroke, Ui, UiBuilder, pos2, vec2,
 };
 use falog_calendar::Client;
+use falog_core::domain::Area;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -32,9 +33,21 @@ pub enum SettingsEvent {
     CancelGoogleConnect,
     RemoveGoogleAccount(String),
     AddCalendarLink(NewLink),
-    RenameCalendarLink { id: String, name: String },
-    SetCalendarLinkColor { id: String, color: String },
+    RenameCalendarLink {
+        id: String,
+        name: String,
+    },
+    SetCalendarLinkColor {
+        id: String,
+        color: String,
+    },
     RemoveCalendarLink(String),
+    /// Links or unlinks a calendar (of `account`, or a link when it is empty) and an area.
+    ToggleCalendarArea {
+        account: String,
+        calendar: String,
+        area: i64,
+    },
 }
 
 #[derive(Debug)]
@@ -83,6 +96,7 @@ impl SettingsDialog {
         ctx: &egui::Context,
         prefs: &mut Prefs,
         calendar: &CalendarState,
+        areas: &[Area],
     ) -> (Vec<SettingsEvent>, bool) {
         const WIDTH: f32 = 780.0;
         const HEIGHT: f32 = 520.0;
@@ -153,7 +167,7 @@ impl SettingsDialog {
                                         SettingsTab::Assistant => self.assistant_tab(ui, theme, &mut events),
                                         SettingsTab::Voice => voice_tab(ui, theme, prefs, &mut events),
                                         SettingsTab::Calendar => {
-                                            self.calendar_tab(ui, theme, calendar, &mut events)
+                                            self.calendar_tab(ui, theme, calendar, areas, &mut events)
                                         }
                                         SettingsTab::Data => self.data_tab(ui, theme, &mut events),
                                     }

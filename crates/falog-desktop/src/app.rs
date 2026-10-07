@@ -464,7 +464,7 @@ impl FalogApp {
         }
 
         if let Some(dialog) = &mut self.settings {
-            let (events, close) = dialog.show(ctx, &mut self.prefs, &self.calendar);
+            let (events, close) = dialog.show(ctx, &mut self.prefs, &self.calendar, &self.areas);
             if close {
                 self.settings = None;
             }
@@ -556,6 +556,13 @@ impl FalogApp {
                     self.notify(format!("Removed {name}"), ToastKind::Success);
                 }
             }
+            SettingsEvent::ToggleCalendarArea {
+                account,
+                calendar,
+                area,
+            } => {
+                self.calendar.toggle_area(&account, &calendar, area);
+            }
         }
     }
 
@@ -572,6 +579,7 @@ impl FalogApp {
             Confirm::DeleteArea { id, name } => {
                 if self.write(|store| store.delete_area(id)).is_some() {
                     self.notify(format!("Deleted {name}"), ToastKind::Success);
+                    self.calendar.forget_area(id);
                     if let Some(dialog) = &mut self.areas_dialog {
                         dialog.forget(id);
                     }

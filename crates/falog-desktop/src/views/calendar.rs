@@ -16,7 +16,7 @@ use eframe::egui::{
 };
 use falog_calendar::layout;
 use falog_calendar::{Event, EventTime};
-use falog_core::domain::Task;
+use falog_core::domain::{Area, Task};
 
 const HOUR_HEIGHT: f32 = 48.0;
 const GUTTER: f32 = 52.0;
@@ -44,7 +44,11 @@ pub fn show(
 
     let (from, to) = range(mode, cal.anchor);
     cal.ensure(from, to);
-    let events = cal.events(from, to);
+    let mut events = cal.events(from, to);
+    // The sidebar's area filter applies to meetings too, through the calendars linked to the area.
+    if let Some(area) = cx.prefs.area {
+        events.retain(|e| cal.config.areas_of(e).contains(&area.0));
+    }
     let tasks: Vec<&Task> = cx
         .tasks
         .iter()
@@ -65,7 +69,7 @@ pub fn show(
             actions,
         ),
     }
-    popover(ui.ctx(), cx.theme, cal, clicked_event);
+    popover(ui.ctx(), cx.theme, cx.areas, cal, clicked_event);
 }
 
 /// First day shown and the day after the last one.
@@ -881,7 +885,7 @@ fn month_line(
 
 const POPOVER_WIDTH: f32 = 340.0;
 
-fn popover(ctx: &egui::Context, theme: &Theme, cal: &mut CalendarState, clicked_event: bool) {
+fn popover(ctx: &egui::Context, theme: &Theme, areas: &[Area], cal: &mut CalendarState, clicked_event: bool) {
     let Some(selected) = cal.selected.clone() else {
         return;
     };
@@ -938,6 +942,20 @@ fn popover(ctx: &egui::Context, theme: &Theme, cal: &mut CalendarState, clicked_
                             format!("{} · {}", calendar.name, event.account)
                         };
                         ui.label(RichText::new(source).size(12.0).color(theme.text_placeholder));
+                    }
+                    let linked: Vec<&Area> = areas
+                        .iter()
+                        .filter(|a| cal.config.areas_of(event).contains(&a.id.0))
+                        .collect();
+                    if !linked.is_empty() {
+                        ui.horizontal_wrapped(|ui| {
+                            for area in linked {
+                                let (dot, _) = ui.allocate_exact_size(vec2(8.0, 14.0), Sense::hover());
+                                ui.painter()
+                                    .circle_filled(dot.center(), 3.5, theme::color(area.color));
+                                ui.label(RichText::new(&area.name).size(12.0).color(theme.text_muted));
+                            }
+                        });
                     }
                     if !event.location.is_empty() {
                         ui.add_space(6.0);

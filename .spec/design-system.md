@@ -112,6 +112,10 @@ checkbox per calendar in its color: calendar links first, then calendars grouped
 email; its `+` opens Settings › Calendar. With no calendar yet, the view shows a banner whose
 "Add a calendar link" (accent) opens the same page.
 
+Calendars belong to areas, many to many. Settings › Calendar starts with "Calendars by area": a row per
+calendar (color dot, name) with one pill per area, filled with the area color when linked. The sidebar's
+area filter then applies to meetings through those links, and the event popover lists the areas.
+
 ## App icon
 
 An **F whose middle arm is a voice fading out**: the stem and top arm are a line already in the log,

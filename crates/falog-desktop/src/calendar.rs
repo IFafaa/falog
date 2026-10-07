@@ -251,6 +251,18 @@ impl CalendarState {
         self.save_cache();
     }
 
+    /// Links or unlinks a calendar and an area (Settings › Calendar).
+    pub fn toggle_area(&mut self, account: &str, calendar: &str, area: i64) {
+        self.config.toggle_area(account, calendar, area);
+        self.save_config();
+    }
+
+    /// A deleted area leaves every calendar.
+    pub fn forget_area(&mut self, area: falog_core::domain::AreaId) {
+        self.config.forget_area(area.0);
+        self.save_config();
+    }
+
     fn save_config(&mut self) {
         if let Some(files) = &self.files
             && let Err(err) = files.save_config(&self.config)
