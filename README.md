@@ -119,7 +119,9 @@ $env:FALOG_DB = "$PWD\target\demo.db"; cargo run -p falog-desktop
 
 Falog's visual design follows [Zed](https://zed.dev). It bundles the One Dark and One Light color values
 (MIT), IBM Plex Sans and Lilex (SIL Open Font License) and Lucide icons (ISC) as shipped in the Zed
-repository; their licenses are next to the assets in `crates/falog-desktop/assets`.
+repository; their licenses are next to the assets in `crates/falog-desktop/assets`. The app icon is
+original artwork under the project's MIT license; its SVG sources are in
+`crates/falog-desktop/assets/icon` and `tools/icon` regenerates the PNG, ICO and ICNS files.
 
 ## License
 

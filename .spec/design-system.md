@@ -78,6 +78,29 @@ the result; click opens the task, hover shows the arguments) and errors in `erro
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
 (pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
 
+## App icon
+
+An **F whose middle arm is a voice fading out**: the stem and top arm are a line already in the log,
+and the middle arm is two bars and a dot getting shorter, like a waveform dying down. What you say
+becomes a line in the log. Accent ink (`#74ade8`; at 32 px and up a `#8cbcf0 → #5f9fe2` gradient) on a
+rounded One Dark tile (`#31363f → #22262c`, edge `#464b57`). No check mark: every to-do app has one.
+The concepts it was picked from are in `docs/icon-concepts` (see task 0003).
+
+Files in `crates/falog-desktop/assets/icon`:
+
+| File | Use |
+|---|---|
+| `falog.svg` | Master for 32 px and up (256 viewBox, tile 8–248, corner radius 56) |
+| `falog-16.svg`, `falog-24.svg` | Redrawn on the pixel grid (2 / 3 px strokes, 1 px gaps), used at exactly 16 and 24 px |
+| `png/falog-N.png` | 16–1024 px; `falog-256.png` is the window and taskbar icon (`icons::app_icon`) |
+| `falog.ico` | 16–256 px; embedded in `falog.exe` by `build.rs`, used by the Start menu shortcut |
+| `falog.icns` | macOS: the tile on Apple's 824/1024 grid with a drop shadow |
+
+Edit the SVGs, never the generated files, then run
+`cargo run --release --manifest-path tools/icon/Cargo.toml` and check `docs/icon-preview.png` (dark and
+light taskbar backgrounds, 16/24/32 px magnified). A change to the master's geometry goes to the hinted
+copies too. On Linux, install the PNGs and the SVG into the `hicolor` theme and use `Icon=falog`.
+
 ## Rules
 
 - Prefer painting rows by hand (`allocate_exact_size` + painter) for pixel control; use egui widgets for
