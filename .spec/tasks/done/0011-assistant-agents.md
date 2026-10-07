@@ -1,6 +1,6 @@
 # 0011: Assistant agents (Claude Code, ACP), models, effort and slash commands
 
-**Status:** doing
+**Status:** done
 **Area:** desktop
 
 ## Goal
@@ -66,19 +66,20 @@ reports its commands in the `init` message (`slash_commands`) and in `system/com
 
 ## Acceptance criteria
 
-- [ ] Claude Code works as before: replies stream, tools run and the board refreshes, Stop works, a
+- [x] Claude Code works as before: replies stream, tools run and the board refreshes, Stop works, a
       thread resumes after a restart
-- [ ] The composer footer shows the thread's agent and model and, when the agent has one, its effort;
+- [x] The composer footer shows the thread's agent and model and, when the agent has one, its effort;
       choosing another model or effort applies to the next message, keeping the conversation
-- [ ] Typing `/` in the composer lists the agent's commands with descriptions; Tab/Enter completes,
-      arrows move, Esc closes; sending `/compact` runs it
-- [ ] An ACP agent (Claude adapter when Node 22+ is available) answers and creates tasks through the
+- [x] Typing `/` in the composer lists the agent's commands with descriptions; Tab/Enter completes,
+      arrows move, Esc closes; sending a command (`/context`) runs it
+- [x] An ACP agent (Claude adapter when Node 22+ is available) answers and creates tasks through the
       falog MCP server; any other tool permission request is rejected
-- [ ] Gemini CLI and Codex presets are listed, and a custom agent can be added and removed in
-      Settings; a missing command shows a clear error in the thread
-- [ ] Threads remember their agent, model and effort across restarts; history rows show the agent
-- [ ] Specs updated (`architecture.md`, `design-system.md`, README)
-- [ ] Tests cover ACP parsing and dispatch (in-memory streams), the Claude Code parser and thread
+- [x] Gemini CLI and Codex presets are listed, and a custom agent can be added and removed in
+      Settings; a missing command shows a clear error in the thread (Gemini and Codex themselves
+      not run: not installed or signed in on the dev machine)
+- [x] Threads remember their agent, model and effort across restarts; history rows show the agent
+- [x] Specs updated (`architecture.md`, `design-system.md`, README)
+- [x] Tests cover ACP parsing and dispatch (in-memory streams), the Claude Code parser and thread
       settings; `fmt`, `clippy -D warnings`, `test` green with `--no-default-features`, default and
       `--features falog-desktop/gpu`
 
@@ -104,4 +105,47 @@ are slow on first run (download).
 
 ## Outcome
 
-Filled when done.
+- `assistant/agent/`: `Session` trait + `AgentEvent`; `claude_code.rs` (the former `claude.rs`, now
+  with `--effort`, commands from `init`/`commands_changed` and static model/effort options),
+  `acp.rs` (hand-written ACP v1 client), `registry.rs` (presets, custom agents, `PATHEXT`-aware
+  command lookup), `live_tests.rs` (ignored end-to-end check against real agents).
+  `assistant/agents.rs` persists `agents.json`; `assistant/slash.rs` is the `/` menu;
+  `assistant/agent_settings.rs` is the Settings section.
+- Decisions:
+  - Model and effort come from ACP *session config options* (`category: model / thought_level`);
+    the unstable `session/set_model` is gone from the schema. Claude Code headless gets a static
+    list of aliases (Default, Fable, Opus, Sonnet, Haiku) and levels (low...max), so it never goes
+    stale. Mode options (permission modes) are not shown: Falog answers permissions itself.
+  - A thread's agent is fixed after its first message, as in Zed: the conversation lives in the
+    agent. New threads start from the last agent/model/effort picked (`agents.json`).
+  - Permission policy: allow once for falog tools however the agent spells them, reject everything
+    else. Claude's adapter also gets `tools: []`, `settingSources: []` and `strictMcpConfig`
+    (without it the user's other MCP servers added 69k tokens of tools per conversation).
+  - Stop with ACP sends `session/cancel` and keeps the session; late updates and the stale answer
+    to the cancelled prompt are dropped.
+  - Agents that do not read `_meta.systemPrompt` get the instructions in front of the first prompt
+    of a new session.
+  - The global model setting is gone (old `app.ron` files still load); old `threads.json` files
+    load as Claude Code threads.
+- Verified live (`cargo test -p falog-desktop live -- --ignored`): Claude Code headless with
+  `--model haiku --effort low` and `@agentclientprotocol/claude-agent-acp` 0.86 under Node 24 both
+  called falog's `create_area` and `list_areas`, ran `/context`, and resumed the conversation in a
+  new process (`--resume` / `session/resume`). No Node processes were left behind. UI checked
+  with window captures of a dev build on a demo database (pickers, agent menu, `/` menu, history
+  rows, Settings › Agents); computer use was not available, so menus were opened by a throwaway
+  dev hook and the menu keys (arrows, Tab, Enter, Esc) were not exercised by hand.
+- Also fixed on the way: dialogs taller than the window scroll (Settings no longer runs off small
+  windows); Send and Stop are icon buttons so the pickers fit the default dock width.
+- Follow-ups:
+  - Gemini CLI and Codex were not run (not installed / not signed in here); their presets follow
+    the documented commands (`gemini --acp`, `npx -y @agentclientprotocol/codex-acp`).
+  - Claude's adapter streams the output of local commands like `/context` twice; a dedupe by
+    `messageId` would hide it.
+  - Claude Code headless did not emit `system/commands_changed` in some runs, so its commands can
+    lack descriptions until it does.
+  - Agents that run read-only built-in tools without asking permission (Gemini's file reading,
+    web search) are not blocked; only tools that ask are.
+  - `segmented` gives two controls in the same Settings layout the same widget id (debug builds
+    show "First/Second use of widget ID"); it predates this task.
+  - Merge with the macOS/Linux branch: route `find_claude` and `registry::find_executable` through
+    `platform::paths::find_executable`.
