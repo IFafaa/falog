@@ -105,9 +105,15 @@ Commands are looked up on `PATH` with `PATHEXT` on Windows (`npx.cmd`); Claude C
   (`--tools ""`), MCP comes from a generated config (`--strict-mcp-config --allowedTools mcp__falog
   --permission-mode dontAsk --setting-sources ""`). A reader thread maps stream-json lines to events;
   slash commands come from `init` (names) and `system/commands_changed` (with descriptions) and are
-  sent as plain user messages. Model and effort are `--model` and `--effort`; it cannot switch them
-  live, so the thread restarts it with `--resume <session>` once the current turn ends. Stopping
-  kills the process; the next message resumes the conversation.
+  sent as plain user messages. Model, effort and mode are `--model`, `--effort` and
+  `--permission-mode` (Falog's default stays `dontAsk`; `--allowedTools mcp__falog` keeps falog
+  tools allowed in every mode), fast mode is `--settings {"fastMode":true}` (Opus with extra usage;
+  when Claude Code reports `fast_mode_disabled_reason`, the thread gets a notice saying why). It
+  cannot switch these live, so the thread restarts it with `--resume <session>` once the current
+  turn ends. Context use comes from `result`: the last model call in `usage.iterations` (input,
+  cache and output tokens) against `modelUsage[model].contextWindow`. Ultracode is not offered: it
+  runs multi-agent workflows with the built-in tools the assistant turns off. Stopping kills the
+  process; the next message resumes the conversation.
 - **ACP** (`agent/acp.rs`): a client for the [Agent Client Protocol](https://agentclientprotocol.com)
   v1, newline-delimited JSON-RPC over the agent's stdio, written by hand like the MCP server. A
   reader thread runs the handshake (`initialize` with no fs/terminal capabilities, then
@@ -116,9 +122,11 @@ Commands are looked up on `PATH` with `PATHEXT` on Windows (`npx.cmd`); Claude C
   messages typed meanwhile, maps `session/update` (`agent_message_chunk`, `tool_call`,
   `tool_call_update`, `available_commands_update`, `config_option_update`) to events and answers
   `session/request_permission`, allowing falog tools only (`falog_tool` recognizes
-  `mcp__falog__x`, `falog.x`, `x (falog MCP Server)`...). Model and effort are the session config
-  options with category `model` and `thought_level`, switched live with
-  `session/set_config_option`. Stop sends `session/cancel` and drops what still streams for that
+  `mcp__falog__x`, `falog.x`, `x (falog MCP Server)`...). Model, effort, mode and fast mode are the
+  session config options with category `model`, `thought_level`, `mode` and (Claude's adapter)
+  `model_config` with id `fast`, switched live with `session/set_config_option`; agents that still
+  use the older `modes` get them as a mode option switched with `session/set_mode` and updated by
+  `current_mode_update`. Context use comes from `usage_update` (`used`, `size`). Stop sends `session/cancel` and drops what still streams for that
   turn. Instructions go in `_meta.systemPrompt` (read by Claude's adapter, which also gets
   `_meta.claudeCode.options` with no built-in tools, no user settings and `strictMcpConfig`, so the
   user's own MCP servers stay out); other agents get them in

@@ -7,7 +7,7 @@
 
 use super::{
     AgentEvent, Choice, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
-    StderrLog, hide_console, home_dir, missing,
+    StderrLog, Usage, hide_console, home_dir, missing,
 };
 use eframe::egui;
 use serde_json::{Value, json};
@@ -20,8 +20,16 @@ use std::thread;
 /// The choice that leaves a setting to Claude Code (no flag is passed).
 const DEFAULT: &str = "default";
 
-/// Models and effort levels `claude --model/--effort` accept. Aliases always mean the latest model
-/// of each family, so the list does not go stale.
+/// Falog's own permission mode: falog tools run, anything else is refused without asking.
+const FALOG_MODE: &str = "dontAsk";
+
+/// Fast mode is turned on through settings in headless mode (`fastMode`).
+pub const FAST_ON: &str = "on";
+const FAST_OFF: &str = "off";
+
+/// Models, effort levels and permission modes `claude --model/--effort/--permission-mode`
+/// accept, plus fast mode. Aliases always mean the latest model of each family, so the list does
+/// not go stale.
 pub fn options() -> Vec<ConfigOption> {
     vec![
         ConfigOption {
@@ -36,6 +44,7 @@ pub fn options() -> Vec<ConfigOption> {
                 Choice::new("sonnet", "Sonnet"),
                 Choice::new("haiku", "Haiku"),
             ],
+            description: String::new(),
         },
         ConfigOption {
             id: "effort".into(),
@@ -50,8 +59,48 @@ pub fn options() -> Vec<ConfigOption> {
                 Choice::new("xhigh", "Extra high"),
                 Choice::new("max", "Max"),
             ],
+            description: String::new(),
+        },
+        ConfigOption {
+            id: "mode".into(),
+            name: "Mode".into(),
+            kind: OptionKind::Mode,
+            current: Some(DEFAULT.into()),
+            choices: vec![
+                Choice::new(DEFAULT, "Default"),
+                Choice::new("acceptEdits", "Accept edits"),
+                Choice::new("plan", "Plan"),
+                Choice::new("auto", "Auto"),
+                Choice::new("bypassPermissions", "Bypass permissions"),
+            ],
+            description: "Falog's tools are allowed in every mode; the others only matter for \
+                          tools the assistant does not have."
+                .into(),
+        },
+        ConfigOption {
+            id: "fast".into(),
+            name: "Fast mode".into(),
+            kind: OptionKind::Fast,
+            current: Some(FAST_OFF.into()),
+            choices: vec![Choice::new(FAST_ON, "On"), Choice::new(FAST_OFF, "Off")],
+            description: "Faster responses on Opus. It uses extra usage, which must be enabled for \
+                          your account."
+                .into(),
         },
     ]
+}
+
+/// Why Claude Code turned fast mode off, in words (the codes are `fast_mode_disabled_reason`).
+fn fast_mode_unavailable(reason: &str) -> Option<&'static str> {
+    Some(match reason {
+        "free" => "it is not available on the free plan",
+        "extra_usage_disabled" => "it needs extra usage to be enabled for this account",
+        "model_not_allowed" => "it is not available for this model (Opus only)",
+        "not_first_party" => "it is not available on this API provider",
+        "disabled_by_env" => "it is disabled by the environment",
+        "network_error" => "eligibility could not be checked (network error)",
+        _ => return None,
+    })
 }
 
 #[derive(Debug)]
@@ -86,11 +135,15 @@ impl ClaudeSession {
             "--strict-mcp-config",
             "--allowedTools",
             "mcp__falog",
-            "--permission-mode",
-            "dontAsk",
             "--setting-sources",
             "",
         ]);
+        let mode = options.mode.as_deref().filter(|m| *m != DEFAULT);
+        command.args(["--permission-mode", mode.unwrap_or(FALOG_MODE)]);
+        let fast = options.fast.as_deref() == Some(FAST_ON);
+        if fast {
+            command.args(["--settings", r#"{"fastMode":true}"#]);
+        }
         command.arg("--mcp-config").arg(&mcp_config);
         command.arg("--append-system-prompt").arg(&env.system_prompt);
         if let Some(model) = options.model.as_deref().filter(|m| *m != DEFAULT) {
@@ -116,8 +169,15 @@ impl ClaudeSession {
 
         let (sender, events) = mpsc::channel();
         thread::spawn(move || {
+            let mut fast_refused = false;
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                for event in parse_line(&line) {
+                let mut parsed = parse_line(&line);
+                // Say once why fast mode was asked for but not used.
+                if let (true, false, Some(reason)) = (fast, fast_refused, fast_mode_refusal(&line)) {
+                    fast_refused = true;
+                    parsed.push(AgentEvent::Notice(format!("Fast mode is off: {reason}.")));
+                }
+                for event in parsed {
                     if sender.send(event).is_err() {
                         return;
                     }
@@ -261,13 +321,54 @@ pub fn parse_line(line: &str) -> Vec<AgentEvent> {
                 .as_str()
                 .or(message["subtype"].as_str())
                 .map(str::to_owned);
-            vec![AgentEvent::TurnFinished {
+            let finished = AgentEvent::TurnFinished {
                 is_error,
                 message: if is_error { detail } else { None },
-            }]
+            };
+            match context_usage(&message) {
+                Some(usage) => vec![AgentEvent::Usage(usage), finished],
+                None => vec![finished],
+            }
         }
         _ => Vec::new(),
     }
+}
+
+/// Tokens in context after the turn: everything sent to and produced by its last model call
+/// (`usage.iterations`), against the context window of the model that answered.
+fn context_usage(result: &Value) -> Option<Usage> {
+    let count = |usage: &Value| -> u64 {
+        [
+            "input_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+            "output_tokens",
+        ]
+        .iter()
+        .filter_map(|key| usage[*key].as_u64())
+        .sum()
+    };
+    let last_call = result["usage"]["iterations"]
+        .as_array()
+        .and_then(|calls| calls.last())
+        .unwrap_or(&result["usage"]);
+    let size = result["modelUsage"]
+        .as_object()?
+        .values()
+        .filter_map(|model| model["contextWindow"].as_u64())
+        .max()?;
+    // Local commands (`/context`) make no model call and report nothing in context.
+    let used = count(last_call);
+    (used > 0).then_some(Usage { used, size })
+}
+
+/// Why fast mode is off, when a `result` says it was refused for a reason worth telling.
+fn fast_mode_refusal(line: &str) -> Option<&'static str> {
+    let message: Value = serde_json::from_str(line).ok()?;
+    if message["type"] != "result" || message["fast_mode_state"] == "on" {
+        return None;
+    }
+    fast_mode_unavailable(message["fast_mode_disabled_reason"].as_str()?)
 }
 
 /// The `init` message only names the commands; descriptions follow in `commands_changed`.
@@ -417,6 +518,42 @@ mod tests {
                 message: Some("error_during_execution".into())
             }]
         );
+    }
+
+    #[test]
+    fn reads_context_usage_from_the_last_model_call() {
+        let result = r#"{"type":"result","subtype":"success","is_error":false,
+            "usage":{"input_tokens":20,"output_tokens":150,"iterations":[
+                {"input_tokens":10,"cache_creation_input_tokens":6000,"cache_read_input_tokens":0,"output_tokens":50},
+                {"input_tokens":10,"cache_creation_input_tokens":100,"cache_read_input_tokens":6000,"output_tokens":100}]},
+            "modelUsage":{"claude-haiku-4-5":{"contextWindow":200000}}}"#
+            .replace('\n', "");
+        assert_eq!(
+            parse_line(&result)[0],
+            AgentEvent::Usage(Usage {
+                used: 6210,
+                size: 200_000
+            })
+        );
+        assert!(matches!(parse_line(&result)[1], AgentEvent::TurnFinished { .. }));
+        let local = r#"{"type":"result","is_error":false,"usage":{"input_tokens":0,"output_tokens":0},"modelUsage":{"m":{"contextWindow":200000}}}"#;
+        assert_eq!(
+            parse_line(local).len(),
+            1,
+            "a local command leaves the ring as it was"
+        );
+    }
+
+    #[test]
+    fn explains_why_fast_mode_was_refused() {
+        let refused =
+            r#"{"type":"result","fast_mode_state":"off","fast_mode_disabled_reason":"extra_usage_disabled"}"#;
+        assert!(fast_mode_refusal(refused).unwrap().contains("extra usage"));
+        let opt_in =
+            r#"{"type":"result","fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required"}"#;
+        assert_eq!(fast_mode_refusal(opt_in), None);
+        let on = r#"{"type":"result","fast_mode_state":"on"}"#;
+        assert_eq!(fast_mode_refusal(on), None);
     }
 
     #[test]

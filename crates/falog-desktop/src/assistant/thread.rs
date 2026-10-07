@@ -3,7 +3,7 @@
 use super::agent::claude_code;
 use super::agent::registry::{Agent, AgentId};
 use super::agent::{
-    self, AgentEvent, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
+    self, AgentEvent, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions, Usage,
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
@@ -86,6 +86,12 @@ pub struct Settings {
     /// A `Choice::value` of the agent's effort option.
     #[serde(default)]
     pub effort: Option<String>,
+    /// A `Choice::value` of the agent's permission mode option.
+    #[serde(default)]
+    pub mode: Option<String>,
+    /// `on` or `off`.
+    #[serde(default)]
+    pub fast: Option<String>,
 }
 
 impl Settings {
@@ -93,7 +99,32 @@ impl Settings {
         match kind {
             OptionKind::Model => self.model.as_deref(),
             OptionKind::Effort => self.effort.as_deref(),
+            OptionKind::Mode => self.mode.as_deref(),
+            OptionKind::Fast => self.fast.as_deref(),
             OptionKind::Other => None,
+        }
+    }
+
+    /// Remembers a choice. Returns false for kinds that are not remembered.
+    fn set(&mut self, kind: OptionKind, value: String) -> bool {
+        let slot = match kind {
+            OptionKind::Model => &mut self.model,
+            OptionKind::Effort => &mut self.effort,
+            OptionKind::Mode => &mut self.mode,
+            OptionKind::Fast => &mut self.fast,
+            OptionKind::Other => return false,
+        };
+        *slot = Some(value);
+        true
+    }
+
+    fn start_options(&self, resume: Option<String>) -> StartOptions {
+        StartOptions {
+            resume,
+            model: self.model.clone(),
+            effort: self.effort.clone(),
+            mode: self.mode.clone(),
+            fast: self.fast.clone(),
         }
     }
 }
@@ -111,6 +142,9 @@ pub struct ThreadRecord {
     pub draft: String,
     #[serde(default)]
     pub settings: Settings,
+    /// Context use last reported, for the ring.
+    #[serde(default)]
+    pub usage: Option<Usage>,
 }
 
 /// What a poll observed.
@@ -136,6 +170,8 @@ pub struct Thread {
     pub settings: Settings,
     /// The agent's display name, kept for when it is gone from the list.
     pub agent_name: String,
+    /// How full the context window was after the last turn.
+    pub usage: Option<Usage>,
     /// The settings the agent offers (model, effort...).
     pub options: Vec<ConfigOption>,
     /// A setting changed during a turn; the session restarts once it ends to apply it.
@@ -160,6 +196,7 @@ impl Thread {
             settings: Settings::default(),
             agent_name: "Claude Code".into(),
             options: claude_code::options(),
+            usage: None,
             restart_pending: false,
             created_at: now,
             updated_at: now,
@@ -176,6 +213,7 @@ impl Thread {
             updated_at: record.updated_at,
             session_id: record.session_id,
             settings: record.settings,
+            usage: record.usage,
             ..Self::new(record.id)
         }
     }
@@ -189,6 +227,7 @@ impl Thread {
             items: self.items.clone(),
             draft: self.draft.clone(),
             settings: self.settings.clone(),
+            usage: self.usage,
         }
     }
 
@@ -235,11 +274,7 @@ impl Thread {
         self.items.push(Item::User(text.clone()));
         self.touch();
         if self.session.is_none() {
-            let options = StartOptions {
-                resume: self.session_id.clone(),
-                model: self.settings.model.clone(),
-                effort: self.settings.effort.clone(),
-            };
+            let options = self.settings.start_options(self.session_id.clone());
             let started = match agent {
                 Some(agent) => launcher.start(ctx, agent, &options),
                 None => Err(format!(
@@ -345,6 +380,7 @@ impl Thread {
             AgentEvent::Commands(commands) => self.commands = commands,
             AgentEvent::Options(options) => self.options = options,
             AgentEvent::Notice(text) => self.items.push(Item::Notice(text)),
+            AgentEvent::Usage(usage) => self.usage = Some(usage),
             AgentEvent::Exited { stderr } => {
                 self.session = None;
                 if self.busy {
@@ -400,10 +436,8 @@ impl Thread {
         let Some(id) = self.options.iter().find(|o| o.kind == kind).map(|o| o.id.clone()) else {
             return;
         };
-        match kind {
-            OptionKind::Model => self.settings.model = Some(value.clone()),
-            OptionKind::Effort => self.settings.effort = Some(value.clone()),
-            OptionKind::Other => return,
+        if !self.settings.set(kind, value.clone()) {
+            return;
         }
         let applied = self
             .session

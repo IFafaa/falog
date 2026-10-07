@@ -66,7 +66,9 @@ fn live_agents_answer_with_falog_tools() {
         let options = StartOptions {
             effort: (id == registry::CLAUDE_CODE).then(|| "low".into()),
             model: (id == registry::CLAUDE_CODE).then(|| "haiku".into()),
-            resume: None,
+            // Falog tools must keep working outside the default mode.
+            mode: Some("acceptEdits".into()),
+            ..StartOptions::default()
         };
         let mut session = agent.start(&env, &options, &ctx).unwrap();
         let events = turn(session.as_mut(), PROMPT);
@@ -87,6 +89,10 @@ fn live_agents_answer_with_falog_tools() {
                 .iter()
                 .any(|e| matches!(e, AgentEvent::ToolUse { name, .. } if name.ends_with("create_area"))),
             "{id}: create_area was not called"
+        );
+        assert!(
+            events.iter().any(|e| matches!(e, AgentEvent::Usage(_))),
+            "{id}: no context usage"
         );
         assert!(
             events

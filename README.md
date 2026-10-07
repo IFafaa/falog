@@ -78,8 +78,10 @@ press `Ctrl+Space` (or the mic button), speak, and press it again: your words ar
 computer and sent. The first time, Falog downloads the Whisper model (~574 MB). Pick your voice
 language and whether dictation sends right away in Settings. Like Zed, each conversation is a thread:
 `+` starts a new one and the clock button lists past threads, so you can keep one per area and pick up
-any of them later, even after a restart. The composer footer picks the model (Opus, Sonnet, Haiku...)
-and the effort of the thread, and typing `/` lists the agent's commands (`/compact`, `/context`...).
+any of them later, even after a restart. The composer footer picks the model (Opus, Sonnet, Haiku...),
+effort and permission mode of the thread, toggles fast mode, and shows how full the context is;
+typing `/` lists the agent's commands (`/compact`, `/context`...). `Shift+Esc` zooms the assistant
+to fill the window.
 
 **From Claude Code or another MCP client:** open a session in `~\falog-assistant` (its `CLAUDE.md`
 teaches Claude how to file tasks) or mention tasks in any session, since the server is registered for

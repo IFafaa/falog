@@ -53,10 +53,30 @@ pub enum AgentEvent {
     Options(Vec<ConfigOption>),
     /// Something the user should know that is not an error.
     Notice(String),
+    /// How full the context window is, in tokens.
+    Usage(Usage),
     /// The process ended; `stderr` may explain why.
     Exited {
         stderr: String,
     },
+}
+
+/// Tokens in the conversation's context, and the model's context window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Usage {
+    pub used: u64,
+    pub size: u64,
+}
+
+impl Usage {
+    /// How full the window is, from 0 to 1.
+    pub fn fraction(self) -> f32 {
+        if self.size == 0 {
+            0.0
+        } else {
+            (self.used as f64 / self.size as f64).clamp(0.0, 1.0) as f32
+        }
+    }
 }
 
 /// A command the agent runs when sent `/name [input]`.
@@ -75,7 +95,16 @@ pub struct SlashCommand {
 pub enum OptionKind {
     Model,
     Effort,
+    /// Permission mode (default, accept edits, plan, auto, bypass permissions...).
+    Mode,
+    /// Fast mode, `on` or `off`.
+    Fast,
     Other,
+}
+
+impl OptionKind {
+    /// The kinds a thread remembers and the composer shows, in footer order.
+    pub const PICKED: [Self; 4] = [Self::Model, Self::Effort, Self::Mode, Self::Fast];
 }
 
 /// A session setting with a closed set of values (ACP's select config options).
@@ -87,6 +116,9 @@ pub struct ConfigOption {
     /// The value in effect, when the agent says.
     pub current: Option<String>,
     pub choices: Vec<Choice>,
+    /// What it does, or why it is unavailable.
+    #[serde(default)]
+    pub description: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -150,6 +182,36 @@ pub struct StartOptions {
     pub model: Option<String>,
     /// Effort (thinking) level to ask for; `None` uses the agent's default.
     pub effort: Option<String>,
+    /// Permission mode; `None` keeps Falog's default.
+    pub mode: Option<String>,
+    /// Fast mode (`on`/`off`); `None` leaves it off.
+    pub fast: Option<String>,
+}
+
+impl StartOptions {
+    /// The value asked for a kind of option.
+    pub fn get(&self, kind: OptionKind) -> Option<&str> {
+        match kind {
+            OptionKind::Model => self.model.as_deref(),
+            OptionKind::Effort => self.effort.as_deref(),
+            OptionKind::Mode => self.mode.as_deref(),
+            OptionKind::Fast => self.fast.as_deref(),
+            OptionKind::Other => None,
+        }
+    }
+
+    /// Asks for a value of a kind of option. Returns false for kinds that are not remembered.
+    pub fn set(&mut self, kind: OptionKind, value: String) -> bool {
+        let slot = match kind {
+            OptionKind::Model => &mut self.model,
+            OptionKind::Effort => &mut self.effort,
+            OptionKind::Mode => &mut self.mode,
+            OptionKind::Fast => &mut self.fast,
+            OptionKind::Other => return false,
+        };
+        *slot = Some(value);
+        true
+    }
 }
 
 /// The `falog-mcp` executable shipped next to the app.

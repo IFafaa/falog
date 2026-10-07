@@ -147,6 +147,11 @@ impl Agent {
     }
 }
 
+/// Whether the agent is Claude (headless or through its ACP adapter).
+pub fn is_claude(id: &AgentId) -> bool {
+    id.0 == CLAUDE_CODE || id.0 == "claude"
+}
+
 /// The built-in agents, Claude Code first. ACP adapters for Claude and Codex run through `npx`,
 /// which downloads them on first use.
 pub fn presets() -> Vec<Agent> {

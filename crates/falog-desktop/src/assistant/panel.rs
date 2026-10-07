@@ -1,7 +1,8 @@
 //! The assistant dock, modeled on Zed's agent panel: thread on top, composer at the bottom, and a
 //! history view listing past threads.
 
-use super::agent::OptionKind;
+use super::agent::claude_code::FAST_ON;
+use super::agent::{OptionKind, Usage, registry};
 use super::thread::{self, Thread};
 use super::{Assistant, AssistantOptions, Item, ToolCall, VoiceState};
 use super::{slash, voice};
@@ -566,13 +567,21 @@ fn text_input(
     if std::mem::take(&mut assistant.focus_composer) {
         response.request_focus();
     }
+    // Zed's composer footer, on two rows so it fits a narrow dock: what the thread asks the agent
+    // for, then the actions.
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        agent_picker(ui, theme, assistant);
+        option_picker(ui, theme, assistant, OptionKind::Model);
+        option_picker(ui, theme, assistant, OptionKind::Effort);
+        option_picker(ui, theme, assistant, OptionKind::Mode);
+    });
     ui.horizontal(|ui| {
         if icon_toggle(ui, Icon::Mic, false, "Talk (Ctrl+Space)").clicked() {
             assistant.toggle_dictation(ui.ctx(), options);
         }
-        agent_picker(ui, theme, assistant);
-        option_picker(ui, theme, assistant, OptionKind::Model);
-        option_picker(ui, theme, assistant, OptionKind::Effort);
+        fast_toggle(ui, assistant);
+        ultracode(ui, theme, assistant);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if assistant.active().busy {
                 if button(ui, ButtonStyle::Filled, Some(Icon::Stop), "")
@@ -591,8 +600,87 @@ fn text_input(
                     response.request_focus();
                 }
             }
+            if let Some(usage) = assistant.active().usage {
+                context_ring(ui, theme, usage);
+            }
         });
     });
+}
+
+/// Fast mode, when the agent offers it: a flame that stays lit while on, like Zed's burn mode.
+fn fast_toggle(ui: &mut Ui, assistant: &mut Assistant) {
+    let Some((option, value)) = assistant.active().option(OptionKind::Fast) else {
+        return;
+    };
+    let on = value == FAST_ON;
+    let tooltip = match (on, option.description.is_empty()) {
+        (true, _) => "Fast mode is on".to_owned(),
+        (false, true) => "Fast mode".to_owned(),
+        (false, false) => format!("Fast mode: {}", option.description),
+    };
+    let off = option
+        .choices
+        .iter()
+        .map(|c| c.value.clone())
+        .find(|v| v != FAST_ON)
+        .unwrap_or_else(|| "off".into());
+    if icon_toggle(ui, Icon::Flame, on, &tooltip).clicked() {
+        assistant.choose(OptionKind::Fast, if on { off } else { FAST_ON.into() });
+    }
+}
+
+/// Ultracode has Claude plan and run multi-agent workflows with its built-in tools, which the
+/// assistant turns off; it is shown, disabled, so it is clear why it is missing.
+fn ultracode(ui: &mut Ui, theme: &Theme, assistant: &Assistant) {
+    if !registry::is_claude(&assistant.active().settings.agent) {
+        return;
+    }
+    picker_label_colored(ui, "Ultracode", theme.text_placeholder).on_hover_text(
+        "Ultracode is not available here: it has Claude run multi-agent workflows with its built-in \
+         tools, and Falog's assistant runs with only its task tools.",
+    );
+}
+
+/// How full the context window is: a ring that fills up, amber then red near the limit.
+fn context_ring(ui: &mut Ui, theme: &Theme, usage: Usage) {
+    let (rect, response) = ui.allocate_exact_size(vec2(22.0, 24.0), Sense::hover());
+    let center = rect.center();
+    let radius = 6.5;
+    let fraction = usage.fraction();
+    let color = match fraction {
+        f if f >= 0.9 => theme.error,
+        f if f >= 0.7 => theme.warning,
+        _ => theme.text_muted,
+    };
+    let painter = ui.painter();
+    painter.circle_stroke(center, radius, Stroke::new(2.0_f32, theme.border_variant));
+    if fraction > 0.0 {
+        let steps = 48;
+        let filled = ((steps as f32 * fraction).ceil() as usize).max(1);
+        let points: Vec<_> = (0..=filled)
+            .map(|i| {
+                // Clockwise from twelve o'clock.
+                let angle = -std::f32::consts::FRAC_PI_2 + std::f32::consts::TAU * i as f32 / steps as f32;
+                center + vec2(angle.cos(), angle.sin()) * radius
+            })
+            .collect();
+        painter.add(egui::Shape::line(points, Stroke::new(2.0_f32, color)));
+    }
+    response.on_hover_text(format!(
+        "Context: {} of {} tokens ({:.0}%)",
+        tokens(usage.used),
+        tokens(usage.size),
+        fraction * 100.0
+    ));
+}
+
+/// `850`, `12.4k`, `1M`.
+pub fn tokens(count: u64) -> String {
+    match count {
+        0..1_000 => count.to_string(),
+        1_000..1_000_000 => format!("{:.1}k", count as f64 / 1_000.0).replace(".0k", "k"),
+        _ => format!("{:.1}M", count as f64 / 1_000_000.0).replace(".0M", "M"),
+    }
 }
 
 /// The thread's agent. It can only change before the first message, since the conversation lives
@@ -645,14 +733,18 @@ fn agent_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
 
 /// A picker that cannot be opened: just the muted label.
 fn picker_label(ui: &mut Ui, theme: &Theme, label: &str) -> egui::Response {
+    picker_label_colored(ui, label, theme.text_muted)
+}
+
+fn picker_label_colored(ui: &mut Ui, label: &str, color: Color32) -> egui::Response {
     let galley = ui
         .painter()
-        .layout_no_wrap(label.to_owned(), FontId::proportional(12.5), theme.text_muted);
+        .layout_no_wrap(label.to_owned(), FontId::proportional(12.5), color);
     let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 12.0, 24.0), Sense::hover());
     ui.painter().galley(
         pos2(rect.left() + 6.0, rect.center().y - galley.size().y / 2.0),
         galley,
-        theme.text_muted,
+        color,
     );
     response
 }
@@ -666,6 +758,7 @@ fn option_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, kind: Op
     let label = match (kind, option.label(value)) {
         (OptionKind::Model, "Default") => "Default model".to_owned(),
         (OptionKind::Effort, name) => format!("{name} effort"),
+        (OptionKind::Mode, "Default") => "Default mode".to_owned(),
         (_, name) => name.to_owned(),
     };
     let (title, choices) = (option.name.clone(), option.choices.clone());
@@ -855,5 +948,13 @@ mod tests {
         );
         assert_eq!(first_task_id("Color #74ade8 and task #3"), Some(TaskId(3)));
         assert_eq!(first_task_id("No tasks found."), None);
+    }
+
+    #[test]
+    fn shortens_token_counts() {
+        assert_eq!(tokens(850), "850");
+        assert_eq!(tokens(12_400), "12.4k");
+        assert_eq!(tokens(200_000), "200k");
+        assert_eq!(tokens(1_000_000), "1M");
     }
 }

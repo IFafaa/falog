@@ -12,7 +12,7 @@
 
 use super::{
     AgentEvent, Choice, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
-    StderrLog, hide_console, missing,
+    StderrLog, Usage, hide_console, missing,
 };
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -38,6 +38,9 @@ const FALOG_TOOLS: [&str; 9] = [
     "get_task",
     "list_areas",
 ];
+
+/// The id under which an agent's older `modes` (switched with `session/set_mode`) are shown.
+const LEGACY_MODE: &str = "__mode";
 
 /// JSON-RPC error codes from the ACP schema.
 const METHOD_NOT_FOUND: i64 = -32601;
@@ -191,21 +194,11 @@ impl Session for AcpSession {
         let mut state = self.connection.state();
         let Some(session_id) = state.session_id.clone() else {
             // Still opening: applied as soon as the session is up.
-            match state.options.iter().find(|o| o.id == id).map(|o| o.kind) {
-                Some(OptionKind::Model) => state.setup.options.model = Some(value.to_owned()),
-                Some(OptionKind::Effort) => state.setup.options.effort = Some(value.to_owned()),
-                _ => return false,
-            }
-            return true;
+            let kind = state.options.iter().find(|o| o.id == id).map(|o| o.kind);
+            return kind.is_some_and(|kind| state.setup.options.set(kind, value.to_owned()));
         };
         drop(state);
-        self.connection
-            .request(
-                Request::SetOption,
-                "session/set_config_option",
-                json!({ "sessionId": session_id, "configId": id, "value": value }),
-            )
-            .is_ok()
+        self.connection.set_option(&session_id, id, value).is_ok()
     }
 }
 
@@ -230,6 +223,7 @@ enum Request {
     LoadSession,
     Prompt,
     SetOption,
+    SetMode,
 }
 
 #[derive(Debug)]
@@ -253,6 +247,8 @@ struct State {
     /// The latest `session/prompt`; answers to earlier (cancelled) ones are stale.
     current_prompt: Option<u64>,
     options: Vec<ConfigOption>,
+    /// The mode asked for with `session/set_mode`, applied when the agent agrees.
+    pending_mode: Option<String>,
     /// Tool names by call id, for permission requests that only carry the id.
     tools: HashMap<String, String>,
 }
@@ -273,6 +269,7 @@ impl State {
             cancelling: false,
             current_prompt: None,
             options: Vec::new(),
+            pending_mode: None,
             tools: HashMap::new(),
         }
     }
@@ -338,6 +335,46 @@ impl Connection {
             }
         };
         let _ = self.write(&message);
+    }
+
+    /// Changes a setting: `session/set_mode` for the older modes, else a config option.
+    fn set_option(&self, session_id: &str, id: &str, value: &str) -> io::Result<()> {
+        if id == LEGACY_MODE {
+            self.state().pending_mode = Some(value.to_owned());
+            return self.request(
+                Request::SetMode,
+                "session/set_mode",
+                json!({ "sessionId": session_id, "modeId": value }),
+            );
+        }
+        self.request(
+            Request::SetOption,
+            "session/set_config_option",
+            json!({ "sessionId": session_id, "configId": id, "value": value }),
+        )
+    }
+
+    /// Replaces the known options, keeping the older modes when the agent shows them that way
+    /// (they are not config options, so config updates do not carry them).
+    fn update_options(&self, mut options: Vec<ConfigOption>) -> Vec<ConfigOption> {
+        let mut state = self.state();
+        if !options.iter().any(|o| o.kind == OptionKind::Mode)
+            && let Some(modes) = state.options.iter().find(|o| o.id == LEGACY_MODE)
+        {
+            options.push(modes.clone());
+        }
+        state.options.clone_from(&options);
+        options
+    }
+
+    /// Marks the current mode of the older modes, and returns the options to show.
+    fn mode_changed(&self, mode: &str) -> Vec<AgentEvent> {
+        let mut state = self.state();
+        let Some(option) = state.options.iter_mut().find(|o| o.id == LEGACY_MODE) else {
+            return Vec::new();
+        };
+        option.current = Some(mode.to_owned());
+        vec![AgentEvent::Options(state.options.clone())]
     }
 
     fn prompt(&self, text: &str) -> io::Result<()> {
@@ -427,9 +464,12 @@ impl Connection {
                 vec![turn_end(result["stopReason"].as_str().unwrap_or("end_turn"))]
             }
             Request::SetOption => {
-                let options = parse_options(&result["configOptions"]);
-                self.state().options.clone_from(&options);
+                let options = self.update_options(parse_options(&result["configOptions"]));
                 vec![AgentEvent::Options(options)]
+            }
+            Request::SetMode => {
+                let mode = self.state().pending_mode.take();
+                mode.map(|mode| self.mode_changed(&mode)).unwrap_or_default()
             }
         }
     }
@@ -449,7 +489,7 @@ impl Connection {
             _ if error["code"].as_i64() == Some(AUTH_REQUIRED) => vec![failure(format!(
                 "{agent} is not signed in. Run it once in a terminal to sign in, then try again."
             ))],
-            Request::SetOption => vec![AgentEvent::Notice(format!(
+            Request::SetOption | Request::SetMode => vec![AgentEvent::Notice(format!(
                 "{agent} did not accept that setting: {message}"
             ))],
             Request::Prompt => {
@@ -518,17 +558,20 @@ impl Connection {
     }
 
     fn opened(&self, kind: Request, session_id: String, result: &Value) -> Vec<AgentEvent> {
-        let options = parse_options(&result["configOptions"]);
+        let mut options = parse_options(&result["configOptions"]);
+        if !options.iter().any(|o| o.kind == OptionKind::Mode) {
+            options.extend(legacy_modes(&result["modes"]));
+        }
         let (queued, wanted) = {
             let mut state = self.state();
             state.session_id = Some(session_id.clone());
             state.replaying = false;
             state.needs_instructions = kind == Request::NewSession && !state.reads_system_prompt;
             state.options.clone_from(&options);
-            let wanted = [
-                (OptionKind::Model, state.setup.options.model.clone()),
-                (OptionKind::Effort, state.setup.options.effort.clone()),
-            ];
+            let wanted: Vec<(OptionKind, Option<String>)> = OptionKind::PICKED
+                .iter()
+                .map(|kind| (*kind, state.setup.options.get(*kind).map(str::to_owned)))
+                .collect();
             (std::mem::take(&mut state.queued), wanted)
         };
         let model = options
@@ -549,11 +592,7 @@ impl Connection {
                 continue;
             };
             if option.current.as_deref() != Some(&value) && option.choices.iter().any(|c| c.value == value) {
-                let _ = self.request(
-                    Request::SetOption,
-                    "session/set_config_option",
-                    json!({ "sessionId": session_id, "configId": option.id, "value": value }),
-                );
+                let _ = self.set_option(&session_id, &option.id, &value);
             }
         }
         for text in queued {
@@ -611,9 +650,20 @@ impl Connection {
         match kind {
             "available_commands_update" => return vec![AgentEvent::Commands(parse_commands(update))],
             "config_option_update" => {
-                let options = parse_options(&update["configOptions"]);
-                self.state().options.clone_from(&options);
+                let options = self.update_options(parse_options(&update["configOptions"]));
                 return vec![AgentEvent::Options(options)];
+            }
+            "current_mode_update" => {
+                return update["currentModeId"]
+                    .as_str()
+                    .map(|mode| self.mode_changed(mode))
+                    .unwrap_or_default();
+            }
+            "usage_update" => {
+                return match (update["used"].as_u64(), update["size"].as_u64()) {
+                    (Some(used), Some(size)) => vec![AgentEvent::Usage(Usage { used, size })],
+                    _ => Vec::new(),
+                };
             }
             _ => {}
         }
@@ -785,16 +835,42 @@ fn parse_options(options: &Value) -> Vec<ConfigOption> {
             Some(ConfigOption {
                 id: option["id"].as_str()?.to_owned(),
                 name: option["name"].as_str().unwrap_or_default().to_owned(),
-                kind: match option["category"].as_str() {
-                    Some("model") => OptionKind::Model,
-                    Some("thought_level") => OptionKind::Effort,
+                kind: match (option["category"].as_str(), option["id"].as_str()) {
+                    (Some("model"), _) => OptionKind::Model,
+                    (Some("thought_level"), _) => OptionKind::Effort,
+                    (Some("mode"), _) => OptionKind::Mode,
+                    // Claude's adapter shows fast mode as an on/off `model_config` option.
+                    (Some("model_config"), Some("fast")) => OptionKind::Fast,
                     _ => OptionKind::Other,
                 },
                 current: option["currentValue"].as_str().map(str::to_owned),
                 choices,
+                description: option["description"].as_str().unwrap_or_default().to_owned(),
             })
         })
         .collect()
+}
+
+/// An agent's older session modes (`modes`, switched with `session/set_mode`), as an option.
+fn legacy_modes(modes: &Value) -> Option<ConfigOption> {
+    let choices: Vec<Choice> = modes["availableModes"]
+        .as_array()?
+        .iter()
+        .filter_map(|mode| {
+            Some(Choice {
+                value: mode["id"].as_str()?.to_owned(),
+                name: mode["name"].as_str()?.to_owned(),
+            })
+        })
+        .collect();
+    (!choices.is_empty()).then(|| ConfigOption {
+        id: LEGACY_MODE.into(),
+        name: "Mode".into(),
+        kind: OptionKind::Mode,
+        current: modes["currentModeId"].as_str().map(str::to_owned),
+        choices,
+        description: String::new(),
+    })
 }
 
 #[cfg(test)]
@@ -921,7 +997,7 @@ mod tests {
             options: StartOptions {
                 resume: resume.map(str::to_owned),
                 model: model.map(str::to_owned),
-                effort: None,
+                ..StartOptions::default()
             },
         }
     }
@@ -1124,6 +1200,59 @@ mod tests {
         assert!(session.set_option("thinking", "high"), "switches live");
         let set = agent.expect("session/set_config_option");
         assert_eq!(set["params"]["value"], "high");
+    }
+
+    #[test]
+    fn switches_older_modes_and_reports_usage() {
+        let (mut session, mut agent) = connect(setup(None, None));
+        handshake(&mut agent, json!({}), "gemini-cli");
+        let new = agent.expect("session/new");
+        let modes = json!({ "currentModeId": "default", "availableModes": [
+            { "id": "default", "name": "Default" }, { "id": "yolo", "name": "YOLO" },
+        ]});
+        agent.reply(&new, json!({ "sessionId": "s1", "modes": modes }));
+        assert!(matches!(next_event(&mut session), AgentEvent::Ready { .. }));
+        let AgentEvent::Options(options) = next_event(&mut session) else {
+            panic!("expected options");
+        };
+        assert_eq!(options[0].kind, OptionKind::Mode);
+        assert_eq!(options[0].current.as_deref(), Some("default"));
+
+        assert!(session.set_option(LEGACY_MODE, "yolo"));
+        let set = agent.expect("session/set_mode");
+        assert_eq!(set["params"], json!({ "sessionId": "s1", "modeId": "yolo" }));
+        agent.reply(&set, json!({}));
+        let AgentEvent::Options(options) = next_event(&mut session) else {
+            panic!("expected options");
+        };
+        assert_eq!(options[0].current.as_deref(), Some("yolo"));
+
+        agent.update(json!({ "sessionUpdate": "current_mode_update", "currentModeId": "default" }));
+        assert!(
+            matches!(next_event(&mut session), AgentEvent::Options(o) if o[0].current.as_deref() == Some("default"))
+        );
+        agent.update(json!({ "sessionUpdate": "usage_update", "used": 5300, "size": 1000000 }));
+        assert_eq!(
+            next_event(&mut session),
+            AgentEvent::Usage(Usage {
+                used: 5300,
+                size: 1_000_000
+            })
+        );
+    }
+
+    #[test]
+    fn reads_mode_and_fast_options() {
+        let options = parse_options(&json!([
+            { "id": "mode", "name": "Mode", "category": "mode", "type": "select", "currentValue": "default",
+              "options": [{ "value": "default", "name": "Default" }, { "value": "plan", "name": "Plan" }] },
+            { "id": "fast", "name": "Fast mode", "category": "model_config", "type": "select", "currentValue": "off",
+              "description": "Faster responses — requires extra usage",
+              "options": [{ "value": "on", "name": "On" }, { "value": "off", "name": "Off" }] },
+        ]));
+        assert_eq!(options[0].kind, OptionKind::Mode);
+        assert_eq!(options[1].kind, OptionKind::Fast);
+        assert!(options[1].description.contains("extra usage"));
     }
 
     #[test]

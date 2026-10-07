@@ -48,6 +48,7 @@ mod tests {
             items: vec![Item::User(format!("message {id}"))],
             draft: String::new(),
             settings: Default::default(),
+            usage: None,
         }
     }
 

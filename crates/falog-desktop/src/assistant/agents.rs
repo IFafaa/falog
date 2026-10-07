@@ -65,7 +65,7 @@ mod tests {
             last: Some(Settings {
                 agent: AgentId("gemini".into()),
                 model: Some("flash".into()),
-                effort: None,
+                ..Settings::default()
             }),
             ..SavedAgents::default()
         };
@@ -81,6 +81,7 @@ mod tests {
                         value: "flash".into(),
                         name: "Flash".into(),
                     }],
+                    description: String::new(),
                 }],
                 commands: Vec::new(),
             },
