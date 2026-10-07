@@ -10,18 +10,22 @@ license = "MIT"
 authors = ["Fabricio Lima"]
 
 [workspace.dependencies]
+falog-calendar = { path = "crates/falog-calendar" }
 falog-core = { path = "crates/falog-core" }
 
 anyhow = "1"
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 cpal = "0.18"
 dirs = "6"
 eframe = { version = "0.29", features = ["persistence"] }
 egui_extras = { version = "0.29", features = ["svg"] }
+getrandom = "0.3"
 raw-window-handle = "0.6"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 thiserror = "2"
 ureq = "2"
 whisper-rs = "0.16"
