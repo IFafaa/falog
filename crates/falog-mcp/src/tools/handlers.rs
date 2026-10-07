@@ -1,4 +1,5 @@
 use super::args::*;
+use super::calendar::{self, CalendarAccess};
 use crate::format;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::NaiveDate;
@@ -8,8 +9,12 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 /// Runs a tool and returns the text shown to the model.
-pub fn call(store: &Store, name: &str, args: Value) -> Result<String> {
+pub fn call(store: &Store, access: &CalendarAccess, name: &str, args: Value) -> Result<String> {
     match name {
+        "list_events" => calendar::list_events(store, access, parse(args)?),
+        "create_event" => calendar::create_event(store, access, parse(args)?),
+        "update_event" => calendar::update_event(access, parse(args)?),
+        "delete_event" => calendar::delete_event(access, parse(args)?),
         "get_agenda" => get_agenda(store, parse(args)?),
         "list_areas" => list_areas(store),
         "create_area" => create_area(store, parse(args)?),

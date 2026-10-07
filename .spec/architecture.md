@@ -16,7 +16,7 @@ point. `falog-core` holds every rule so both binaries behave identically.
 | Crate | Kind | Depends on | Responsibility |
 |---|---|---|---|
 | `falog-core` | lib | rusqlite, chrono | Domain types, validation, date parsing, agenda rules, persistence |
-| `falog-mcp` | bin `falog-mcp` | core, serde_json | MCP protocol, tool schemas, argument parsing, text output |
+| `falog-mcp` | bin `falog-mcp` | core, calendar, serde_json | MCP protocol, tool schemas, argument parsing, text output; calendar tools through the same `calendar/` files as the app |
 | `falog-calendar` | lib | ureq, chrono, chrono-tz, rrule, sha2 | iCal feeds, Google OAuth (loopback + PKCE), Calendar API, event model and layout rules, files |
 | `falog-desktop` | bin `falog` | core, calendar, eframe/egui | UI, theming, OS integration |
 
@@ -196,6 +196,12 @@ the same thread, when it is not cached or older than five minutes, only for visi
 account that fails keeps its cached events and puts its error in the header; a rejected refresh token
 marks the account "needs to sign in". When a meeting comes through both a link and an account, the
 link's copy is kept (deduplicated by iCal UID and start).
+
+Each account and link has one area (an area may have several). `falog_calendar::service` holds what the
+app and the MCP server share: access tokens, fetching an account, and creating, changing and deleting
+events (signed-in accounts that granted `calendar.events`; others get a "reconnect" error). The MCP
+server reads the same `calendar/` files and writes `calendar/changed` after a change; the app checks
+that marker every second and fetches again, so a meeting booked by voice shows up at once.
 
 ### OS integration
 

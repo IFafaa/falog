@@ -19,11 +19,13 @@ Statuses: todo, in_progress, waiting (blocked on someone, in review), done. Repl
 #[derive(Debug)]
 pub struct Server {
     store: Store,
+    calendar: tools::CalendarAccess,
 }
 
 impl Server {
     pub fn new(store: Store) -> Self {
-        Self { store }
+        let calendar = tools::CalendarAccess::for_store(&store);
+        Self { store, calendar }
     }
 
     /// Serves newline-delimited JSON-RPC until `input` ends.
@@ -91,7 +93,7 @@ impl Server {
     fn call_tool(&self, params: &Value) -> Value {
         let name = params["name"].as_str().unwrap_or_default();
         let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-        match tools::call(&self.store, name, arguments) {
+        match tools::call(&self.store, &self.calendar, name, arguments) {
             Ok(text) => json!({ "content": [{ "type": "text", "text": text }] }),
             Err(err) => {
                 json!({ "content": [{ "type": "text", "text": format!("Error: {err:#}") }], "isError": true })
@@ -164,7 +166,7 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names.len(), 10);
+        assert_eq!(names.len(), 14);
         assert!(names.contains(&"create_task") && names.contains(&"get_agenda"));
     }
 
@@ -223,6 +225,27 @@ mod tests {
             json!({ "area": "medi", "color": "green" }),
         );
         assert_eq!(bad["isError"], true);
+    }
+
+    #[test]
+    fn calendar_tools_explain_when_nothing_is_connected() {
+        let server = server();
+        let result = call(&server, 1, "list_events", json!({}));
+        assert_eq!(result["isError"], true);
+        assert!(
+            text(&result).contains("no calendars are connected"),
+            "{}",
+            text(&result)
+        );
+        let result = call(
+            &server,
+            2,
+            "create_event",
+            json!({ "title": "Call", "start": "2026-10-08T15:00" }),
+        );
+        assert!(text(&result).contains("Settings › Calendar"), "{}", text(&result));
+        let result = call(&server, 3, "create_event", json!({ "start": "2026-10-08T15:00" }));
+        assert!(text(&result).contains("invalid arguments"), "{}", text(&result));
     }
 
     #[test]

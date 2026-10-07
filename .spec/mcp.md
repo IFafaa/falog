@@ -16,6 +16,10 @@ request). Keep it in sync with `assistant/CLAUDE.md`.
 | `list_areas` | — | One line per area with open count |
 | `create_area` | `name`, `color?` | Confirmation |
 | `update_area` | `area`, `name?`, `color?` | Confirmation with the new name and color |
+| `list_events` | `from?`, `to?`, `area?` | One line per event: when, title, [area], place, join link, calendar and id |
+| `create_event` | `title`, `start`, `end?`, `duration_minutes?`, `all_day?`, `area?`, `calendar?`, `description?`, `location?`, `attendees?`, `meet?` | `Created` line; the account is the area's (or `calendar`) |
+| `update_event` | `calendar`, `id`, `title?`, `start?`, `end?`, `description?`, `location?` | `Updated` line |
+| `delete_event` | `calendar`, `id` | Confirmation |
 | `create_task` | `title`, `area?`, `description?`, `priority?`, `due_date?`, `requester?`, `status?` | `Created #id [...]` line |
 | `update_task` | `id`, any task field, `note?` | `Updated ...` line |
 | `add_note` | `id`, `note` | Confirmation line |

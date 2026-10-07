@@ -99,6 +99,53 @@ pub fn catalog() -> Value {
             "name": "delete_task",
             "description": "Permanently deletes a task. Prefer status=done for finished work; delete only when the user asks (e.g. created by mistake).",
             "inputSchema": { "type": "object", "properties": { "id": task_id }, "required": ["id"] }
+        },
+        {
+            "name": "list_events",
+            "description": "Meetings and other events from the user's Google calendars for a day or a range (default: today), with their area, join link, and the calendar and id that update_event and delete_event need. Use it with get_agenda when the user catches up, and before booking to check they are free.",
+            "inputSchema": { "type": "object", "properties": {
+                "from": { "type": "string", "description": "First day, YYYY-MM-DD (default today)" },
+                "to": { "type": "string", "description": "Last day, inclusive, YYYY-MM-DD (default: same as from)" },
+                "area": { "type": "string", "description": "Only the calendars of this area" }
+            }}
+        },
+        {
+            "name": "create_event",
+            "description": "Creates an event in a Google calendar. The account comes from the area (each area is linked to its email in Falog); pass calendar (an email) when the area has several or none. Times are local, YYYY-MM-DDTHH:MM.",
+            "inputSchema": { "type": "object", "properties": {
+                "title": { "type": "string" },
+                "start": { "type": "string", "description": "YYYY-MM-DDTHH:MM, or YYYY-MM-DD with all_day" },
+                "end": { "type": "string", "description": "YYYY-MM-DDTHH:MM (or the last day with all_day); default start + duration_minutes" },
+                "duration_minutes": { "type": "integer", "description": "Used when end is missing; default 30" },
+                "all_day": { "type": "boolean" },
+                "area": { "type": "string", "description": "Area name or a unique part of it" },
+                "calendar": { "type": "string", "description": "Account email (or part of it) to create the event in" },
+                "description": { "type": "string" },
+                "location": { "type": "string" },
+                "attendees": { "type": "array", "items": { "type": "string" }, "description": "Guests' emails; Google sends them the invitation" },
+                "meet": { "type": "boolean", "description": "Attach a Google Meet link" }
+            }, "required": ["title", "start"] }
+        },
+        {
+            "name": "update_event",
+            "description": "Changes an event found with list_events: pass its calendar and id, and only the fields to change. When moving it, pass start and end together.",
+            "inputSchema": { "type": "object", "properties": {
+                "calendar": { "type": "string", "description": "The event's calendar, as list_events shows it" },
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "start": { "type": "string", "description": "YYYY-MM-DDTHH:MM" },
+                "end": { "type": "string", "description": "YYYY-MM-DDTHH:MM" },
+                "description": { "type": "string" },
+                "location": { "type": "string" }
+            }, "required": ["calendar", "id"] }
+        },
+        {
+            "name": "delete_event",
+            "description": "Deletes an event found with list_events (Google tells the guests). Only when the user explicitly asks to cancel or delete it.",
+            "inputSchema": { "type": "object", "properties": {
+                "calendar": { "type": "string" },
+                "id": { "type": "string" }
+            }, "required": ["calendar", "id"] }
         }
     ])
 }

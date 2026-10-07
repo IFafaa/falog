@@ -8,6 +8,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+falog-calendar.workspace = true
 falog-core.workspace = true
 
 anyhow.workspace = true
