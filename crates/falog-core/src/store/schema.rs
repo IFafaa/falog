@@ -2,7 +2,8 @@ use crate::Result;
 use rusqlite::Connection;
 
 /// Append-only list of migrations; `PRAGMA user_version` records how many have run.
-const MIGRATIONS: &[&str] = &[r#"
+const MIGRATIONS: &[&str] = &[
+    r#"
     CREATE TABLE companies (
         id          INTEGER PRIMARY KEY,
         name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -34,7 +35,15 @@ const MIGRATIONS: &[&str] = &[r#"
         created_at  TEXT NOT NULL
     );
     CREATE INDEX notes_task ON notes(task_id);
-"#];
+"#,
+    // Companies became areas: they also cover personal life, not only employers.
+    r#"
+    ALTER TABLE companies RENAME TO areas;
+    ALTER TABLE tasks RENAME COLUMN company_id TO area_id;
+    DROP INDEX tasks_company;
+    CREATE INDEX tasks_area ON tasks(area_id);
+"#,
+];
 
 pub(super) fn migrate(conn: &Connection) -> Result<()> {
     if applied(conn)? >= MIGRATIONS.len() {
@@ -69,5 +78,27 @@ mod tests {
         migrate(&conn).unwrap();
         migrate(&conn).unwrap();
         assert_eq!(applied(&conn).unwrap(), MIGRATIONS.len());
+    }
+
+    #[test]
+    fn companies_become_areas_with_their_tasks() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(MIGRATIONS[0]).unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+        conn.execute_batch(
+            "INSERT INTO companies (id, name, color, created_at) VALUES (7, 'Acme', '#61afef', '');
+             INSERT INTO tasks (title, company_id, created_at, updated_at) VALUES ('Fix login', 7, '', '');",
+        )
+        .unwrap();
+
+        migrate(&conn).unwrap();
+        let area: String = conn
+            .query_row(
+                "SELECT a.name FROM tasks t JOIN areas a ON a.id = t.area_id",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(area, "Acme");
     }
 }

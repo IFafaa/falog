@@ -10,7 +10,7 @@ const SELECT: &str = "
            c.id, c.name, c.color,
            (SELECT COUNT(*) FROM notes n WHERE n.task_id = t.id)
     FROM tasks t
-    LEFT JOIN companies c ON c.id = t.company_id";
+    LEFT JOIN areas c ON c.id = t.area_id";
 
 fn map_row(row: &Row<'_>) -> rusqlite::Result<Task> {
     let company = match row.get(10)? {
@@ -69,7 +69,7 @@ impl Store {
         let title = validate_title(&new.title)?;
         let now = now();
         self.conn.execute(
-            "INSERT INTO tasks (title, description, company_id, status, priority, due_date,
+            "INSERT INTO tasks (title, description, area_id, status, priority, due_date,
                                 requester, created_at, updated_at, completed_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?9)",
             params![
@@ -98,7 +98,7 @@ impl Store {
             _ => None,
         };
         self.conn.execute(
-            "UPDATE tasks SET title = ?1, description = ?2, company_id = ?3, status = ?4,
+            "UPDATE tasks SET title = ?1, description = ?2, area_id = ?3, status = ?4,
                               priority = ?5, due_date = ?6, requester = ?7, updated_at = ?8,
                               completed_at = ?9
              WHERE id = ?10",

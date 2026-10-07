@@ -5,7 +5,7 @@ use crate::text::fold;
 use crate::{Error, Result};
 use rusqlite::{OptionalExtension, Row, params};
 
-const SELECT: &str = "SELECT id, name, color FROM companies";
+const SELECT: &str = "SELECT id, name, color FROM areas";
 
 fn map_row(row: &Row<'_>) -> rusqlite::Result<Company> {
     Ok(Company {
@@ -49,7 +49,7 @@ impl Store {
         }
         let color = color.unwrap_or(PALETTE[existing.len() % PALETTE.len()]);
         self.conn.execute(
-            "INSERT INTO companies (name, color, created_at) VALUES (?1, ?2, ?3)",
+            "INSERT INTO areas (name, color, created_at) VALUES (?1, ?2, ?3)",
             params![name, color, now()],
         )?;
         Ok(Company {
@@ -69,7 +69,7 @@ impl Store {
             return Err(Error::DuplicateCompany(name.to_string()));
         }
         self.conn.execute(
-            "UPDATE companies SET name = ?1, color = ?2 WHERE id = ?3",
+            "UPDATE areas SET name = ?1, color = ?2 WHERE id = ?3",
             params![name, color, id],
         )?;
         Ok(Company {
@@ -81,7 +81,7 @@ impl Store {
 
     /// Deletes a company; its tasks are kept without a company.
     pub fn delete_company(&self, id: CompanyId) -> Result<()> {
-        self.conn.execute("DELETE FROM companies WHERE id = ?1", [id])?;
+        self.conn.execute("DELETE FROM areas WHERE id = ?1", [id])?;
         Ok(())
     }
 
