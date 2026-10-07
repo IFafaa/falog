@@ -11,8 +11,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct Prefs {
     pub view: View,
-    /// Sidebar filter; saved as `company` before areas existed.
-    #[serde(alias = "company")]
+    /// Sidebar filter.
     pub area: Option<AreaId>,
     pub sort: SortOrder,
     pub calendar_mode: CalendarMode,

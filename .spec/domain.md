@@ -20,9 +20,9 @@
 
 ### Area
 
-A sphere of the user's life a task belongs to: an employer, a client, "Personal", "Health"...
+A part of the user's life a task belongs to: "Work", "Personal", "Health", "Home"...
 `id`, `name` (unique, compared ignoring case **and** accents), `color` (`#rrggbb`). New areas take the
-next color of `PALETTE` (the One Dark player colors). Areas were called companies until migration 2.
+next color of `PALETTE` (the One Dark player colors). Migration 2 is intentionally empty.
 
 ### Note
 
