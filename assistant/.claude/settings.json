@@ -2,13 +2,13 @@
   "permissions": {
     "allow": [
       "mcp__falog__get_agenda",
-      "mcp__falog__list_companies",
+      "mcp__falog__list_areas",
       "mcp__falog__list_tasks",
       "mcp__falog__get_task",
       "mcp__falog__create_task",
       "mcp__falog__update_task",
       "mcp__falog__add_note",
-      "mcp__falog__create_company"
+      "mcp__falog__create_area"
     ]
   }
 }
