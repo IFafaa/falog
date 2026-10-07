@@ -1,6 +1,6 @@
 # 0009: Areas instead of companies
 
-**Status:** doing
+**Status:** done
 **Area:** core
 
 ## Goal
@@ -24,12 +24,12 @@ room for projects inside an area later.
 
 ## Acceptance criteria
 
-- [ ] An existing database opens with its companies as areas and every task still attached
-- [ ] MCP tools are `list_areas` / `create_area`, and task tools take `area`
-- [ ] The UI says "Areas" everywhere it said "Companies" (sidebar, pickers, dialogs, palette)
-- [ ] The assistant files personal requests under a personal area
-- [ ] Specs updated (`product.md`, `domain.md`, `mcp.md`, `design-system.md`, `architecture.md`)
-- [ ] Tests cover the migration; `fmt`, `clippy`, `test` green
+- [x] An existing database opens with its companies as areas and every task still attached
+- [x] MCP tools are `list_areas` / `create_area`, and task tools take `area`
+- [x] The UI says "Areas" everywhere it said "Companies" (sidebar, pickers, dialogs, palette)
+- [x] The assistant is told to file personal requests under a personal area
+- [x] Specs updated (`product.md`, `domain.md`, `mcp.md`, `design-system.md`, `architecture.md`)
+- [x] Tests cover the migration; `fmt`, `clippy`, `test` green
 
 ## Plan
 
@@ -45,4 +45,13 @@ list (Claude Code does on its next session).
 
 ## Outcome
 
-Filled when done.
+- Migration 2 renames the table and column; a test upgrades a version-1 database with a task attached
+  to a company and finds it attached to the same area.
+- `Company`, `CompanyId` and the store API became `Area`, `AreaId`, `areas()`, `find_area()`...; MCP
+  tools are `list_areas` and `create_area`, and every `company` argument is now `area` (breaking for
+  MCP clients until they reload the tool list).
+- The sidebar header button is a plus ("Add area") instead of a gear, and the dialog focuses the new
+  area field.
+- The assistant prompt, the `~\falog-assistant` workspace and the demo seed (now with a Personal area)
+  use the new names. Whether the model picks the personal area was checked by reading the prompt only.
+- Follow-ups: a time of day on due dates for appointments; projects inside areas.
