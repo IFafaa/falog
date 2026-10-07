@@ -110,6 +110,41 @@ impl Event {
         (start, end)
     }
 
+    /// The description as plain text: Google sends HTML (`<br>`, links, `&amp;`) for events edited
+    /// in its web UI.
+    pub fn plain_description(&self) -> String {
+        let html = &self.description;
+        let mut text = String::with_capacity(html.len());
+        let mut rest = html.as_str();
+        while let Some(start) = rest.find('<') {
+            text.push_str(&rest[..start]);
+            let Some(end) = rest[start..].find('>') else {
+                text.push_str(&rest[start..]);
+                rest = "";
+                break;
+            };
+            let tag = rest[start + 1..start + end].trim().to_ascii_lowercase();
+            let name = tag
+                .trim_start_matches('/')
+                .split([' ', '/'])
+                .next()
+                .unwrap_or_default();
+            if matches!(name, "br" | "p" | "div" | "li" | "ul" | "ol") && !text.ends_with('\n') {
+                text.push('\n');
+            }
+            rest = &rest[start + end + 1..];
+        }
+        text.push_str(rest);
+        let text = text
+            .replace("&nbsp;", " ")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&amp;", "&");
+        text.trim().to_owned()
+    }
+
     /// Sort key: all-day first, then by start, then longest first.
     pub fn sort_key(&self) -> (bool, NaiveDateTime, std::cmp::Reverse<NaiveDateTime>) {
         (
@@ -192,6 +227,19 @@ mod tests {
         let mut events = vec![work.clone(), personal, other.clone()];
         sort_and_dedupe(&mut events);
         assert_eq!(events, vec![other, work]);
+    }
+
+    #[test]
+    fn strips_html_from_descriptions() {
+        let mut meeting = event(at(7, 10, 0), at(7, 11, 0));
+        meeting.description =
+            "Agenda:<br>1. Q&amp;A<br/><b>Bring</b> notes &lt;draft&gt;<ul><li>a</li></ul>".into();
+        assert_eq!(
+            meeting.plain_description(),
+            "Agenda:\n1. Q&A\nBring notes <draft>\na"
+        );
+        meeting.description = "Plain text, 2 < 3".into();
+        assert_eq!(meeting.plain_description(), "Plain text, 2 < 3");
     }
 
     #[test]
