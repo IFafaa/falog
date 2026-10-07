@@ -1,6 +1,6 @@
 # 0011: Assistant agents (Claude Code, ACP), models, effort and slash commands
 
-**Status:** done
+**Status:** doing
 **Area:** desktop
 
 ## Goal
@@ -64,6 +64,26 @@ reports its commands in the `init` message (`slash_commands`) and in `system/com
   other content blocks, agent authentication flows (the user signs in once in a terminal), a mode
   picker, installing agents for the user.
 
+## Second round (requested after the first close)
+
+The user also asked, per thread, in the same composer footer: a **context ring** (how much of the
+model's context window is used), a **permission mode** picker (default, accept edits, plan, auto,
+bypass permissions), **effort** (done above), **Fast mode** and **Ultracode**, and a **full screen**
+assistant (Zed's panel zoom).
+
+- Context: Claude Code reports per-call `usage` (`input_tokens` + `cache_creation_input_tokens` +
+  `cache_read_input_tokens` + `output_tokens` = tokens in context) and, on `result`,
+  `modelUsage[model].contextWindow`. ACP v1 has a `usage_update` session update with `used` and
+  `size`. The ring shows used/size; the tooltip has the numbers. It is saved with the thread.
+- Modes: Claude Code `--permission-mode` (acceptEdits, auto, bypassPermissions, plan; Falog's default
+  stays `dontAsk` with only falog tools allowed, and falog tools stay allowed in every mode). ACP:
+  config options with `category: "mode"`, or the older `modes` + `session/set_mode`.
+- Fast mode / Ultracode: only if Claude Code exposes them headless; otherwise shown disabled with
+  the reason.
+- Zoom: a header button, `Shift+Esc` (Zed's `workspace::ToggleZoom`) and an "assistant: toggle zoom"
+  command; the dock fills the window (sidebar, tabs, toolbar, views and task panel hidden), the
+  conversation stays a readable column; remembered in the preferences.
+
 ## Acceptance criteria
 
 - [x] Claude Code works as before: replies stream, tools run and the board refreshes, Stop works, a
@@ -82,6 +102,12 @@ reports its commands in the `init` message (`slash_commands`) and in `system/com
 - [x] Tests cover ACP parsing and dispatch (in-memory streams), the Claude Code parser and thread
       settings; `fmt`, `clippy -D warnings`, `test` green with `--no-default-features`, default and
       `--features falog-desktop/gpu`
+
+- [ ] The footer shows a context ring once the agent reports usage; hovering it shows used / window
+- [ ] A mode picker switches Claude Code's permission mode (restart with `--resume`) and ACP modes
+      live; falog tools work in every mode
+- [ ] Fast mode and Ultracode work headless, or show disabled with the reason
+- [ ] Zoom from the header button, `Shift+Esc` and the command palette; zoomed state survives a restart
 
 ## Plan
 
