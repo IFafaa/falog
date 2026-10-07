@@ -72,7 +72,7 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
                     )
                     .clicked()
                 {
-                    actions.push(Action::SetView(View::Agenda));
+                    actions.push(Action::SetView(View::Focus));
                 }
                 if summary.due_today > 0
                     && item(
@@ -84,7 +84,7 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
                     )
                     .clicked()
                 {
-                    actions.push(Action::SetView(View::Agenda));
+                    actions.push(Action::SetView(View::Focus));
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {

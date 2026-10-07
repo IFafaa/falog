@@ -19,11 +19,11 @@ const ROW_HEIGHT: f32 = 30.0;
 const COMPLETED: &str = "Completed in the last 7 days";
 
 #[derive(Debug, Default)]
-pub struct AgendaState {
+pub struct FocusState {
     collapsed: HashSet<&'static str>,
 }
 
-pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut AgendaState, actions: &mut Actions) {
+pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut Actions) {
     ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         let width = ui.available_width().min(MAX_WIDTH);
         let margin = (ui.available_width() - width) / 2.0;
@@ -37,7 +37,7 @@ pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut AgendaState, actions: &mut
     });
 }
 
-fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut AgendaState, actions: &mut Actions) {
+fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut Actions) {
     let theme = cx.theme;
     let summary = agenda::summary(cx.tasks, cx.today);
 
@@ -155,7 +155,7 @@ fn section_header(
     title: &'static str,
     count: usize,
     color: Color32,
-    state: &mut AgendaState,
+    state: &mut FocusState,
 ) -> bool {
     ui.add_space(16.0);
     let expanded = !state.collapsed.contains(title);

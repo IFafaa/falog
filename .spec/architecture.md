@@ -67,7 +67,7 @@ src/
   fonts.rs, icons.rs
   components/    reusable widgets (buttons, chips, modal, pickers, switch, text helpers)
   workspace/     window chrome: sidebar, tab bar, toolbar, status bar, task panel
-  views/         board, list, agenda (+ ViewCx, SortOrder)
+  views/         board, list, focus (+ ViewCx, SortOrder)
   overlays/      command palette, areas, settings, confirm
   platform/      autostart (registry), single instance (loopback port), title bar colors (DWM)
 ```

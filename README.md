@@ -2,7 +2,7 @@
 
 **A task board you talk to.** Falog is a local-first desktop app for developers who juggle work for
 several companies at once and still have a life to run. You tell your AI assistant about a request or
-an appointment, by voice or text, and it files the task for you; Falog shows everything on a Zed-inspired board, list and agenda.
+an appointment, by voice or text, and it files the task for you; Falog shows everything on a Zed-inspired board, list and focus view.
 
 ![Falog board with the task panel open](docs/screenshots/board.png)
 
@@ -15,8 +15,8 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
 
 ## Features
 
-- **Board, List and Agenda views.** Drag cards between *To do*, *In progress*, *Waiting* and *Done*.
-  The agenda groups open work into *Overdue*, *Due today*, *Due this week*, and so on.
+- **Board, List and Focus views.** Drag cards between *To do*, *In progress*, *Waiting* and *Done*.
+  Focus groups open work into *Overdue*, *Due today*, *Due this week*, and so on.
 - **An assistant you talk to, built in.** Open the assistant dock (`Ctrl+Shift+A`), press `Ctrl+Space`
   and say what changed: Claude creates, updates and summarizes tasks while the board updates live.
   Speech is transcribed locally with Whisper, and Claude runs on your own Claude Code login.
@@ -30,9 +30,9 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
 - **Local and private.** A single SQLite file on your machine. No account, no server.
 - **Always there.** Opens at sign-in and keeps a single window.
 
-| Agenda | Command palette | Light theme |
+| Focus | Command palette | Light theme |
 |---|---|---|
-| ![Agenda](docs/screenshots/agenda.png) | ![Command palette](docs/screenshots/command-palette.png) | ![List in light theme](docs/screenshots/list-light.png) |
+| ![Focus](docs/screenshots/focus.png) | ![Command palette](docs/screenshots/command-palette.png) | ![List in light theme](docs/screenshots/list-light.png) |
 
 ## How it works
 
@@ -95,7 +95,7 @@ Any MCP client works; point it at `falog-mcp.exe`.
 | `Ctrl+Shift+P` | Command palette |
 | `Ctrl+P` | Find a task |
 | `Ctrl+N` | New task |
-| `Ctrl+1` / `Ctrl+2` / `Ctrl+3` | Board / List / Agenda |
+| `Ctrl+1` / `Ctrl+2` / `Ctrl+3` | Board / List / Focus |
 | `Ctrl+F` | Search |
 | `Ctrl+B` | Toggle sidebar |
 | `Ctrl+Shift+A` | Toggle the assistant |

@@ -56,7 +56,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 
 ```
 ┌ native title bar (themed) ─────────────────────────────────────────────────────────┐
-│ sidebar │ tab bar: Board · List · Agenda              🔍 ＋ │ task  │ assistant      │
+│ sidebar │ tab bar: Board · List · Focus               🔍 ＋ │ task  │ assistant      │
 │ (left   │ toolbar: breadcrumb › view    sort ✓ [search]    │ panel │ thread         │
 │  dock)  │ view                                             │       │ ────────────── │
 │         │                                                  │       │ composer 🎤 ➤  │

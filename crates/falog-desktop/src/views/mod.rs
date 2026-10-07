@@ -1,7 +1,7 @@
 //! The three ways to look at tasks, shown as tabs.
 
-pub mod agenda;
 pub mod board;
+pub mod focus;
 pub mod list;
 
 use crate::icons::Icon;
@@ -18,17 +18,19 @@ pub enum View {
     #[default]
     Board,
     List,
-    Agenda,
+    /// Saved as `Agenda` before the rename.
+    #[serde(alias = "Agenda")]
+    Focus,
 }
 
 impl View {
-    pub const ALL: [Self; 3] = [Self::Board, Self::List, Self::Agenda];
+    pub const ALL: [Self; 3] = [Self::Board, Self::List, Self::Focus];
 
     pub const fn label(self) -> &'static str {
         match self {
             Self::Board => "Board",
             Self::List => "List",
-            Self::Agenda => "Agenda",
+            Self::Focus => "Focus",
         }
     }
 
@@ -36,7 +38,7 @@ impl View {
         match self {
             Self::Board => Icon::Board,
             Self::List => Icon::List,
-            Self::Agenda => Icon::Reader,
+            Self::Focus => Icon::Reader,
         }
     }
 
@@ -44,7 +46,7 @@ impl View {
         match self {
             Self::Board => "Ctrl+1",
             Self::List => "Ctrl+2",
-            Self::Agenda => "Ctrl+3",
+            Self::Focus => "Ctrl+3",
         }
     }
 }

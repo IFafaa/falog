@@ -9,8 +9,8 @@ use crate::overlays::settings::{SettingsDialog, SettingsEvent};
 use crate::platform::{autostart, title_bar};
 use crate::prefs::Prefs;
 use crate::theme::{self, Theme};
-use crate::views::agenda::AgendaState;
 use crate::views::board::BoardState;
+use crate::views::focus::FocusState;
 use crate::views::{self, View, ViewCx};
 use crate::workspace::status_bar::{self, StatusBar, Toast, ToastKind};
 use crate::workspace::task_panel::{self, PanelEvent, TaskPanel};
@@ -39,7 +39,7 @@ pub struct FalogApp {
     prefs: Prefs,
     search: String,
     board: BoardState,
-    agenda: AgendaState,
+    focus: FocusState,
     task_panel: Option<TaskPanel>,
     assistant: Assistant,
     palette: Option<CommandPalette>,
@@ -76,7 +76,7 @@ impl FalogApp {
             prefs,
             search: String::new(),
             board: BoardState::default(),
-            agenda: AgendaState::default(),
+            focus: FocusState::default(),
             task_panel: None,
             assistant,
             palette: None,
@@ -306,7 +306,7 @@ impl FalogApp {
                 (Key::N, Action::NewTask(Status::Todo)),
                 (Key::Num1, Action::SetView(View::Board)),
                 (Key::Num2, Action::SetView(View::List)),
-                (Key::Num3, Action::SetView(View::Agenda)),
+                (Key::Num3, Action::SetView(View::Focus)),
                 (Key::B, Action::ToggleSidebar),
                 (Key::F, Action::FocusSearch),
                 (Key::Comma, Action::OpenSettings),
@@ -631,7 +631,7 @@ impl eframe::App for FalogApp {
                 match self.prefs.view {
                     View::Board => views::board::show(ui, &cx, &mut self.board, &mut actions),
                     View::List => views::list::show(ui, &cx, &mut actions),
-                    View::Agenda => views::agenda::show(ui, &cx, &mut self.agenda, &mut actions),
+                    View::Focus => views::focus::show(ui, &cx, &mut self.focus, &mut actions),
                 }
             });
 
