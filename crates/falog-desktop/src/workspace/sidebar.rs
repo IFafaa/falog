@@ -217,7 +217,14 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
     }
     // Links have no account to group them under; they come first, as the usual way to add one.
     for (l, link) in calendars.config.links.iter().enumerate() {
-        if calendar_row(ui, theme, &link.calendar).clicked() {
+        if calendar_row(
+            ui,
+            theme,
+            &link.calendar,
+            calendars.color_of_calendar(link.area, &link.calendar),
+        )
+        .clicked()
+        {
             actions.push(Action::ToggleCalendarLink(l));
         }
     }
@@ -253,7 +260,14 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
             }
         }
         for (c, calendar) in account.calendars.iter().enumerate() {
-            if calendar_row(ui, theme, calendar).clicked() {
+            if calendar_row(
+                ui,
+                theme,
+                calendar,
+                calendars.color_of_calendar(account.area, calendar),
+            )
+            .clicked()
+            {
                 actions.push(Action::ToggleCalendar {
                     account: a,
                     calendar: c,
@@ -263,9 +277,8 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
     }
 }
 
-/// A checkbox in the calendar's color and its name, like Google Calendar's sidebar.
-fn calendar_row(ui: &mut Ui, theme: &Theme, calendar: &Calendar) -> Response {
-    let [r, g, b] = calendar.rgb();
+/// A checkbox in the calendar's color (its area's, when it has one) and its name.
+fn calendar_row(ui: &mut Ui, theme: &Theme, calendar: &Calendar, [r, g, b]: [u8; 3]) -> Response {
     let color = Color32::from_rgb(r, g, b);
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
     if response.hovered() {

@@ -111,6 +111,7 @@ impl FalogApp {
             Ok((tasks, areas)) => {
                 self.tasks = tasks;
                 self.areas = areas;
+                self.calendar.set_area_colors(&self.areas);
                 if let Some(id) = self.prefs.area
                     && !self.areas.iter().any(|a| a.id == id)
                 {

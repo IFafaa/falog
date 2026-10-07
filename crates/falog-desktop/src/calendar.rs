@@ -93,6 +93,8 @@ pub struct CalendarState {
     /// Day the view is centered on.
     pub anchor: NaiveDate,
     pub selected: Option<Selected>,
+    /// Colors of the user's areas by id: a calendar linked to an area is drawn in the area's color.
+    area_colors: std::collections::HashMap<i64, [u8; 3]>,
     /// The week view scrolls to the working day once, then keeps the user's position.
     pub scrolled: bool,
 }
@@ -136,6 +138,7 @@ impl CalendarState {
             error: None,
             anchor: Local::now().date_naive(),
             selected: None,
+            area_colors: std::collections::HashMap::new(),
             scrolled: false,
         }
     }
@@ -176,6 +179,28 @@ impl CalendarState {
             .collect();
         model::sort_and_dedupe(&mut events);
         events
+    }
+
+    /// Keeps the area colors in step with the database (the app calls it after every reload).
+    pub fn set_area_colors(&mut self, areas: &[falog_core::domain::Area]) {
+        self.area_colors = areas.iter().map(|a| (a.id.0, a.color.0)).collect();
+    }
+
+    /// The color an event is drawn in: its area's when the account or link belongs to one, otherwise
+    /// the calendar's own color from Google.
+    pub fn color_of(&self, event: &Event) -> [u8; 3] {
+        self.config
+            .area_of(event)
+            .and_then(|area| self.area_colors.get(&area).copied())
+            .or_else(|| self.calendar_of(event).map(Calendar::rgb))
+            .unwrap_or([0x74, 0xad, 0xe8])
+    }
+
+    /// The color of a calendar in the sidebar: its source's area color, or its own.
+    pub fn color_of_calendar(&self, source_area: Option<i64>, calendar: &Calendar) -> [u8; 3] {
+        source_area
+            .and_then(|area| self.area_colors.get(&area).copied())
+            .unwrap_or_else(|| calendar.rgb())
     }
 
     pub fn calendar_of(&self, event: &Event) -> Option<&Calendar> {
@@ -692,6 +717,37 @@ mod tests {
             state.error.as_deref(),
             Some("Home: the calendar link answered 500")
         );
+    }
+
+    #[test]
+    fn events_take_their_area_color() {
+        let mut state = CalendarState::new(None);
+        let calendar = |email: &str| Account {
+            email: email.into(),
+            refresh_token: "t".into(),
+            calendars: vec![Calendar {
+                id: email.into(),
+                name: email.into(),
+                color: "#039be5".into(),
+                primary: true,
+                visible: true,
+            }],
+            needs_sign_in: false,
+            can_write: false,
+            area: None,
+        };
+        state.config.upsert(calendar("me@work.example"));
+        state.config.upsert(calendar("me@gmail.example"));
+        state.config.set_area("me@work.example", Some(7));
+        state.set_area_colors(&[falog_core::domain::Area {
+            id: falog_core::domain::AreaId(7),
+            name: "Work".into(),
+            color: falog_core::domain::Rgb([0x39, 0xff, 0x14]),
+        }]);
+        let work = event("me@work.example", "me@work.example", "Standup");
+        let home = event("me@gmail.example", "me@gmail.example", "Gym");
+        assert_eq!(state.color_of(&work), [0x39, 0xff, 0x14]);
+        assert_eq!(state.color_of(&home), [0x03, 0x9b, 0xe5]);
     }
 
     #[test]

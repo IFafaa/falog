@@ -237,7 +237,7 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
 // ---- event colors --------------------------------------------------------------------------
 
 fn calendar_color(cal: &CalendarState, event: &Event) -> Color32 {
-    let [r, g, b] = cal.calendar_of(event).map_or([0x74, 0xad, 0xe8], |c| c.rgb());
+    let [r, g, b] = cal.color_of(event);
     Color32::from_rgb(r, g, b)
 }
 

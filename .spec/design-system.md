@@ -113,6 +113,9 @@ email; its `+` opens Settings › Calendar. With no calendar yet, the view shows
 "Add a calendar link" (accent) opens the same page.
 
 Each email (signed-in account or calendar link) belongs to one area; an area may have several emails.
+A calendar whose email has an area is drawn in the area's color (events, month dots, sidebar
+checkboxes, popover), so meetings read by area at a glance; calendars without an area keep their
+Google color.
 Settings › Calendar starts with "Area of each account": a row per email with an area select (the same
 picker as tasks). The sidebar's area filter then applies to meetings, and the event popover shows the
 area.
