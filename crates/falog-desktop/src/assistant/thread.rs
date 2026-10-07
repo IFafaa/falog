@@ -1,6 +1,7 @@
-//! One assistant conversation: what the user sees, plus the Claude Code session behind it.
+//! One assistant conversation: what the user sees, plus the agent session behind it.
 
-use super::claude::{self, ClaudeEvent, ClaudeSession, SessionConfig};
+use super::agent::claude_code::{self, ClaudeSession};
+use super::agent::{self, AgentEvent, Environment, Session, StartOptions};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -37,7 +38,7 @@ pub struct ToolOutcome {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ThreadId(pub u64);
 
-/// Where and how Claude Code sessions are started.
+/// Where and how agent sessions are started.
 #[derive(Clone, Debug)]
 pub struct Launcher {
     pub database: Option<PathBuf>,
@@ -46,25 +47,29 @@ pub struct Launcher {
 impl Launcher {
     /// `<data dir>/assistant`: session working directory and thread history.
     pub fn workdir(&self) -> PathBuf {
-        claude::default_workdir(self.database.as_deref())
+        agent::default_workdir(self.database.as_deref())
     }
 
-    fn config(&self, model: Option<&str>, resume: Option<String>) -> Result<SessionConfig, String> {
-        let claude = claude::find_claude().ok_or(
+    fn environment(&self) -> Result<Environment, String> {
+        let mcp_server = agent::find_mcp_server()
+            .ok_or("falog-mcp was not found next to the app. Reinstall Falog to restore it.")?;
+        Ok(Environment {
+            mcp_server,
+            database: self.database.clone(),
+            workdir: self.workdir(),
+            system_prompt: SYSTEM_PROMPT.to_owned(),
+        })
+    }
+
+    fn start(&self, ctx: &egui::Context, options: &StartOptions) -> Result<Box<dyn Session>, String> {
+        let claude = claude_code::find_claude().ok_or(
             "Claude Code was not found. Install it from claude.com/claude-code, then run `claude` once in a \
              terminal to sign in.",
         )?;
-        let mcp_server = claude::find_mcp_server()
-            .ok_or("falog-mcp was not found next to the app. Reinstall Falog to restore it.")?;
-        Ok(SessionConfig {
-            claude,
-            mcp_server,
-            database: self.database.clone(),
-            model: model.map(str::to_owned),
-            workdir: self.workdir(),
-            system_prompt: SYSTEM_PROMPT.to_owned(),
-            resume,
-        })
+        let env = self.environment()?;
+        ClaudeSession::start(&claude, &env, options, ctx.clone())
+            .map(|session| Box::new(session) as Box<dyn Session>)
+            .map_err(|err| format!("Could not start Claude Code: {err}"))
     }
 }
 
@@ -101,7 +106,7 @@ pub struct Thread {
     pub model_name: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
-    session: Option<ClaudeSession>,
+    session: Option<Box<dyn Session>>,
     session_id: Option<String>,
 }
 
@@ -172,7 +177,7 @@ impl Thread {
             .count()
     }
 
-    /// Sends a message, starting (or resuming) Claude Code if needed. Returns whether it was sent.
+    /// Sends a message, starting (or resuming) the agent if needed. Returns whether it was sent.
     pub fn send(
         &mut self,
         ctx: &egui::Context,
@@ -187,13 +192,11 @@ impl Thread {
         self.items.push(Item::User(text.clone()));
         self.touch();
         if self.session.is_none() {
-            let started = launcher
-                .config(model, self.session_id.clone())
-                .and_then(|config| {
-                    ClaudeSession::start(&config, ctx.clone())
-                        .map_err(|err| format!("Could not start Claude Code: {err}"))
-                });
-            match started {
+            let options = StartOptions {
+                resume: self.session_id.clone(),
+                model: model.map(str::to_owned),
+            };
+            match launcher.start(ctx, &options) {
                 Ok(session) => self.session = Some(session),
                 Err(message) => {
                     self.items.push(Item::Error(message));
@@ -220,37 +223,37 @@ impl Thread {
     /// Applies the session's pending events.
     pub fn poll(&mut self) -> Activity {
         let mut activity = Activity::default();
-        while let Some(event) = self.session.as_ref().and_then(ClaudeSession::try_recv) {
-            activity.tasks_changed |= matches!(event, ClaudeEvent::ToolResult { .. });
-            activity.changed |= !matches!(event, ClaudeEvent::TextDelta(_));
+        while let Some(event) = self.session.as_mut().and_then(|session| session.try_recv()) {
+            activity.tasks_changed |= matches!(event, AgentEvent::ToolResult { .. });
+            activity.changed |= !matches!(event, AgentEvent::TextDelta(_));
             self.apply(event);
         }
         activity
     }
 
-    pub(super) fn apply(&mut self, event: ClaudeEvent) {
+    pub(super) fn apply(&mut self, event: AgentEvent) {
         match event {
-            ClaudeEvent::Ready {
+            AgentEvent::Ready {
                 session_id,
                 model,
                 tools_connected,
             } => {
                 self.session_id = Some(session_id);
-                self.model_name = Some(model);
+                self.model_name = model;
                 if !tools_connected {
                     self.items.push(Item::Error(
                         "Falog's task tools did not connect, so the assistant cannot change tasks.".into(),
                     ));
                 }
             }
-            ClaudeEvent::TextDelta(text) => self.streaming.push_str(&text),
-            ClaudeEvent::Text(text) => {
+            AgentEvent::TextDelta(text) => self.streaming.push_str(&text),
+            AgentEvent::Text(text) => {
                 self.streaming.clear();
                 if !text.trim().is_empty() {
                     self.items.push(Item::Reply(text));
                 }
             }
-            ClaudeEvent::ToolUse { id, name, input } => {
+            AgentEvent::ToolUse { id, name, input } => {
                 let name = name.strip_prefix(TOOL_PREFIX).unwrap_or(&name).to_owned();
                 self.items.push(Item::Tool(ToolCall {
                     id,
@@ -259,7 +262,7 @@ impl Thread {
                     result: None,
                 }));
             }
-            ClaudeEvent::ToolResult { id, text, is_error } => {
+            AgentEvent::ToolResult { id, text, is_error } => {
                 let call = self.items.iter_mut().rev().find_map(|item| match item {
                     Item::Tool(call) if call.id == id => Some(call),
                     _ => None,
@@ -268,7 +271,7 @@ impl Thread {
                     call.result = Some(ToolOutcome { text, is_error });
                 }
             }
-            ClaudeEvent::TurnFinished { is_error, message } => {
+            AgentEvent::TurnFinished { is_error, message } => {
                 self.busy = false;
                 self.flush_streaming();
                 if is_error {
@@ -277,7 +280,7 @@ impl Thread {
                 }
                 self.touch();
             }
-            ClaudeEvent::Exited { stderr } => {
+            AgentEvent::Exited { stderr } => {
                 self.session = None;
                 if self.busy {
                     self.busy = false;
@@ -298,14 +301,16 @@ impl Thread {
     /// Interrupts the current turn. The next message resumes the same conversation.
     pub fn stop(&mut self) {
         if self.busy {
-            self.session = None;
+            if !self.session.as_mut().is_some_and(|session| session.cancel()) {
+                self.session = None;
+            }
             self.busy = false;
             self.flush_streaming();
             self.items.push(Item::Notice("Stopped.".into()));
         }
     }
 
-    /// Ends the Claude Code process when idle; the next message resumes it (`--resume`).
+    /// Ends the agent process when idle; the next message resumes the conversation.
     pub fn release_session(&mut self) {
         if !self.busy {
             self.session = None;
@@ -341,7 +346,7 @@ fn explain_exit(stderr: &str) -> String {
         return "Claude Code is not signed in. Run `claude` once in a terminal to sign in, then try again."
             .into();
     }
-    match claude::summarize_stderr(stderr) {
+    match agent::summarize_stderr(stderr) {
         detail if detail.is_empty() => "Claude Code exited unexpectedly.".into(),
         detail => format!("Claude Code exited unexpectedly: {detail}"),
     }
@@ -356,26 +361,26 @@ mod tests {
     fn builds_the_conversation_from_events() {
         let mut thread = Thread::new(ThreadId(1));
         thread.busy = true;
-        thread.apply(ClaudeEvent::Ready {
+        thread.apply(AgentEvent::Ready {
             session_id: "s1".into(),
-            model: "m".into(),
+            model: Some("m".into()),
             tools_connected: true,
         });
-        thread.apply(ClaudeEvent::ToolUse {
+        thread.apply(AgentEvent::ToolUse {
             id: "t1".into(),
             name: "mcp__falog__create_task".into(),
             input: json!({}),
         });
-        thread.apply(ClaudeEvent::ToolResult {
+        thread.apply(AgentEvent::ToolResult {
             id: "t1".into(),
             text: "Created #7".into(),
             is_error: false,
         });
-        thread.apply(ClaudeEvent::TextDelta("Do".into()));
-        thread.apply(ClaudeEvent::TextDelta("ne".into()));
+        thread.apply(AgentEvent::TextDelta("Do".into()));
+        thread.apply(AgentEvent::TextDelta("ne".into()));
         assert_eq!(thread.streaming, "Done");
-        thread.apply(ClaudeEvent::Text("Done.".into()));
-        thread.apply(ClaudeEvent::TurnFinished {
+        thread.apply(AgentEvent::Text("Done.".into()));
+        thread.apply(AgentEvent::TurnFinished {
             is_error: false,
             message: None,
         });
@@ -392,16 +397,16 @@ mod tests {
     #[test]
     fn reports_missing_tools_and_crashes() {
         let mut thread = Thread::new(ThreadId(1));
-        thread.apply(ClaudeEvent::Ready {
+        thread.apply(AgentEvent::Ready {
             session_id: "s".into(),
-            model: "m".into(),
+            model: None,
             tools_connected: false,
         });
         assert!(matches!(thread.items.last(), Some(Item::Error(_))));
 
         thread.busy = true;
-        thread.apply(ClaudeEvent::TextDelta("partial".into()));
-        thread.apply(ClaudeEvent::Exited {
+        thread.apply(AgentEvent::TextDelta("partial".into()));
+        thread.apply(AgentEvent::Exited {
             stderr: "Invalid API key · Please run /login".into(),
         });
         assert!(!thread.busy);

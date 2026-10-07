@@ -61,7 +61,7 @@ src/
   main.rs        single instance, window options, run loop
   app.rs         FalogApp: state, per-frame layout, action handling, persistence of prefs
   action.rs      Action enum: user intents emitted by widgets
-  assistant/     assistant dock: Claude Code sessions, threads + history, voice capture + Whisper, panel UI
+  assistant/     assistant dock: agents (Claude Code), threads + history, voice capture + Whisper, panel UI
   prefs.rs       persisted UI preferences
   theme.rs       Zed color tokens -> egui visuals
   fonts.rs, icons.rs
@@ -85,11 +85,12 @@ src/
 
 The assistant dock talks to **Claude Code in headless mode** on the user's own login (no API key):
 one long-lived `claude --print --input-format stream-json --output-format stream-json` process per
-conversation (`assistant/claude.rs`). Built-in tools are disabled (`--tools ""`); the only tools are
+conversation (`assistant/agent/claude_code.rs`). Threads only see the `agent::Session` trait and the
+`AgentEvent`s it yields. Built-in tools are disabled (`--tools ""`); the only tools are
 those of a `falog-mcp` child with `FALOG_DB` set to the app's database (`--strict-mcp-config
 --allowedTools mcp__falog --permission-mode dontAsk --setting-sources ""`). The system prompt is
 `assets/assistant-prompt.md`; the working directory is `<data dir>/assistant`, so no project
-`CLAUDE.md` leaks in. A reader thread maps stream-json lines to `ClaudeEvent`s (text deltas, tool use and
+`CLAUDE.md` leaks in. A reader thread maps stream-json lines to `AgentEvent`s (text deltas, tool use and
 results, turn end, exit). Stopping kills the process; the next message resumes the conversation with
 `--resume <session>`. When a tool result arrives the app syncs immediately instead of waiting for the poll.
 

@@ -1,10 +1,10 @@
-//! The assistant dock: conversations with Claude that manage tasks, typed or dictated.
+//! The assistant dock: conversations with an AI agent that manage tasks, typed or dictated.
 //!
-//! [`claude`] drives Claude Code, [`thread`] holds one conversation, [`history`] saves them,
-//! [`voice`] records and transcribes speech and [`panel`] draws the dock. [`Assistant`] owns the
-//! threads and the dictation state and ties them together.
+//! [`agent`] starts and talks to the agents (Claude Code by default), [`thread`] holds one
+//! conversation, [`history`] saves them, [`voice`] records and transcribes speech and [`panel`]
+//! draws the dock. [`Assistant`] owns the threads and the dictation state and ties them together.
 
-pub mod claude;
+pub mod agent;
 pub mod history;
 pub mod panel;
 pub mod thread;
