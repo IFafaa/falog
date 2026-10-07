@@ -13,23 +13,35 @@ $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $dest = Join-Path $env:LOCALAPPDATA 'Falog'
 $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 
-# Voice input compiles whisper.cpp, which needs CMake (shipped with the VS Build Tools) and
-# libclang (LLVM). Find them if they are installed but not on PATH.
-if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
-    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (Test-Path $vswhere) {
-        $vs = & $vswhere -latest -products * -property installationPath
-        $cmake = Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin'
-        if (Test-Path $cmake) { $env:Path = "$cmake;$env:Path" }
+# Voice input compiles whisper.cpp, which needs CMake and Ninja (both ship with the VS Build Tools),
+# libclang (LLVM) and, for GPU acceleration, the Vulkan SDK. Load the Visual Studio developer
+# environment so CMake can use Ninja: the default MSBuild generator hits Windows' 260-character
+# path limit on the Vulkan shader build.
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+if (Test-Path $vswhere) {
+    $env:Path = "$(Split-Path $vswhere);$env:Path"  # VsDevCmd calls vswhere itself
+    $vs = & $vswhere -latest -products * -property installationPath
+    $devShell = Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll'
+    if (Test-Path $devShell) {
+        Import-Module $devShell
+        Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64' | Out-Null
+        if (Get-Command ninja -ErrorAction SilentlyContinue) { $env:CMAKE_GENERATOR = 'Ninja' }
     }
 }
 if (-not $env:LIBCLANG_PATH -and (Test-Path "$env:ProgramFiles\LLVM\bin\libclang.dll")) {
     $env:LIBCLANG_PATH = "$env:ProgramFiles\LLVM\bin"
 }
+if (-not $env:VULKAN_SDK) {
+    $env:VULKAN_SDK = [Environment]::GetEnvironmentVariable('VULKAN_SDK', 'Machine')
+}
+
 $features = @()
 if (-not (Get-Command cmake -ErrorAction SilentlyContinue) -or -not ($env:LIBCLANG_PATH -or (Get-Command clang -ErrorAction SilentlyContinue))) {
     Write-Warning 'CMake or LLVM not found: building without voice input (winget install LLVM.LLVM to enable it).'
     $features = @('--no-default-features')
+} elseif ($env:VULKAN_SDK -and $env:CMAKE_GENERATOR -eq 'Ninja') {
+    Write-Host '==> Vulkan SDK found: speech recognition can run on the GPU'
+    $features = @('--features', 'falog-desktop/gpu')
 }
 
 Write-Host '==> Building (release)'
