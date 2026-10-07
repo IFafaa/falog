@@ -69,7 +69,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 
 Modeled on Zed's agent panel. Header (32 px, `tab_bar`) with ✦ and the thread title (its first
 message; hover shows the model), then new thread (+), history (clock, toggled) and close. The history
-view replaces the thread and composer with rows of 44 px: title, then `N messages · 2h ago` in
+view replaces the thread and composer with rows of 44 px: title, then `Agent · N messages · 2h ago` in
 `text_muted`; the open thread is `element_selected`, hover is `ghost_hover` with a trash button, and a
 running thread shows a spinner instead. The empty state lists the three most recent threads under the
 examples, with "View all" when there are more. The thread lists user messages (bordered `element` boxes), plain replies (streamed with a ▍
@@ -77,9 +77,10 @@ caret), tool calls as compact bordered cards (spinner → check / warning, actio
 the result; click opens the task, hover shows the arguments) and errors in `error`. The composer is an
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
 (pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
-Under the text, the footer has the mic, then the thread's model and effort pickers (Zed's selectors:
+Under the text, the footer has the mic, then the thread's agent, model and effort pickers (Zed's selectors:
 `text_muted` label and a chevron, `ghost_hover` on hover, a menu above with a check on the current
-value), and Send or Stop on the right. Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
+value; the effort picker only shows when the agent has one, and the agent becomes a plain label
+once the thread has messages), and Send or Stop on the right. Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
 30 px): `/name` in monospace, the argument hint in `text_placeholder`, the description in
 `text_muted`; the selected row is `ghost_selected`. Arrows move, Tab or Enter completes `/name `,
 Enter on a complete name sends it, Esc closes.

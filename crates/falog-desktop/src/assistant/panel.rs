@@ -181,7 +181,8 @@ fn thread_row(ui: &mut Ui, theme: &Theme, thread: &Thread, active: bool, now: i6
         .galley(pos2(left, rect.top() + 6.0), title, theme.text);
     let count = thread.message_count();
     let detail = format!(
-        "{count} message{} · {}",
+        "{} · {count} message{} · {}",
+        thread.agent_name,
         if count == 1 { "" } else { "s" },
         thread::relative_time(thread.updated_at, now)
     );
@@ -548,6 +549,7 @@ fn text_input(
         if icon_toggle(ui, Icon::Mic, false, "Talk (Ctrl+Space)").clicked() {
             assistant.toggle_dictation(ui.ctx(), options);
         }
+        agent_picker(ui, theme, assistant);
         option_picker(ui, theme, assistant, OptionKind::Model);
         option_picker(ui, theme, assistant, OptionKind::Effort);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -568,6 +570,68 @@ fn text_input(
             }
         });
     });
+}
+
+/// The thread's agent. It can only change before the first message, since the conversation lives
+/// in the agent.
+fn agent_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
+    let thread = assistant.active();
+    let label = thread.agent_name.clone();
+    if thread.has_messages() {
+        picker_label(ui, theme, &label)
+            .on_hover_text("Each thread keeps its agent. Start a new thread (+) to talk to another one.");
+        return;
+    }
+    let current = thread.settings.agent.clone();
+    let agents = assistant.agents();
+    let popup = Id::new("assistant-agent");
+    let response = picker_button(ui, theme, &label);
+    let response = if ui.memory(|m| m.is_popup_open(popup)) {
+        response
+    } else {
+        response.on_hover_text("Agent")
+    };
+    if response.clicked() {
+        ui.memory_mut(|m| m.toggle_popup(popup));
+    }
+    let mut picked = None;
+    egui::popup::popup_above_or_below_widget(
+        ui,
+        popup,
+        &response,
+        egui::AboveOrBelow::Above,
+        egui::PopupCloseBehavior::CloseOnClick,
+        |ui| {
+            ui.set_min_width(220.0);
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.label(RichText::new("Agent").size(12.0).color(theme.text_muted));
+            ui.add_space(4.0);
+            for agent in &agents {
+                let row = menu_row(ui, theme, agent.name(), *agent.id() == current)
+                    .on_hover_text(RichText::new(agent.command_line()).monospace().size(11.5));
+                if row.clicked() {
+                    picked = Some(agent.id().clone());
+                }
+            }
+        },
+    );
+    if let Some(id) = picked {
+        assistant.set_agent(id);
+    }
+}
+
+/// A picker that cannot be opened: just the muted label.
+fn picker_label(ui: &mut Ui, theme: &Theme, label: &str) -> egui::Response {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), FontId::proportional(12.5), theme.text_muted);
+    let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 12.0, 24.0), Sense::hover());
+    ui.painter().galley(
+        pos2(rect.left() + 6.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        theme.text_muted,
+    );
+    response
 }
 
 /// Zed's composer selectors: muted text with a chevron that opens a menu above it.

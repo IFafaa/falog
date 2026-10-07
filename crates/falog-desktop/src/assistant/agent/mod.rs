@@ -5,7 +5,12 @@
 //! [`Environment`]: the `falog` MCP server as its only tools, the assistant prompt and an isolated
 //! working directory.
 
+pub mod acp;
 pub mod claude_code;
+pub mod registry;
+
+#[cfg(test)]
+mod live_tests;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -44,6 +49,10 @@ pub enum AgentEvent {
     },
     /// The commands the agent accepts as `/name` messages (replaces earlier lists).
     Commands(Vec<SlashCommand>),
+    /// The settings the agent offers for this session, such as model and effort.
+    Options(Vec<ConfigOption>),
+    /// Something the user should know that is not an error.
+    Notice(String),
     /// The process ended; `stderr` may explain why.
     Exited {
         stderr: String,

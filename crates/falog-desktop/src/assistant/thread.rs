@@ -1,6 +1,7 @@
 //! One assistant conversation: what the user sees, plus the agent session behind it.
 
-use super::agent::claude_code::{self, ClaudeSession};
+use super::agent::claude_code;
+use super::agent::registry::{Agent, AgentId};
 use super::agent::{
     self, AgentEvent, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
 };
@@ -63,21 +64,22 @@ impl Launcher {
         })
     }
 
-    fn start(&self, ctx: &egui::Context, options: &StartOptions) -> Result<Box<dyn Session>, String> {
-        let claude = claude_code::find_claude().ok_or(
-            "Claude Code was not found. Install it from claude.com/claude-code, then run `claude` once in a \
-             terminal to sign in.",
-        )?;
-        let env = self.environment()?;
-        ClaudeSession::start(&claude, &env, options, ctx.clone())
-            .map(|session| Box::new(session) as Box<dyn Session>)
-            .map_err(|err| format!("Could not start Claude Code: {err}"))
+    fn start(
+        &self,
+        ctx: &egui::Context,
+        agent: &Agent,
+        options: &StartOptions,
+    ) -> Result<Box<dyn Session>, String> {
+        agent.start(&self.environment()?, options, ctx)
     }
 }
 
-/// What a thread asks its agent for. `None` leaves the choice to the agent.
+/// Who a thread talks to and what it asks for. `None` leaves the choice to the agent.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Settings {
+    /// Threads saved before agents existed talked to Claude Code.
+    #[serde(default)]
+    pub agent: AgentId,
     /// A `Choice::value` of the agent's model option.
     #[serde(default)]
     pub model: Option<String>,
@@ -102,7 +104,7 @@ pub struct ThreadRecord {
     pub id: ThreadId,
     pub created_at: i64,
     pub updated_at: i64,
-    /// Claude Code session to `--resume`, so the conversation keeps its context after a restart.
+    /// The agent's session to resume, so the conversation keeps its context after a restart.
     pub session_id: Option<String>,
     pub items: Vec<Item>,
     #[serde(default)]
@@ -132,6 +134,8 @@ pub struct Thread {
     /// What the agent accepts as `/name` messages, as last reported.
     pub commands: Vec<SlashCommand>,
     pub settings: Settings,
+    /// The agent's display name, kept for when it is gone from the list.
+    pub agent_name: String,
     /// The settings the agent offers (model, effort...).
     pub options: Vec<ConfigOption>,
     /// A setting changed during a turn; the session restarts once it ends to apply it.
@@ -154,6 +158,7 @@ impl Thread {
             model_name: None,
             commands: Vec::new(),
             settings: Settings::default(),
+            agent_name: "Claude Code".into(),
             options: claude_code::options(),
             restart_pending: false,
             created_at: now,
@@ -216,7 +221,13 @@ impl Thread {
     }
 
     /// Sends a message, starting (or resuming) the agent if needed. Returns whether it was sent.
-    pub fn send(&mut self, ctx: &egui::Context, text: String, launcher: &Launcher) -> bool {
+    pub fn send(
+        &mut self,
+        ctx: &egui::Context,
+        text: String,
+        launcher: &Launcher,
+        agent: Option<&Agent>,
+    ) -> bool {
         let text = text.trim().to_owned();
         if text.is_empty() || self.busy {
             return false;
@@ -229,7 +240,14 @@ impl Thread {
                 model: self.settings.model.clone(),
                 effort: self.settings.effort.clone(),
             };
-            match launcher.start(ctx, &options) {
+            let started = match agent {
+                Some(agent) => launcher.start(ctx, agent, &options),
+                None => Err(format!(
+                    "{} is no longer set up. Add it again in Settings, or start a new thread with another agent.",
+                    self.agent_name
+                )),
+            };
+            match started {
                 Ok(session) => self.session = Some(session),
                 Err(message) => {
                     self.items.push(Item::Error(message));
@@ -246,7 +264,7 @@ impl Thread {
             Some(Err(err)) => {
                 self.session = None;
                 self.items
-                    .push(Item::Error(format!("Could not reach Claude Code: {err}")));
+                    .push(Item::Error(format!("Could not reach {}: {err}", self.agent_name)));
             }
             None => {}
         }
@@ -258,7 +276,10 @@ impl Thread {
         let mut activity = Activity::default();
         while let Some(event) = self.session.as_mut().and_then(|session| session.try_recv()) {
             activity.tasks_changed |= matches!(event, AgentEvent::ToolResult { .. });
-            activity.changed |= !matches!(event, AgentEvent::TextDelta(_) | AgentEvent::Commands(_));
+            activity.changed |= !matches!(
+                event,
+                AgentEvent::TextDelta(_) | AgentEvent::Commands(_) | AgentEvent::Options(_)
+            );
             self.apply(event);
         }
         activity
@@ -288,19 +309,24 @@ impl Thread {
             }
             AgentEvent::ToolUse { id, name, input } => {
                 let name = name.strip_prefix(TOOL_PREFIX).unwrap_or(&name).to_owned();
-                self.items.push(Item::Tool(ToolCall {
-                    id,
-                    name,
-                    input,
-                    result: None,
-                }));
+                // ACP agents report a call again once its arguments are known.
+                match self.tool_call_mut(&id) {
+                    Some(call) => {
+                        call.name = name;
+                        if !input.is_null() {
+                            call.input = input;
+                        }
+                    }
+                    None => self.items.push(Item::Tool(ToolCall {
+                        id,
+                        name,
+                        input,
+                        result: None,
+                    })),
+                }
             }
             AgentEvent::ToolResult { id, text, is_error } => {
-                let call = self.items.iter_mut().rev().find_map(|item| match item {
-                    Item::Tool(call) if call.id == id => Some(call),
-                    _ => None,
-                });
-                if let Some(call) = call {
+                if let Some(call) = self.tool_call_mut(&id) {
                     call.result = Some(ToolOutcome { text, is_error });
                 }
             }
@@ -317,15 +343,25 @@ impl Thread {
                 self.touch();
             }
             AgentEvent::Commands(commands) => self.commands = commands,
+            AgentEvent::Options(options) => self.options = options,
+            AgentEvent::Notice(text) => self.items.push(Item::Notice(text)),
             AgentEvent::Exited { stderr } => {
                 self.session = None;
                 if self.busy {
                     self.busy = false;
                     self.flush_streaming();
-                    self.items.push(Item::Error(explain_exit(&stderr)));
+                    self.items
+                        .push(Item::Error(explain_exit(&self.agent_name, &stderr)));
                 }
             }
         }
+    }
+
+    fn tool_call_mut(&mut self, id: &str) -> Option<&mut ToolCall> {
+        self.items.iter_mut().rev().find_map(|item| match item {
+            Item::Tool(call) if call.id == id => Some(call),
+            _ => None,
+        })
     }
 
     fn flush_streaming(&mut self) {
@@ -412,15 +448,14 @@ pub fn relative_time(timestamp: i64, now: i64) -> String {
     }
 }
 
-fn explain_exit(stderr: &str) -> String {
+fn explain_exit(agent: &str, stderr: &str) -> String {
     let lower = stderr.to_lowercase();
     if lower.contains("login") || lower.contains("logged in") || lower.contains("authenticat") {
-        return "Claude Code is not signed in. Run `claude` once in a terminal to sign in, then try again."
-            .into();
+        return format!("{agent} is not signed in. Run it once in a terminal to sign in, then try again.");
     }
     match agent::summarize_stderr(stderr) {
-        detail if detail.is_empty() => "Claude Code exited unexpectedly.".into(),
-        detail => format!("Claude Code exited unexpectedly: {detail}"),
+        detail if detail.is_empty() => format!("{agent} exited unexpectedly."),
+        detail => format!("{agent} exited unexpectedly: {detail}"),
     }
 }
 
