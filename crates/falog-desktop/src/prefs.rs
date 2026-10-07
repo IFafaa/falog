@@ -1,5 +1,6 @@
 use crate::assistant::voice::VoiceLanguage;
 use crate::assistant::{AssistantModel, AssistantOptions};
+use crate::calendar::CalendarMode;
 use crate::theme::ThemeMode;
 use crate::views::{SortOrder, View};
 use falog_core::domain::AreaId;
@@ -14,6 +15,7 @@ pub struct Prefs {
     #[serde(alias = "company")]
     pub area: Option<AreaId>,
     pub sort: SortOrder,
+    pub calendar_mode: CalendarMode,
     pub theme: ThemeMode,
     pub sidebar_open: bool,
     /// List view: include completed tasks.
@@ -46,6 +48,7 @@ impl Default for Prefs {
             view: View::default(),
             area: None,
             sort: SortOrder::default(),
+            calendar_mode: CalendarMode::default(),
             theme: ThemeMode::default(),
             sidebar_open: true,
             show_completed: false,

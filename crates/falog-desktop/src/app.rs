@@ -2,6 +2,7 @@
 
 use crate::action::{Action, Actions};
 use crate::assistant::{self, Assistant};
+use crate::calendar::CalendarState;
 use crate::overlays::areas::{AreaEvent, AreasDialog};
 use crate::overlays::command_palette::{CommandPalette, Mode, Outcome};
 use crate::overlays::confirm::{Answer, Confirm};
@@ -42,6 +43,7 @@ pub struct FalogApp {
     focus: FocusState,
     task_panel: Option<TaskPanel>,
     assistant: Assistant,
+    calendar: CalendarState,
     palette: Option<CommandPalette>,
     areas_dialog: Option<AreasDialog>,
     settings: Option<SettingsDialog>,
@@ -65,6 +67,13 @@ impl FalogApp {
             .unwrap_or_default();
         theme::install(&cc.egui_ctx, prefs.theme);
         let assistant = Assistant::new(store.as_ref().ok().and_then(Store::path));
+        let calendar = CalendarState::new(
+            store
+                .as_ref()
+                .ok()
+                .and_then(Store::path)
+                .and_then(std::path::Path::parent),
+        );
 
         let mut app = Self {
             store: store.map_err(|err| err.to_string()),
@@ -79,6 +88,7 @@ impl FalogApp {
             focus: FocusState::default(),
             task_panel: None,
             assistant,
+            calendar,
             palette: None,
             areas_dialog: None,
             settings: None,
@@ -307,6 +317,7 @@ impl FalogApp {
                 (Key::Num1, Action::SetView(View::Board)),
                 (Key::Num2, Action::SetView(View::List)),
                 (Key::Num3, Action::SetView(View::Focus)),
+                (Key::Num4, Action::SetView(View::Calendar)),
                 (Key::B, Action::ToggleSidebar),
                 (Key::F, Action::FocusSearch),
                 (Key::Comma, Action::OpenSettings),
@@ -354,7 +365,11 @@ impl FalogApp {
             Action::ManageAreas => self.areas_dialog = Some(AreasDialog::new(self.areas.len())),
             Action::OpenSettings => {
                 let path = self.store.as_ref().ok().and_then(Store::path);
-                self.settings = Some(SettingsDialog::new(autostart::is_enabled(), path));
+                self.settings = Some(SettingsDialog::new(
+                    autostart::is_enabled(),
+                    path,
+                    &self.calendar.config.client,
+                ));
             }
             Action::SetTheme(mode) => {
                 self.prefs.theme = mode;
@@ -381,6 +396,19 @@ impl FalogApp {
                 self.prefs.assistant_open = true;
                 self.assistant.show_history = true;
             }
+            Action::SetCalendarMode(mode) => self.prefs.calendar_mode = mode,
+            Action::ConnectGoogle => self.connect_google(ctx),
+            Action::RefreshCalendar => self.calendar.refresh(),
+            Action::ToggleCalendar { account, calendar } => self.calendar.toggle_calendar(account, calendar),
+        }
+    }
+
+    fn connect_google(&mut self, ctx: &egui::Context) {
+        if self.calendar.has_client() {
+            self.calendar.connect();
+        } else {
+            self.notify("Add your Google OAuth client in Settings first", ToastKind::Error);
+            self.apply(ctx, Action::OpenSettings);
         }
     }
 
@@ -426,7 +454,7 @@ impl FalogApp {
         }
 
         if let Some(dialog) = &mut self.settings {
-            let (events, close) = dialog.show(ctx, &mut self.prefs);
+            let (events, close) = dialog.show(ctx, &mut self.prefs, &self.calendar);
             if close {
                 self.settings = None;
             }
@@ -498,6 +526,16 @@ impl FalogApp {
             SettingsEvent::AssistantModelChanged => self.assistant.restart_session(),
             SettingsEvent::VoiceEngineChanged => self.assistant.reset_voice_engine(),
             SettingsEvent::Copied => self.notify("Copied to clipboard", ToastKind::Success),
+            SettingsEvent::SaveGoogleClient(client) => {
+                self.calendar.set_client(client);
+                self.notify("Saved the Google client", ToastKind::Success);
+            }
+            SettingsEvent::ConnectGoogle => self.calendar.connect(),
+            SettingsEvent::CancelGoogleConnect => self.calendar.cancel_connect(),
+            SettingsEvent::RemoveGoogleAccount(email) => {
+                self.calendar.remove_account(&email);
+                self.notify(format!("Removed {email}"), ToastKind::Success);
+            }
         }
     }
 
@@ -550,8 +588,13 @@ impl eframe::App for FalogApp {
             // A tool just ran: show its effect now instead of waiting for the next poll.
             self.sync();
         }
+        if self.calendar.poll(ctx) {
+            ctx.request_repaint();
+        }
         let repaint = if self.assistant.is_active() {
             Duration::from_millis(50)
+        } else if self.calendar.is_busy() {
+            Duration::from_millis(250)
         } else {
             Duration::from_secs(1)
         };
@@ -588,6 +631,7 @@ impl eframe::App for FalogApp {
                 &self.tasks,
                 &self.areas,
                 self.prefs.area,
+                (self.prefs.view == View::Calendar).then_some(&self.calendar),
                 &mut actions,
             );
         }
@@ -632,6 +676,13 @@ impl eframe::App for FalogApp {
                     View::Board => views::board::show(ui, &cx, &mut self.board, &mut actions),
                     View::List => views::list::show(ui, &cx, &mut actions),
                     View::Focus => views::focus::show(ui, &cx, &mut self.focus, &mut actions),
+                    View::Calendar => views::calendar::show(
+                        ui,
+                        &cx,
+                        &mut self.calendar,
+                        self.prefs.calendar_mode,
+                        &mut actions,
+                    ),
                 }
             });
 

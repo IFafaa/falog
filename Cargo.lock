@@ -1344,6 +1344,7 @@ dependencies = [
  "dirs",
  "eframe",
  "egui_extras",
+ "falog-calendar",
  "falog-core",
  "raw-window-handle",
  "serde",

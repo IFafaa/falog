@@ -1,6 +1,7 @@
 //! User intents emitted by widgets and applied by the app after the frame is drawn.
 //! Keeping UI code side-effect free avoids borrowing the app mutably while rendering it.
 
+use crate::calendar::CalendarMode;
 use crate::theme::ThemeMode;
 use crate::views::View;
 use falog_core::domain::{AreaId, Status, TaskId};
@@ -26,6 +27,15 @@ pub enum Action {
     ToggleDictation,
     NewAssistantThread,
     ShowAssistantHistory,
+    SetCalendarMode(CalendarMode),
+    /// Sign in to another Google account in the browser.
+    ConnectGoogle,
+    RefreshCalendar,
+    /// Show or hide a calendar, by its position in the saved accounts.
+    ToggleCalendar {
+        account: usize,
+        calendar: usize,
+    },
 }
 
 #[derive(Debug, Default)]

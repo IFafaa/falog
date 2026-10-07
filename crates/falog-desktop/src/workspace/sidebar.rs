@@ -2,6 +2,7 @@
 
 use super::BAR_HEIGHT;
 use crate::action::{Action, Actions};
+use crate::calendar::CalendarState;
 use crate::components::{ButtonStyle, button, icon_button, single_line};
 use crate::fonts;
 use crate::icons::Icon;
@@ -20,6 +21,7 @@ pub fn show(
     tasks: &[Task],
     areas: &[Area],
     selected: Option<AreaId>,
+    calendars: Option<&CalendarState>,
     actions: &mut Actions,
 ) {
     SidePanel::left("sidebar")
@@ -74,6 +76,9 @@ pub fn show(
                 }
                 if areas.is_empty() {
                     empty_state(ui, theme, actions);
+                }
+                if let Some(calendars) = calendars {
+                    calendar_section(ui, theme, calendars, actions);
                 }
             });
         });
@@ -170,4 +175,114 @@ fn empty_state(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
                 actions.push(Action::ManageAreas);
             }
         });
+}
+
+/// Google calendars grouped by account, with a checkbox each, like Google Calendar's sidebar.
+fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actions: &mut Actions) {
+    ui.add_space(12.0);
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::hover());
+    ui.painter().text(
+        pos2(rect.left() + 12.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        "Calendars",
+        fonts::semibold(13.0),
+        theme.text_muted,
+    );
+    let button_rect = Rect::from_min_max(pos2(rect.right() - 32.0, rect.top()), rect.max);
+    ui.allocate_new_ui(
+        egui::UiBuilder::new()
+            .max_rect(button_rect)
+            .layout(Layout::right_to_left(Align::Center)),
+        |ui| {
+            ui.add_space(6.0);
+            if icon_button(ui, Icon::Plus, "Connect Google account").clicked() {
+                actions.push(Action::ConnectGoogle);
+            }
+        },
+    );
+
+    let hint = |ui: &mut Ui, text: &str| {
+        Frame::none()
+            .inner_margin(Margin::symmetric(12.0, 4.0))
+            .show(ui, |ui| {
+                ui.label(RichText::new(text).size(12.5).color(theme.text_placeholder));
+            });
+    };
+    if calendars.is_connecting() {
+        hint(ui, "Finish signing in in your browser…");
+    } else if calendars.config.accounts.is_empty() {
+        hint(ui, "No Google accounts yet.");
+    }
+    for (a, account) in calendars.config.accounts.iter().enumerate() {
+        let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+        let color = if account.needs_sign_in {
+            theme.warning
+        } else {
+            theme.text_placeholder
+        };
+        let email = single_line(
+            ui,
+            &account.email,
+            FontId::proportional(12.0),
+            color,
+            rect.width() - 40.0,
+            false,
+        );
+        ui.painter().galley(
+            pos2(rect.left() + 12.0, rect.center().y - email.size().y / 2.0),
+            email,
+            color,
+        );
+        if account.needs_sign_in {
+            let icon = Rect::from_center_size(pos2(rect.right() - 20.0, rect.center().y), vec2(13.0, 13.0));
+            Icon::Warning.paint(ui, icon, 13.0, theme.warning);
+            if response
+                .on_hover_text("Google asked this account to sign in again. Click to reconnect.")
+                .on_hover_cursor(CursorIcon::PointingHand)
+                .clicked()
+            {
+                actions.push(Action::ConnectGoogle);
+            }
+        }
+        for (c, calendar) in account.calendars.iter().enumerate() {
+            let [r, g, b] = calendar.rgb();
+            let color = Color32::from_rgb(r, g, b);
+            let (rect, response) =
+                ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
+            if response.hovered() {
+                ui.painter().rect_filled(rect, 0.0, theme.ghost_hover);
+            }
+            let check = Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), vec2(13.0, 13.0));
+            if calendar.visible {
+                ui.painter().rect_filled(check, 3.0, color);
+                Icon::Check.paint(ui, check, 11.0, theme.editor);
+            } else {
+                ui.painter().rect_stroke(check, 3.0, Stroke::new(1.5_f32, color));
+            }
+            let text_color = if calendar.visible {
+                theme.text
+            } else {
+                theme.text_muted
+            };
+            let name = single_line(
+                ui,
+                &calendar.name,
+                FontId::proportional(13.5),
+                text_color,
+                rect.right() - check.right() - 14.0,
+                false,
+            );
+            ui.painter().galley(
+                pos2(check.right() + 8.0, rect.center().y - name.size().y / 2.0),
+                name,
+                text_color,
+            );
+            if response.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                actions.push(Action::ToggleCalendar {
+                    account: a,
+                    calendar: c,
+                });
+            }
+        }
+    }
 }

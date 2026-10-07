@@ -226,6 +226,18 @@ impl CommandPalette {
             Action::ShowAssistantHistory,
         ));
         items.push(command(
+            Icon::Calendar,
+            "calendar: connect google account".into(),
+            None,
+            Action::ConnectGoogle,
+        ));
+        items.push(command(
+            Icon::Refresh,
+            "calendar: refresh".into(),
+            None,
+            Action::RefreshCalendar,
+        ));
+        items.push(command(
             Icon::Search,
             "workspace: focus search".into(),
             Some("Ctrl+F"),

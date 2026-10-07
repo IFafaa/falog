@@ -12,6 +12,7 @@ name = "falog"
 path = "src/main.rs"
 
 [dependencies]
+falog-calendar.workspace = true
 falog-core.workspace = true
 
 anyhow.workspace = true

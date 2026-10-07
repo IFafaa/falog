@@ -1,6 +1,7 @@
-//! The three ways to look at tasks, shown as tabs.
+//! The ways to look at tasks (and meetings), shown as tabs.
 
 pub mod board;
+pub mod calendar;
 pub mod focus;
 pub mod list;
 
@@ -21,16 +22,18 @@ pub enum View {
     /// Saved as `Agenda` before the rename.
     #[serde(alias = "Agenda")]
     Focus,
+    Calendar,
 }
 
 impl View {
-    pub const ALL: [Self; 3] = [Self::Board, Self::List, Self::Focus];
+    pub const ALL: [Self; 4] = [Self::Board, Self::List, Self::Focus, Self::Calendar];
 
     pub const fn label(self) -> &'static str {
         match self {
             Self::Board => "Board",
             Self::List => "List",
             Self::Focus => "Focus",
+            Self::Calendar => "Calendar",
         }
     }
 
@@ -39,6 +42,7 @@ impl View {
             Self::Board => Icon::Board,
             Self::List => Icon::List,
             Self::Focus => Icon::Reader,
+            Self::Calendar => Icon::Calendar,
         }
     }
 
@@ -47,6 +51,7 @@ impl View {
             Self::Board => "Ctrl+1",
             Self::List => "Ctrl+2",
             Self::Focus => "Ctrl+3",
+            Self::Calendar => "Ctrl+4",
         }
     }
 }
