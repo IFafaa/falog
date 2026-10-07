@@ -8,6 +8,7 @@
 pub mod config;
 mod error;
 pub mod google;
+pub mod ics;
 pub mod layout;
 pub mod model;
 pub mod oauth;

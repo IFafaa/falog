@@ -29,6 +29,10 @@ pub enum Error {
     #[error("unexpected answer from Google: {0}")]
     Parse(String),
 
+    /// A calendar link that cannot be read. The message never contains the address: it is secret.
+    #[error("{0}")]
+    Link(String),
+
     #[error("could not use {path}: {source}")]
     File {
         path: PathBuf,

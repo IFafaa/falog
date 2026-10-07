@@ -1,6 +1,6 @@
 [package]
 name = "falog-calendar"
-description = "Read-only Google Calendar access for Falog: OAuth sign-in, calendars, events and a local cache"
+description = "Read-only Google Calendar access for Falog: iCal links, OAuth sign-in, calendars, events and a local cache"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,9 @@ authors.workspace = true
 [dependencies]
 base64.workspace = true
 chrono = { workspace = true, features = ["serde"] }
+chrono-tz.workspace = true
 getrandom.workspace = true
+rrule.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
