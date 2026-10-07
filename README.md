@@ -60,6 +60,10 @@ Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
 
 Falog runs on Windows, macOS and Linux. Every platform needs [Rust](https://rustup.rs) to build it, and
 the assistant dock uses [Claude Code](https://claude.com/claude-code), signed in with `claude` once.
+It can also talk to any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com):
+Claude through its ACP adapter (Node.js 22+), [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+and Codex are built in, and Settings › Agents adds your own (name, command, environment). Each one runs
+on your own login or subscription.
 Voice input compiles whisper.cpp, which needs CMake and libclang at build time; when they are missing
 the installers build Falog without voice.
 
@@ -120,10 +124,13 @@ launch may not be able to bring the existing window to the front.
 
 **In Falog:** open the assistant dock with the ✦ button in the status bar or `Ctrl+Shift+A`. Type, or
 press `Ctrl+Space` (or the mic button), speak, and press it again: your words are transcribed on this
-computer and sent. The first time, Falog downloads the Whisper model (~574 MB). Pick the Claude model,
-your voice language and whether dictation sends right away in Settings. Like Zed, each conversation
-is a thread: `+` starts a new one and the clock button lists past threads, so you can keep one per
-area and pick up any of them later, even after a restart.
+computer and sent. The first time, Falog downloads the Whisper model (~574 MB). Pick your voice
+language and whether dictation sends right away in Settings. Like Zed, each conversation is a thread:
+`+` starts a new one and the clock button lists past threads, so you can keep one per area and pick up
+any of them later, even after a restart. The composer footer picks the model (Opus, Sonnet, Haiku...),
+effort and permission mode of the thread, toggles fast mode, and shows how full the context is;
+typing `/` lists the agent's commands (`/compact`, `/context`...). `Shift+Esc` zooms the assistant
+to fill the window.
 
 **From Claude Code or another MCP client:** open a session in `~/falog-assistant` (its `CLAUDE.md`
 teaches Claude how to file tasks) or mention tasks in any session, since the server is registered for
@@ -172,6 +179,7 @@ On macOS, `Cmd` takes the place of `Ctrl`.
 | `Ctrl+F` | Search |
 | `Ctrl+B` | Toggle sidebar |
 | `Ctrl+Shift+A` | Toggle the assistant |
+| `Shift+Esc` | Zoom the assistant to fill the window, and back |
 | `Ctrl+Space` | Start / finish dictating to the assistant |
 | `Ctrl+S` | Save the task being edited |
 | `Ctrl+,` | Settings |

@@ -1,6 +1,10 @@
-//! One assistant conversation: what the user sees, plus the Claude Code session behind it.
+//! One assistant conversation: what the user sees, plus the agent session behind it.
 
-use super::claude::{self, ClaudeEvent, ClaudeSession, SessionConfig};
+use super::agent::claude_code;
+use super::agent::registry::{Agent, AgentId};
+use super::agent::{
+    self, AgentEvent, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions, Usage,
+};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -37,7 +41,7 @@ pub struct ToolOutcome {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ThreadId(pub u64);
 
-/// Where and how Claude Code sessions are started.
+/// Where and how agent sessions are started.
 #[derive(Clone, Debug)]
 pub struct Launcher {
     pub database: Option<PathBuf>,
@@ -46,25 +50,82 @@ pub struct Launcher {
 impl Launcher {
     /// `<data dir>/assistant`: session working directory and thread history.
     pub fn workdir(&self) -> PathBuf {
-        claude::default_workdir(self.database.as_deref())
+        agent::default_workdir(self.database.as_deref())
     }
 
-    fn config(&self, model: Option<&str>, resume: Option<String>) -> Result<SessionConfig, String> {
-        let claude = claude::find_claude().ok_or(
-            "Claude Code was not found. Install it from claude.com/claude-code, then run `claude` once in a \
-             terminal to sign in.",
-        )?;
-        let mcp_server = claude::find_mcp_server()
+    fn environment(&self) -> Result<Environment, String> {
+        let mcp_server = agent::find_mcp_server()
             .ok_or("falog-mcp was not found next to the app. Reinstall Falog to restore it.")?;
-        Ok(SessionConfig {
-            claude,
+        Ok(Environment {
             mcp_server,
             database: self.database.clone(),
-            model: model.map(str::to_owned),
             workdir: self.workdir(),
             system_prompt: SYSTEM_PROMPT.to_owned(),
-            resume,
         })
+    }
+
+    fn start(
+        &self,
+        ctx: &egui::Context,
+        agent: &Agent,
+        options: &StartOptions,
+    ) -> Result<Box<dyn Session>, String> {
+        agent.start(&self.environment()?, options, ctx)
+    }
+}
+
+/// Who a thread talks to and what it asks for. `None` leaves the choice to the agent.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Settings {
+    /// Threads saved before agents existed talked to Claude Code.
+    #[serde(default)]
+    pub agent: AgentId,
+    /// A `Choice::value` of the agent's model option.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// A `Choice::value` of the agent's effort option.
+    #[serde(default)]
+    pub effort: Option<String>,
+    /// A `Choice::value` of the agent's permission mode option.
+    #[serde(default)]
+    pub mode: Option<String>,
+    /// `on` or `off`.
+    #[serde(default)]
+    pub fast: Option<String>,
+}
+
+impl Settings {
+    fn get(&self, kind: OptionKind) -> Option<&str> {
+        match kind {
+            OptionKind::Model => self.model.as_deref(),
+            OptionKind::Effort => self.effort.as_deref(),
+            OptionKind::Mode => self.mode.as_deref(),
+            OptionKind::Fast => self.fast.as_deref(),
+            OptionKind::Other => None,
+        }
+    }
+
+    /// Remembers a choice. Returns false for kinds that are not remembered.
+    fn set(&mut self, kind: OptionKind, value: String) -> bool {
+        let slot = match kind {
+            OptionKind::Model => &mut self.model,
+            OptionKind::Effort => &mut self.effort,
+            OptionKind::Mode => &mut self.mode,
+            OptionKind::Fast => &mut self.fast,
+            OptionKind::Other => return false,
+        };
+        *slot = Some(value);
+        true
+    }
+
+    fn start_options(&self, resume: Option<String>) -> StartOptions {
+        StartOptions {
+            resume,
+            model: self.model.clone(),
+            effort: self.effort.clone(),
+            mode: self.mode.clone(),
+            fast: self.fast.clone(),
+        }
     }
 }
 
@@ -74,11 +135,16 @@ pub struct ThreadRecord {
     pub id: ThreadId,
     pub created_at: i64,
     pub updated_at: i64,
-    /// Claude Code session to `--resume`, so the conversation keeps its context after a restart.
+    /// The agent's session to resume, so the conversation keeps its context after a restart.
     pub session_id: Option<String>,
     pub items: Vec<Item>,
     #[serde(default)]
     pub draft: String,
+    #[serde(default)]
+    pub settings: Settings,
+    /// Context use last reported, for the ring.
+    #[serde(default)]
+    pub usage: Option<Usage>,
 }
 
 /// What a poll observed.
@@ -99,9 +165,20 @@ pub struct Thread {
     pub draft: String,
     pub busy: bool,
     pub model_name: Option<String>,
+    /// What the agent accepts as `/name` messages, as last reported.
+    pub commands: Vec<SlashCommand>,
+    pub settings: Settings,
+    /// The agent's display name, kept for when it is gone from the list.
+    pub agent_name: String,
+    /// How full the context window was after the last turn.
+    pub usage: Option<Usage>,
+    /// The settings the agent offers (model, effort...).
+    pub options: Vec<ConfigOption>,
+    /// A setting changed during a turn; the session restarts once it ends to apply it.
+    restart_pending: bool,
     pub created_at: i64,
     pub updated_at: i64,
-    session: Option<ClaudeSession>,
+    session: Option<Box<dyn Session>>,
     session_id: Option<String>,
 }
 
@@ -115,6 +192,12 @@ impl Thread {
             draft: String::new(),
             busy: false,
             model_name: None,
+            commands: Vec::new(),
+            settings: Settings::default(),
+            agent_name: "Claude Code".into(),
+            options: claude_code::options(),
+            usage: None,
+            restart_pending: false,
             created_at: now,
             updated_at: now,
             session: None,
@@ -129,6 +212,8 @@ impl Thread {
             created_at: record.created_at,
             updated_at: record.updated_at,
             session_id: record.session_id,
+            settings: record.settings,
+            usage: record.usage,
             ..Self::new(record.id)
         }
     }
@@ -141,6 +226,8 @@ impl Thread {
             session_id: self.session_id.clone(),
             items: self.items.clone(),
             draft: self.draft.clone(),
+            settings: self.settings.clone(),
+            usage: self.usage,
         }
     }
 
@@ -172,13 +259,13 @@ impl Thread {
             .count()
     }
 
-    /// Sends a message, starting (or resuming) Claude Code if needed. Returns whether it was sent.
+    /// Sends a message, starting (or resuming) the agent if needed. Returns whether it was sent.
     pub fn send(
         &mut self,
         ctx: &egui::Context,
         text: String,
         launcher: &Launcher,
-        model: Option<&str>,
+        agent: Option<&Agent>,
     ) -> bool {
         let text = text.trim().to_owned();
         if text.is_empty() || self.busy {
@@ -187,12 +274,14 @@ impl Thread {
         self.items.push(Item::User(text.clone()));
         self.touch();
         if self.session.is_none() {
-            let started = launcher
-                .config(model, self.session_id.clone())
-                .and_then(|config| {
-                    ClaudeSession::start(&config, ctx.clone())
-                        .map_err(|err| format!("Could not start Claude Code: {err}"))
-                });
+            let options = self.settings.start_options(self.session_id.clone());
+            let started = match agent {
+                Some(agent) => launcher.start(ctx, agent, &options),
+                None => Err(format!(
+                    "{} is no longer set up. Add it again in Settings, or start a new thread with another agent.",
+                    self.agent_name
+                )),
+            };
             match started {
                 Ok(session) => self.session = Some(session),
                 Err(message) => {
@@ -210,7 +299,7 @@ impl Thread {
             Some(Err(err)) => {
                 self.session = None;
                 self.items
-                    .push(Item::Error(format!("Could not reach Claude Code: {err}")));
+                    .push(Item::Error(format!("Could not reach {}: {err}", self.agent_name)));
             }
             None => {}
         }
@@ -220,56 +309,67 @@ impl Thread {
     /// Applies the session's pending events.
     pub fn poll(&mut self) -> Activity {
         let mut activity = Activity::default();
-        while let Some(event) = self.session.as_ref().and_then(ClaudeSession::try_recv) {
-            activity.tasks_changed |= matches!(event, ClaudeEvent::ToolResult { .. });
-            activity.changed |= !matches!(event, ClaudeEvent::TextDelta(_));
+        while let Some(event) = self.session.as_mut().and_then(|session| session.try_recv()) {
+            activity.tasks_changed |= matches!(event, AgentEvent::ToolResult { .. });
+            activity.changed |= !matches!(
+                event,
+                AgentEvent::TextDelta(_) | AgentEvent::Commands(_) | AgentEvent::Options(_)
+            );
             self.apply(event);
         }
         activity
     }
 
-    pub(super) fn apply(&mut self, event: ClaudeEvent) {
+    pub(super) fn apply(&mut self, event: AgentEvent) {
         match event {
-            ClaudeEvent::Ready {
+            AgentEvent::Ready {
                 session_id,
                 model,
                 tools_connected,
             } => {
                 self.session_id = Some(session_id);
-                self.model_name = Some(model);
+                self.model_name = model;
                 if !tools_connected {
                     self.items.push(Item::Error(
                         "Falog's task tools did not connect, so the assistant cannot change tasks.".into(),
                     ));
                 }
             }
-            ClaudeEvent::TextDelta(text) => self.streaming.push_str(&text),
-            ClaudeEvent::Text(text) => {
+            AgentEvent::TextDelta(text) => self.streaming.push_str(&text),
+            AgentEvent::Text(text) => {
                 self.streaming.clear();
                 if !text.trim().is_empty() {
                     self.items.push(Item::Reply(text));
                 }
             }
-            ClaudeEvent::ToolUse { id, name, input } => {
+            AgentEvent::ToolUse { id, name, input } => {
                 let name = name.strip_prefix(TOOL_PREFIX).unwrap_or(&name).to_owned();
-                self.items.push(Item::Tool(ToolCall {
-                    id,
-                    name,
-                    input,
-                    result: None,
-                }));
+                // ACP agents report a call again once its arguments are known.
+                match self.tool_call_mut(&id) {
+                    Some(call) => {
+                        call.name = name;
+                        if !input.is_null() {
+                            call.input = input;
+                        }
+                    }
+                    None => self.items.push(Item::Tool(ToolCall {
+                        id,
+                        name,
+                        input,
+                        result: None,
+                    })),
+                }
             }
-            ClaudeEvent::ToolResult { id, text, is_error } => {
-                let call = self.items.iter_mut().rev().find_map(|item| match item {
-                    Item::Tool(call) if call.id == id => Some(call),
-                    _ => None,
-                });
-                if let Some(call) = call {
+            AgentEvent::ToolResult { id, text, is_error } => {
+                if let Some(call) = self.tool_call_mut(&id) {
                     call.result = Some(ToolOutcome { text, is_error });
                 }
             }
-            ClaudeEvent::TurnFinished { is_error, message } => {
+            AgentEvent::TurnFinished { is_error, message } => {
                 self.busy = false;
+                if std::mem::take(&mut self.restart_pending) {
+                    self.session = None;
+                }
                 self.flush_streaming();
                 if is_error {
                     let message = message.unwrap_or_else(|| "The assistant stopped with an error.".into());
@@ -277,15 +377,27 @@ impl Thread {
                 }
                 self.touch();
             }
-            ClaudeEvent::Exited { stderr } => {
+            AgentEvent::Commands(commands) => self.commands = commands,
+            AgentEvent::Options(options) => self.options = options,
+            AgentEvent::Notice(text) => self.items.push(Item::Notice(text)),
+            AgentEvent::Usage(usage) => self.usage = Some(usage),
+            AgentEvent::Exited { stderr } => {
                 self.session = None;
                 if self.busy {
                     self.busy = false;
                     self.flush_streaming();
-                    self.items.push(Item::Error(explain_exit(&stderr)));
+                    self.items
+                        .push(Item::Error(explain_exit(&self.agent_name, &stderr)));
                 }
             }
         }
+    }
+
+    fn tool_call_mut(&mut self, id: &str) -> Option<&mut ToolCall> {
+        self.items.iter_mut().rev().find_map(|item| match item {
+            Item::Tool(call) if call.id == id => Some(call),
+            _ => None,
+        })
     }
 
     fn flush_streaming(&mut self) {
@@ -298,14 +410,49 @@ impl Thread {
     /// Interrupts the current turn. The next message resumes the same conversation.
     pub fn stop(&mut self) {
         if self.busy {
-            self.session = None;
+            if !self.session.as_mut().is_some_and(|session| session.cancel()) {
+                self.session = None;
+            }
             self.busy = false;
             self.flush_streaming();
             self.items.push(Item::Notice("Stopped.".into()));
         }
     }
 
-    /// Ends the Claude Code process when idle; the next message resumes it (`--resume`).
+    /// The option of `kind` the agent offers, and the value in effect for this thread.
+    pub fn option(&self, kind: OptionKind) -> Option<(&ConfigOption, &str)> {
+        let option = self.options.iter().find(|o| o.kind == kind)?;
+        let value = self
+            .settings
+            .get(kind)
+            .or(option.current.as_deref())
+            .or_else(|| option.choices.first().map(|c| c.value.as_str()))?;
+        Some((option, value))
+    }
+
+    /// Picks a model or effort for the rest of the conversation. Agents that cannot switch live are
+    /// restarted (resuming the conversation) before the next message.
+    pub fn choose(&mut self, kind: OptionKind, value: String) {
+        let Some(id) = self.options.iter().find(|o| o.kind == kind).map(|o| o.id.clone()) else {
+            return;
+        };
+        if !self.settings.set(kind, value.clone()) {
+            return;
+        }
+        let applied = self
+            .session
+            .as_mut()
+            .is_some_and(|session| session.set_option(&id, &value));
+        if !applied && self.session.is_some() {
+            if self.busy {
+                self.restart_pending = true;
+            } else {
+                self.session = None;
+            }
+        }
+    }
+
+    /// Ends the agent process when idle; the next message resumes the conversation.
     pub fn release_session(&mut self) {
         if !self.busy {
             self.session = None;
@@ -335,15 +482,14 @@ pub fn relative_time(timestamp: i64, now: i64) -> String {
     }
 }
 
-fn explain_exit(stderr: &str) -> String {
+fn explain_exit(agent: &str, stderr: &str) -> String {
     let lower = stderr.to_lowercase();
     if lower.contains("login") || lower.contains("logged in") || lower.contains("authenticat") {
-        return "Claude Code is not signed in. Run `claude` once in a terminal to sign in, then try again."
-            .into();
+        return format!("{agent} is not signed in. Run it once in a terminal to sign in, then try again.");
     }
-    match claude::summarize_stderr(stderr) {
-        detail if detail.is_empty() => "Claude Code exited unexpectedly.".into(),
-        detail => format!("Claude Code exited unexpectedly: {detail}"),
+    match agent::summarize_stderr(stderr) {
+        detail if detail.is_empty() => format!("{agent} exited unexpectedly."),
+        detail => format!("{agent} exited unexpectedly: {detail}"),
     }
 }
 
@@ -356,26 +502,26 @@ mod tests {
     fn builds_the_conversation_from_events() {
         let mut thread = Thread::new(ThreadId(1));
         thread.busy = true;
-        thread.apply(ClaudeEvent::Ready {
+        thread.apply(AgentEvent::Ready {
             session_id: "s1".into(),
-            model: "m".into(),
+            model: Some("m".into()),
             tools_connected: true,
         });
-        thread.apply(ClaudeEvent::ToolUse {
+        thread.apply(AgentEvent::ToolUse {
             id: "t1".into(),
             name: "mcp__falog__create_task".into(),
             input: json!({}),
         });
-        thread.apply(ClaudeEvent::ToolResult {
+        thread.apply(AgentEvent::ToolResult {
             id: "t1".into(),
             text: "Created #7".into(),
             is_error: false,
         });
-        thread.apply(ClaudeEvent::TextDelta("Do".into()));
-        thread.apply(ClaudeEvent::TextDelta("ne".into()));
+        thread.apply(AgentEvent::TextDelta("Do".into()));
+        thread.apply(AgentEvent::TextDelta("ne".into()));
         assert_eq!(thread.streaming, "Done");
-        thread.apply(ClaudeEvent::Text("Done.".into()));
-        thread.apply(ClaudeEvent::TurnFinished {
+        thread.apply(AgentEvent::Text("Done.".into()));
+        thread.apply(AgentEvent::TurnFinished {
             is_error: false,
             message: None,
         });
@@ -392,16 +538,16 @@ mod tests {
     #[test]
     fn reports_missing_tools_and_crashes() {
         let mut thread = Thread::new(ThreadId(1));
-        thread.apply(ClaudeEvent::Ready {
+        thread.apply(AgentEvent::Ready {
             session_id: "s".into(),
-            model: "m".into(),
+            model: None,
             tools_connected: false,
         });
         assert!(matches!(thread.items.last(), Some(Item::Error(_))));
 
         thread.busy = true;
-        thread.apply(ClaudeEvent::TextDelta("partial".into()));
-        thread.apply(ClaudeEvent::Exited {
+        thread.apply(AgentEvent::TextDelta("partial".into()));
+        thread.apply(AgentEvent::Exited {
             stderr: "Invalid API key · Please run /login".into(),
         });
         assert!(!thread.busy);
@@ -428,11 +574,90 @@ mod tests {
         thread.session_id = Some("abc".into());
         thread.items.push(Item::User("hi".into()));
         thread.draft = "unsent".into();
+        thread.settings.effort = Some("high".into());
         let restored = Thread::from_record(thread.to_record());
+        assert_eq!(restored.settings.effort.as_deref(), Some("high"));
         assert_eq!(restored.id, ThreadId(4));
         assert_eq!(restored.session_id.as_deref(), Some("abc"));
         assert_eq!(restored.draft, "unsent");
         assert_eq!(restored.message_count(), 1);
+    }
+
+    #[test]
+    fn records_without_settings_still_load() {
+        let json = r#"{"id":3,"created_at":1,"updated_at":2,"session_id":null,"items":[]}"#;
+        let record: ThreadRecord = serde_json::from_str(json).unwrap();
+        assert_eq!(record.settings, Settings::default());
+    }
+
+    #[test]
+    fn picks_model_and_effort() {
+        let mut thread = Thread::new(ThreadId(1));
+        let (_, model) = thread.option(OptionKind::Model).unwrap();
+        assert_eq!(model, "default");
+        thread.choose(OptionKind::Model, "opus".into());
+        thread.choose(OptionKind::Effort, "max".into());
+        let (option, model) = thread.option(OptionKind::Model).unwrap();
+        assert_eq!(option.label(model), "Opus");
+        assert_eq!(thread.settings.effort.as_deref(), Some("max"));
+    }
+
+    /// A session that records what it is asked to do.
+    #[derive(Debug, Default)]
+    struct FakeSession {
+        sent: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+        live_options: bool,
+    }
+
+    impl Session for FakeSession {
+        fn send(&mut self, text: &str) -> std::io::Result<()> {
+            self.sent.borrow_mut().push(text.to_owned());
+            Ok(())
+        }
+        fn try_recv(&mut self) -> Option<AgentEvent> {
+            None
+        }
+        fn cancel(&mut self) -> bool {
+            self.live_options
+        }
+        fn set_option(&mut self, id: &str, value: &str) -> bool {
+            self.sent.borrow_mut().push(format!("{id}={value}"));
+            self.live_options
+        }
+    }
+
+    #[test]
+    fn restarts_agents_that_cannot_switch_live_after_the_turn() {
+        let mut thread = Thread::new(ThreadId(1));
+        thread.session = Some(Box::new(FakeSession::default()));
+        thread.busy = true;
+        thread.choose(OptionKind::Model, "haiku".into());
+        assert!(thread.session.is_some(), "the running turn is not cut short");
+        thread.apply(AgentEvent::TurnFinished {
+            is_error: false,
+            message: None,
+        });
+        assert!(
+            thread.session.is_none(),
+            "restarted with --resume on the next message"
+        );
+
+        thread.session = Some(Box::new(FakeSession::default()));
+        thread.choose(OptionKind::Effort, "low".into());
+        assert!(thread.session.is_none(), "idle sessions restart right away");
+    }
+
+    #[test]
+    fn switches_live_when_the_agent_can() {
+        let sent = std::rc::Rc::default();
+        let mut thread = Thread::new(ThreadId(1));
+        thread.session = Some(Box::new(FakeSession {
+            sent: std::rc::Rc::clone(&sent),
+            live_options: true,
+        }));
+        thread.choose(OptionKind::Model, "opus".into());
+        assert!(thread.session.is_some());
+        assert_eq!(*sent.borrow(), vec!["model=opus".to_owned()]);
     }
 
     #[test]

@@ -208,6 +208,12 @@ impl CommandPalette {
             Action::ToggleAssistant,
         ));
         items.push(command(
+            Icon::Maximize,
+            "assistant: toggle zoom".into(),
+            Some("Shift+Esc"),
+            Action::ToggleAssistantZoom,
+        ));
+        items.push(command(
             Icon::Mic,
             "assistant: dictate".into(),
             Some("Ctrl+Space"),

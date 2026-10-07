@@ -47,6 +47,8 @@ mod tests {
             session_id: Some(format!("session-{id}")),
             items: vec![Item::User(format!("message {id}"))],
             draft: String::new(),
+            settings: Default::default(),
+            usage: None,
         }
     }
 

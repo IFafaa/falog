@@ -23,6 +23,8 @@ pub enum Action {
     SetTheme(ThemeMode),
     Reload,
     ToggleAssistant,
+    /// Zoom: the assistant fills the window, or goes back to its dock.
+    ToggleAssistantZoom,
     /// Push-to-talk: start or finish dictating to the assistant.
     ToggleDictation,
     NewAssistantThread,

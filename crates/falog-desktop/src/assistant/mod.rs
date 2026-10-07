@@ -1,21 +1,27 @@
-//! The assistant dock: conversations with Claude that manage tasks, typed or dictated.
+//! The assistant dock: conversations with an AI agent that manage tasks, typed or dictated.
 //!
-//! [`claude`] drives Claude Code, [`thread`] holds one conversation, [`history`] saves them,
-//! [`voice`] records and transcribes speech and [`panel`] draws the dock. [`Assistant`] owns the
-//! threads and the dictation state and ties them together.
+//! [`agent`] starts and talks to the agents (Claude Code by default), [`thread`] holds one
+//! conversation, [`history`] saves them, [`voice`] records and transcribes speech and [`panel`]
+//! draws the dock. [`Assistant`] owns the threads and the dictation state and ties them together.
 
-pub mod claude;
+pub mod agent;
+pub mod agent_settings;
+pub mod agents;
 pub mod history;
 pub mod panel;
+pub mod slash;
 pub mod thread;
 pub mod voice;
 
+use agent::registry::{self, Agent, AgentConfig, AgentId, Protocol};
+use agent::{OptionKind, claude_code};
+use agents::SavedAgents;
 use eframe::egui;
-use serde::{Deserialize, Serialize};
+
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use thread::Launcher;
-pub use thread::{Item, Thread, ThreadId, ToolCall};
+pub use thread::{Item, Settings, Thread, ThreadId, ToolCall};
 use voice::{Download, Recorder, Transcriber, VoiceLanguage};
 
 /// How often the live preview is refreshed while dictating, and when the first one starts.
@@ -24,45 +30,13 @@ const FIRST_PARTIAL_AFTER: Duration = Duration::from_millis(1500);
 /// Pending thread changes are written at most this often.
 const SAVE_EVERY: Duration = Duration::from_secs(2);
 
-/// Which Claude model the assistant asks Claude Code for.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AssistantModel {
-    /// Whatever Claude Code is configured to use.
-    #[default]
-    Default,
-    Haiku,
-    Sonnet,
-    Opus,
-}
-
-impl AssistantModel {
-    pub const ALL: [Self; 4] = [Self::Default, Self::Haiku, Self::Sonnet, Self::Opus];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Default => "Default",
-            Self::Haiku => "Haiku",
-            Self::Sonnet => "Sonnet",
-            Self::Opus => "Opus",
-        }
-    }
-
-    const fn alias(self) -> Option<&'static str> {
-        match self {
-            Self::Default => None,
-            Self::Haiku => Some("haiku"),
-            Self::Sonnet => Some("sonnet"),
-            Self::Opus => Some("opus"),
-        }
-    }
-}
-
 /// User-facing assistant options (stored in the app preferences).
 #[derive(Clone, Copy, Debug)]
 pub struct AssistantOptions {
-    pub model: AssistantModel,
     pub language: VoiceLanguage,
     pub send_after_dictation: bool,
+    /// The dock fills the window.
+    pub zoomed: bool,
     /// Run speech recognition on the GPU (builds with the `gpu` feature).
     pub voice_gpu: bool,
 }
@@ -92,7 +66,12 @@ pub struct Assistant {
     partial_pending: bool,
     last_partial: Instant,
     launcher: Launcher,
+    /// Settings for new threads: the last choice made in any thread.
+    defaults: Settings,
     history_path: PathBuf,
+    saved_agents: SavedAgents,
+    agents_path: PathBuf,
+    agents_unsaved: bool,
     transcriber: Option<Transcriber>,
     unsaved: bool,
     last_save: Instant,
@@ -114,6 +93,15 @@ impl Assistant {
             .map(Thread::from_record)
             .collect();
         let next_id = threads.iter().map(|t| t.id.0 + 1).max().unwrap_or(1);
+        let agents_path = history_path.with_file_name("agents.json");
+        let saved_agents = SavedAgents::load(&agents_path);
+        let defaults = saved_agents.last.clone().unwrap_or_else(|| {
+            threads
+                .iter()
+                .max_by_key(|t| t.updated_at)
+                .map(|t| t.settings.clone())
+                .unwrap_or_default()
+        });
         let mut assistant = Self {
             threads,
             active: ThreadId(0),
@@ -125,13 +113,103 @@ impl Assistant {
             partial_pending: false,
             last_partial: Instant::now(),
             launcher,
+            defaults,
             history_path,
+            saved_agents,
+            agents_path,
+            agents_unsaved: false,
             transcriber: None,
             unsaved: false,
             last_save: Instant::now(),
         };
+        let mut threads = std::mem::take(&mut assistant.threads);
+        for thread in &mut threads {
+            assistant.prepare(thread);
+        }
+        assistant.threads = threads;
         assistant.start_new_thread();
         assistant
+    }
+
+    // ---- agents ----------------------------------------------------------------------------
+
+    /// Every agent a thread can talk to: the presets, then the user's own.
+    pub fn agents(&self) -> Vec<Agent> {
+        registry::all(&self.saved_agents.custom)
+    }
+
+    pub fn custom_agents(&self) -> &[AgentConfig] {
+        &self.saved_agents.custom
+    }
+
+    /// Replaces the custom agents (from Settings). Threads keep their agent id; a thread whose
+    /// agent was removed says so when it next sends.
+    pub fn set_custom_agents(&mut self, custom: Vec<AgentConfig>) {
+        self.saved_agents.custom = custom;
+        let mut threads = std::mem::take(&mut self.threads);
+        for thread in threads.iter_mut().filter(|t| !t.busy) {
+            self.prepare(thread);
+        }
+        self.threads = threads;
+        self.agents_unsaved = true;
+        self.save();
+    }
+
+    fn agent(&self, id: &AgentId) -> Option<Agent> {
+        registry::find(&self.saved_agents.custom, id)
+    }
+
+    /// Fills in what the thread's agent offers, from what it reported last time.
+    fn prepare(&self, thread: &mut Thread) {
+        let agent = self.agent(&thread.settings.agent);
+        if let Some(agent) = &agent {
+            thread.agent_name = agent.name().to_owned();
+        }
+        let known = self.saved_agents.known.get(&thread.settings.agent);
+        thread.commands = known.map(|k| k.commands.clone()).unwrap_or_default();
+        thread.options = match agent.map(|a| a.protocol) {
+            Some(Protocol::ClaudeCode) => claude_code::options(),
+            _ => known.map(|k| k.options.clone()).unwrap_or_default(),
+        };
+    }
+
+    /// Talks to another agent in the active thread. Only before the first message: the
+    /// conversation lives in the agent, so switching mid-thread would lose it.
+    pub fn set_agent(&mut self, id: AgentId) {
+        if self.active().has_messages() || self.active().settings.agent == id {
+            return;
+        }
+        let mut thread = Thread::new(self.active);
+        thread.settings.agent = id;
+        thread.draft = std::mem::take(&mut self.active_mut().draft);
+        self.prepare(&mut thread);
+        self.defaults = thread.settings.clone();
+        *self.active_mut() = thread;
+        self.remember_defaults();
+    }
+
+    fn remember_defaults(&mut self) {
+        self.saved_agents.last = Some(self.defaults.clone());
+        self.agents_unsaved = true;
+    }
+
+    /// Keeps what each agent reported (settings, commands) for threads that have not started it.
+    fn learn(&mut self) {
+        for thread in &self.threads {
+            let known = self
+                .saved_agents
+                .known
+                .entry(thread.settings.agent.clone())
+                .or_default();
+            if !thread.commands.is_empty() && known.commands != thread.commands {
+                known.commands.clone_from(&thread.commands);
+                self.agents_unsaved = true;
+            }
+            if !thread.options.is_empty() && known.options != thread.options {
+                known.options.clone_from(&thread.options);
+                self.agents_unsaved = true;
+            }
+        }
     }
 
     // ---- threads ---------------------------------------------------------------------------
@@ -168,7 +246,13 @@ impl Assistant {
     fn start_new_thread(&mut self) {
         let id = ThreadId(self.next_id);
         self.next_id += 1;
-        self.threads.push(Thread::new(id));
+        let mut thread = Thread::new(id);
+        thread.settings = self.defaults.clone();
+        if self.agent(&thread.settings.agent).is_none() {
+            thread.settings = Settings::default();
+        }
+        self.prepare(&mut thread);
+        self.threads.push(thread);
         self.switch_to(id);
     }
 
@@ -209,6 +293,12 @@ impl Assistant {
             Ok(()) => self.unsaved = false,
             Err(err) => eprintln!("falog: could not save assistant threads: {err}"),
         }
+        if self.agents_unsaved {
+            match self.saved_agents.save(&self.agents_path) {
+                Ok(()) => self.agents_unsaved = false,
+                Err(err) => eprintln!("falog: could not save assistant agents: {err}"),
+            }
+        }
         self.last_save = Instant::now();
     }
 
@@ -224,12 +314,10 @@ impl Assistant {
             || !matches!(self.voice, VoiceState::Idle | VoiceState::NeedsModel)
     }
 
-    pub fn send(&mut self, ctx: &egui::Context, text: String, options: AssistantOptions) {
+    pub fn send(&mut self, ctx: &egui::Context, text: String) {
         let launcher = self.launcher.clone();
-        if self
-            .active_mut()
-            .send(ctx, text, &launcher, options.model.alias())
-        {
+        let agent = self.agent(&self.active().settings.agent);
+        if self.active_mut().send(ctx, text, &launcher, agent.as_ref()) {
             self.unsaved = true;
         }
     }
@@ -240,11 +328,13 @@ impl Assistant {
         self.unsaved = true;
     }
 
-    /// Restarts Claude Code on the next message (e.g. after a model change), keeping the context.
-    pub fn restart_session(&mut self) {
-        for thread in &mut self.threads {
-            thread.release_session();
-        }
+    /// Picks the model or effort of the active thread; new threads start from it too.
+    pub fn choose(&mut self, kind: OptionKind, value: String) {
+        let thread = self.active_mut();
+        thread.choose(kind, value);
+        self.defaults = thread.settings.clone();
+        self.unsaved = true;
+        self.remember_defaults();
     }
 
     /// Processes pending events. Returns `true` when a tool finished, so tasks may have changed.
@@ -255,6 +345,7 @@ impl Assistant {
             tasks_changed |= activity.tasks_changed;
             self.unsaved |= activity.changed;
         }
+        self.learn();
 
         self.schedule_partial(options);
         while let Some(done) = self.transcriber.as_ref().and_then(Transcriber::try_recv) {
@@ -280,7 +371,7 @@ impl Assistant {
             self.active_mut().items.push(item);
         }
 
-        if self.unsaved && self.last_save.elapsed() >= SAVE_EVERY {
+        if (self.unsaved || self.agents_unsaved) && self.last_save.elapsed() >= SAVE_EVERY {
             self.save();
         }
         tasks_changed
@@ -318,7 +409,7 @@ impl Assistant {
                     .items
                     .push(Item::Notice("Didn't catch that.".into()));
             }
-            Ok(text) if options.send_after_dictation => self.send(ctx, text, options),
+            Ok(text) if options.send_after_dictation => self.send(ctx, text),
             Ok(text) => {
                 self.active_mut().draft = text;
                 self.focus_composer = true;
@@ -431,6 +522,52 @@ mod tests {
         assert_eq!(restored.recent_threads().len(), 1);
         assert_eq!(restored.recent_threads()[0].id, id);
         assert_ne!(restored.active().id, id, "a fresh thread is opened on start");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn new_threads_use_the_last_agent_and_model() {
+        let (mut a, path) = assistant("agents");
+        assert_eq!(a.active().settings.agent, AgentId::default());
+        a.set_agent(AgentId("gemini".into()));
+        assert_eq!(a.active().agent_name, "Gemini CLI");
+        assert!(a.active().options.is_empty(), "unknown until Gemini reports them");
+        say(&mut a, "hi");
+        a.set_agent(AgentId::default());
+        assert_eq!(
+            a.active().settings.agent.0,
+            "gemini",
+            "fixed once the thread has messages"
+        );
+
+        a.new_thread();
+        assert_eq!(a.active().settings.agent.0, "gemini");
+        a.set_agent(AgentId::default());
+        a.choose(OptionKind::Model, "haiku".into());
+        a.save();
+
+        let restored = Assistant::with_history(Launcher { database: None }, path.clone());
+        assert_eq!(restored.active().settings.agent, AgentId::default());
+        assert_eq!(restored.active().settings.model.as_deref(), Some("haiku"));
+        assert_eq!(restored.recent_threads()[0].agent_name, "Gemini CLI");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn remembers_what_agents_reported() {
+        let (mut a, path) = assistant("known");
+        a.set_agent(AgentId("gemini".into()));
+        a.active_mut()
+            .apply(agent::AgentEvent::Commands(vec![agent::SlashCommand {
+                name: "compress".into(),
+                description: String::new(),
+                hint: String::new(),
+            }]));
+        a.learn();
+        a.new_thread();
+        say(&mut a, "x");
+        a.new_thread();
+        assert_eq!(a.active().commands.len(), 1, "known before Gemini starts again");
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 

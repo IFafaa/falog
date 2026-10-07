@@ -1,4 +1,5 @@
-use crate::assistant::AssistantModel;
+use crate::assistant::agent::registry::AgentConfig;
+use crate::assistant::agent_settings::{self, AgentsForm};
 use crate::assistant::voice::{self, VoiceLanguage};
 use crate::calendar::CalendarState;
 use crate::components::{
@@ -17,8 +18,8 @@ use std::path::{Path, PathBuf};
 pub enum SettingsEvent {
     SetAutostart(bool),
     SetTheme(ThemeMode),
-    AssistantModelChanged,
     VoiceEngineChanged,
+    AgentsChanged(Vec<AgentConfig>),
     Copied,
     SaveGoogleClient(Client),
     ConnectGoogle,
@@ -33,10 +34,16 @@ pub struct SettingsDialog {
     google_secret: String,
     db_path: Option<PathBuf>,
     mcp_command: String,
+    agents: AgentsForm,
 }
 
 impl SettingsDialog {
-    pub fn new(autostart: bool, db_path: Option<&Path>, google: &Client) -> Self {
+    pub fn new(
+        autostart: bool,
+        db_path: Option<&Path>,
+        custom_agents: Vec<AgentConfig>,
+        google: &Client,
+    ) -> Self {
         let mcp_exe = std::env::current_exe()
             .ok()
             .and_then(|exe| {
@@ -51,6 +58,7 @@ impl SettingsDialog {
             google_secret: google.secret.clone(),
             db_path: db_path.map(Path::to_path_buf),
             mcp_command: format!("claude mcp add --scope user falog -- \"{mcp_exe}\""),
+            agents: AgentsForm::new(custom_agents),
         }
     }
 
@@ -102,13 +110,6 @@ impl SettingsDialog {
                     self.google(ui, theme, calendar, &mut events);
 
                     section(ui, theme, "Assistant");
-                    setting(ui, theme, "Model", "Claude model used in the assistant panel.", |ui| {
-                        let options: Vec<(AssistantModel, &str)> =
-                            AssistantModel::ALL.iter().map(|m| (*m, m.label())).collect();
-                        if segmented(ui, &mut prefs.assistant_model, &options) {
-                            events.push(SettingsEvent::AssistantModelChanged);
-                        }
-                    });
                     setting(ui, theme, "Voice language", "Language you dictate in.", |ui| {
                         let options: Vec<(VoiceLanguage, &str)> =
                             VoiceLanguage::ALL.iter().map(|l| (*l, l.label())).collect();
@@ -145,6 +146,11 @@ impl SettingsDialog {
                         )
                     };
                     ui.label(RichText::new(model_status).size(12.5).color(theme.text_placeholder));
+
+                    section(ui, theme, "Agents");
+                    if agent_settings::show(ui, theme, &mut self.agents) {
+                        events.push(SettingsEvent::AgentsChanged(self.agents.custom.clone()));
+                    }
 
                     section(ui, theme, "Data");
                     let path = self

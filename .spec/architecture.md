@@ -63,7 +63,7 @@ src/
   main.rs        single instance, window options, run loop
   app.rs         FalogApp: state, per-frame layout, action handling, persistence of prefs
   action.rs      Action enum: user intents emitted by widgets
-  assistant/     assistant dock: Claude Code sessions, threads + history, voice capture + Whisper, panel UI
+  assistant/     assistant dock: agents (Claude Code, ACP), threads + history, voice capture + Whisper, panel UI
   calendar.rs    Google Calendar state: accounts, cached events, background sign-in and refresh
   prefs.rs       persisted UI preferences
   theme.rs       Zed color tokens -> egui visuals
@@ -80,30 +80,77 @@ src/
 
 1. `poll()` checks `PRAGMA data_version` every 800 ms and reloads when another process wrote.
 2. Panels are laid out in a fixed order: status bar, sidebar (left dock), assistant (outer right
-   dock), task panel (right dock), tab bar, toolbar, central view, then overlays.
+   dock), task panel (right dock), tab bar, toolbar, central view, then overlays. When the assistant
+   is zoomed (`Prefs::assistant_zoomed`), it is laid out at the full width and the workspace panels
+   and views are skipped.
 3. Widgets never mutate app data. They push `Action`s (or return events such as `PanelEvent`); the app
    applies them after drawing. This keeps rendering free of borrow conflicts and side effects.
 4. Every write goes through `FalogApp::write`, which reloads data on success and shows a toast on error.
 
 ### Assistant
 
-The assistant dock talks to **Claude Code in headless mode** on the user's own login (no API key):
-one long-lived `claude --print --input-format stream-json --output-format stream-json` process per
-conversation (`assistant/claude.rs`). Built-in tools are disabled (`--tools ""`); the only tools are
-those of a `falog-mcp` child with `FALOG_DB` set to the app's database (`--strict-mcp-config
---allowedTools mcp__falog --permission-mode dontAsk --setting-sources ""`). The system prompt is
-`assets/assistant-prompt.md`; the working directory is `<data dir>/assistant`, so no project
-`CLAUDE.md` leaks in. A reader thread maps stream-json lines to `ClaudeEvent`s (text deltas, tool use and
-results, turn end, exit). Stopping kills the process; the next message resumes the conversation with
-`--resume <session>`. When a tool result arrives the app syncs immediately instead of waiting for the poll.
+The assistant dock talks to an **agent** on the user's own subscription (no API key). Threads only
+see the `agent::Session` trait (send, cancel, set an option) and the `AgentEvent`s it yields (text
+deltas, tool use and results, turn end, slash commands, settings, notices, exit), so any agent can
+sit behind a thread. Every session gets the same `agent::Environment`: the tools of a `falog-mcp`
+child with `FALOG_DB` set to the app's database as its only tools, the system prompt
+`assets/assistant-prompt.md`, and `<data dir>/assistant` as working directory, so no project
+instructions leak in. When a tool result arrives the app syncs immediately instead of waiting for
+the poll.
 
-Threads (`assistant/thread.rs`): each conversation is a `Thread` owning its items, draft and Claude
-Code process; `Assistant` keeps a list of them plus the active one and polls them all, so a turn keeps
-running while another thread is open. Switching threads ends the idle processes of the others; the
-next message resumes them with `--resume`. Threads with messages are saved to
-`<data dir>/assistant/threads.json` (`assistant/history.rs`: newest first, at most 100, written
-through a temporary file; an unreadable file is kept as `threads.json.bak`) a couple of seconds after
-they change and when eframe saves its state. Falog opens on a fresh thread, as Zed does.
+Agents (`assistant/agent/registry.rs`) are `{id, name, command, args, env}` plus a protocol. Presets:
+**Claude Code** (default), **Claude (ACP)** (`npx -y @agentclientprotocol/claude-agent-acp`, Node
+22+), **Gemini CLI** (`gemini --acp`) and **Codex** (`npx -y @agentclientprotocol/codex-acp`).
+Commands are looked up on `PATH` with `PATHEXT` on Windows (`npx.cmd`); Claude Code is also found in
+`~/.local/bin`.
+
+- **Claude Code** (`agent/claude_code.rs`): one long-lived `claude --print --input-format
+  stream-json --output-format stream-json` process per conversation. Built-in tools are disabled
+  (`--tools ""`), MCP comes from a generated config (`--strict-mcp-config --allowedTools mcp__falog
+  --permission-mode dontAsk --setting-sources ""`). A reader thread maps stream-json lines to events;
+  slash commands come from `init` (names) and `system/commands_changed` (with descriptions) and are
+  sent as plain user messages. Model, effort and mode are `--model`, `--effort` and
+  `--permission-mode` (Falog's default stays `dontAsk`; `--allowedTools mcp__falog` keeps falog
+  tools allowed in every mode), fast mode is `--settings {"fastMode":true}` (Opus with extra usage;
+  when Claude Code reports `fast_mode_disabled_reason`, the thread gets a notice saying why). It
+  cannot switch these live, so the thread restarts it with `--resume <session>` once the current
+  turn ends. Context use comes from `result`: the last model call in `usage.iterations` (input,
+  cache and output tokens) against `modelUsage[model].contextWindow`. Ultracode is not offered: it
+  runs multi-agent workflows with the built-in tools the assistant turns off. Stopping kills the
+  process; the next message resumes the conversation.
+- **ACP** (`agent/acp.rs`): a client for the [Agent Client Protocol](https://agentclientprotocol.com)
+  v1, newline-delimited JSON-RPC over the agent's stdio, written by hand like the MCP server. A
+  reader thread runs the handshake (`initialize` with no fs/terminal capabilities, then
+  `session/resume` if the agent supports it, else `session/load` with the replayed history dropped,
+  else `session/new`; a session that cannot be reopened starts fresh with a notice), queues
+  messages typed meanwhile, maps `session/update` (`agent_message_chunk`, `tool_call`,
+  `tool_call_update`, `available_commands_update`, `config_option_update`) to events and answers
+  `session/request_permission`, allowing falog tools only (`falog_tool` recognizes
+  `mcp__falog__x`, `falog.x`, `x (falog MCP Server)`...). Model, effort, mode and fast mode are the
+  session config options with category `model`, `thought_level`, `mode` and (Claude's adapter)
+  `model_config` with id `fast`, switched live with `session/set_config_option`; agents that still
+  use the older `modes` get them as a mode option switched with `session/set_mode` and updated by
+  `current_mode_update`. Context use comes from `usage_update` (`used`, `size`). Stop sends `session/cancel` and drops what still streams for that
+  turn. Instructions go in `_meta.systemPrompt` (read by Claude's adapter, which also gets
+  `_meta.claudeCode.options` with no built-in tools, no user settings and `strictMcpConfig`, so the
+  user's own MCP servers stay out); other agents get them in
+  front of the first prompt of a new session. Dropping a session closes the agent's stdin before
+  killing it, because `npx` agents run under `cmd.exe` on Windows and the Node process would
+  otherwise linger.
+
+Threads (`assistant/thread.rs`): each conversation is a `Thread` owning its items, draft, settings
+(agent, model, effort; `thread::Settings`) and agent session; `Assistant` keeps a list of them plus
+the active one and polls them all, so a turn keeps running while another thread is open. The agent
+of a thread can change only before its first message (the conversation lives in the agent). Switching
+threads ends the idle processes of the others; the next message resumes them. Threads with messages
+are saved to `<data dir>/assistant/threads.json` (`assistant/history.rs`: newest first, at most 100,
+written through a temporary file; an unreadable file is kept as `threads.json.bak`; threads saved
+before agents existed load as Claude Code threads) a couple of seconds after they change and when
+eframe saves its state. Falog opens on a fresh thread, as Zed does.
+
+`<data dir>/assistant/agents.json` (`assistant/agents.rs`) keeps the user's custom agents, the last
+agent/model/effort picked (new threads start from it), and what each agent reported last time (its
+settings and commands), so the pickers and `/` work before the agent starts again.
 
 Voice (`assistant/voice.rs`): `cpal` records the default microphone, mixes to mono and resamples to
 16 kHz; a worker thread runs whisper.cpp (`whisper-rs`, model `ggml-large-v3-turbo-q5_0.bin` in
@@ -171,7 +218,7 @@ model and the window preferences stay in `<data dir>` for every database.
 | Content | Path |
 |---|---|
 | Tasks (override with `FALOG_DB`) | `<data dir>/falog.db` |
-| Assistant threads, MCP config | `<data dir>/assistant/` |
+| Assistant threads (`threads.json`), agents (`agents.json`), MCP config, agents' working directory | `<data dir>/assistant/` |
 | Whisper model | `<data dir>/models/` |
 | Google OAuth client, accounts with refresh tokens, calendar choices | `<data dir>/calendar/google.json` |
 | Last fetched events, shown at startup and offline | `<data dir>/calendar/events.json` |

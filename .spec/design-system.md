@@ -68,8 +68,11 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 ### Assistant dock
 
 Modeled on Zed's agent panel. Header (32 px, `tab_bar`) with ✦ and the thread title (its first
-message; hover shows the model), then new thread (+), history (clock, toggled) and close. The history
-view replaces the thread and composer with rows of 44 px: title, then `N messages · 2h ago` in
+message; hover shows the model), then new thread (+), history (clock, toggled), zoom (maximize / minimize, `Shift+Esc`) and close.
+Zoomed, the dock fills the window like Zed's zoomed panels: sidebar, tabs, toolbar, views and task
+panel are hidden, the status bar stays, and the thread, history and composer keep to a centered
+820 px column. The history
+view replaces the thread and composer with rows of 44 px: title, then `Agent · N messages · 2h ago` in
 `text_muted`; the open thread is `element_selected`, hover is `ghost_hover` with a trash button, and a
 running thread shows a spinner instead. The empty state lists the three most recent threads under the
 examples, with "View all" when there are more. The thread lists user messages (bordered `element` boxes), plain replies (streamed with a ▍
@@ -77,6 +80,22 @@ caret), tool calls as compact bordered cards (spinner → check / warning, actio
 the result; click opens the task, hover shows the arguments) and errors in `error`. The composer is an
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
 (pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
+Under the text, the footer has two rows so it fits the default dock width. The first holds the thread's
+agent, model, effort and mode pickers (Zed's selectors: `text_muted` label and a chevron,
+`ghost_hover` on hover, a menu above with a check on the current value; a picker only shows when
+the agent offers that setting, and the agent becomes a plain label once the thread has messages).
+The second has the mic, the fast mode flame (an icon toggle, `ghost_selected` while on, like Zed's
+burn mode; the tooltip says why it is unavailable), "Ultracode" in `text_placeholder` for Claude
+agents with a tooltip on why it is off, and on the right the context ring and icon-only Send or
+Stop (tooltips "Send (Enter)", "Stop"). The context ring is 13 px across: a 2 px `border_variant`
+track filled clockwise from twelve o'clock in `text_muted`, `warning` from 70 % and `error` from
+90 %; its tooltip reads "Context: 12.4k of 200k tokens (6%)". Settings › Agents lists the agents one per line (name, command line in monospace `text_muted`,
+`Installed` in `success` or `Not found` in `text_placeholder` with the setup hint on hover, a trash
+button for custom ones); "Add agent" opens a bordered form (name, command, environment).
+Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
+30 px): `/name` in monospace, the argument hint in `text_placeholder`, the description in
+`text_muted`; the selected row is `ghost_selected`. Arrows move, Tab or Enter completes `/name `,
+Enter on a complete name sends it, Esc closes.
 
 ### Calendar view
 
