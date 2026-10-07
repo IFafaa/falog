@@ -42,7 +42,7 @@ fi
 
 if [ "$remove_data" = 1 ]; then
     rm -rf "$data"
-    # eframe keeps window and UI preferences in a folder of its own on Linux.
+    # Older versions let eframe keep window preferences in a folder of its own on Linux.
     [ "$(uname -s)" = Linux ] && rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/falog"
     echo "Falog and its data were removed."
 else

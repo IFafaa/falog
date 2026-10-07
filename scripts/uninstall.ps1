@@ -1,4 +1,4 @@
-# Removes what install.ps1 set up. Your tasks database (%APPDATA%\Falog) is kept unless -RemoveData.
+# Removes what install.ps1 set up. Your tasks (~\.falog) are kept unless -RemoveData.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1 [-RemoveData]
 param(
@@ -18,9 +18,12 @@ if ($claude) {
     $ErrorActionPreference = 'Stop'
 }
 
+# Data lives in ~\.falog; older versions kept it in %APPDATA%\Falog (and eframe in %APPDATA%\falog\data).
+$data = Join-Path $HOME '.falog'
 if ($RemoveData) {
+    Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item (Join-Path $env:APPDATA 'Falog') -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host 'Falog and its data were removed.'
 } else {
-    Write-Host "Falog was removed. Your tasks are still in $(Join-Path $env:APPDATA 'Falog')."
+    Write-Host "Falog was removed. Your tasks are still in $data."
 }
