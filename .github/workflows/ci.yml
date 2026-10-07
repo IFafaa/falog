@@ -10,14 +10,72 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
-  check:
-    runs-on: windows-latest
+  # Formatting and the bash scripts, once: neither depends on the OS.
+  lint:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+          components: rustfmt
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets
-      - run: cargo test --workspace
+      - name: shellcheck
+        run: shellcheck --severity=warning scripts/*.sh
+
+  # Clippy and tests on every OS, with the default features (voice input on the CPU, which builds
+  # whisper.cpp with CMake and libclang) and without voice (the build that needs neither).
+  check:
+    name: check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # ALSA for the microphone (cpal); X11, Wayland and xkbcommon for the window (eframe);
+          # CMake and libclang for whisper.cpp.
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libasound2-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev \
+            cmake clang libclang-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (no voice)
+        run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        run: cargo test --workspace
+
+  # Speech recognition on the GPU: Metal on macOS, Vulkan on Linux. Windows needs the Vulkan SDK
+  # installed, which is not on the runner; build it locally with `--features falog-desktop/gpu`.
+  gpu:
+    name: gpu (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libasound2-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev \
+            cmake clang libclang-dev libvulkan-dev glslc
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (gpu)
+        run: cargo clippy --workspace --all-targets --features falog-desktop/gpu -- -D warnings
