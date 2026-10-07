@@ -12,7 +12,7 @@ pub enum Confirm {
         id: TaskId,
         title: String,
     },
-    DeleteCompany {
+    DeleteArea {
         id: AreaId,
         name: String,
     },
@@ -37,9 +37,9 @@ impl Confirm {
                 format!("\"{title}\" and its activity log will be permanently deleted."),
                 "Delete",
             ),
-            Self::DeleteCompany { name, .. } => (
+            Self::DeleteArea { name, .. } => (
                 format!("Delete \"{name}\"?"),
-                "Its tasks are kept, without a company.".to_owned(),
+                "Its tasks are kept, without an area.".to_owned(),
                 "Delete",
             ),
             Self::DiscardDraft { .. } => (

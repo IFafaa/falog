@@ -21,7 +21,7 @@ struct Columns {
     status: f32,
     id: f32,
     title: f32,
-    company: f32,
+    area: f32,
     priority: f32,
     due: f32,
     requester: f32,
@@ -33,17 +33,13 @@ impl Columns {
             status: 32.0,
             id: 52.0,
             title: 0.0,
-            company: 170.0,
+            area: 170.0,
             priority: 96.0,
             due: 120.0,
             requester: 130.0,
         };
-        let fixed = columns.status
-            + columns.id
-            + columns.company
-            + columns.priority
-            + columns.due
-            + columns.requester;
+        let fixed =
+            columns.status + columns.id + columns.area + columns.priority + columns.due + columns.requester;
         columns.title = (width - fixed).max(MIN_TITLE_WIDTH);
         columns
     }
@@ -54,7 +50,7 @@ impl Columns {
             self.status,
             self.id,
             self.title,
-            self.company,
+            self.area,
             self.priority,
             self.due,
             self.requester,
@@ -95,7 +91,7 @@ pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
 fn header(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), HEADER_HEIGHT), Sense::hover());
     let edges = columns.edges(rect.left());
-    let labels = ["", "#", "Task", "Company", "Priority", "Due", "Requested by"];
+    let labels = ["", "#", "Task", "Area", "Priority", "Due", "Requested by"];
     for (edge, label) in edges.iter().zip(labels) {
         ui.painter().text(
             pos2(edge + 6.0, rect.center().y),
@@ -177,18 +173,18 @@ fn row(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns, task: &Task, actions: &m
         done,
     );
 
-    let company_color = task
+    let area_color = task
         .area
         .as_ref()
-        .map_or(theme.text_placeholder, |c| theme::color(c.color));
+        .map_or(theme.text_placeholder, |a| theme::color(a.color));
     ui.painter()
-        .circle_filled(pos2(edges[3] + 10.0, y), 4.0, company_color);
+        .circle_filled(pos2(edges[3] + 10.0, y), 4.0, area_color);
     let galley = single_line(
         ui,
         task.area_name(),
         FontId::proportional(13.0),
         theme.text_muted,
-        columns.company - 28.0,
+        columns.area - 28.0,
         false,
     );
     ui.painter().galley(
@@ -241,7 +237,7 @@ fn empty_state(ui: &mut Ui, cx: &ViewCx<'_>) {
         let (title, hint) = if cx.has_any_task {
             (
                 "No matching tasks",
-                "Clear the search or pick another company in the sidebar.",
+                "Clear the search or pick another area in the sidebar.",
             )
         } else {
             (

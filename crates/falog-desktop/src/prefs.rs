@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct Prefs {
     pub view: View,
-    pub company: Option<AreaId>,
+    /// Sidebar filter; saved as `company` before areas existed.
+    #[serde(alias = "company")]
+    pub area: Option<AreaId>,
     pub sort: SortOrder,
     pub theme: ThemeMode,
     pub sidebar_open: bool,
@@ -42,7 +44,7 @@ impl Default for Prefs {
     fn default() -> Self {
         Self {
             view: View::default(),
-            company: None,
+            area: None,
             sort: SortOrder::default(),
             theme: ThemeMode::default(),
             sidebar_open: true,

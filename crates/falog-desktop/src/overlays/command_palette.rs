@@ -57,10 +57,10 @@ impl CommandPalette {
         }
     }
 
-    pub fn show(&mut self, ctx: &egui::Context, tasks: &[Task], companies: &[Area]) -> Outcome {
+    pub fn show(&mut self, ctx: &egui::Context, tasks: &[Task], areas: &[Area]) -> Outcome {
         let theme = Theme::current(ctx);
         let items = match self.mode {
-            Mode::Commands => self.commands(theme, companies),
+            Mode::Commands => self.commands(theme, areas),
             Mode::Tasks => self.tasks(theme, tasks),
         };
         self.selected = self.selected.min(items.len().saturating_sub(1));
@@ -102,7 +102,7 @@ impl CommandPalette {
     fn input(&mut self, ui: &mut Ui, theme: &Theme) {
         let hint = match self.mode {
             Mode::Commands => "Execute a command…",
-            Mode::Tasks => "Search tasks by title, #id, company or requester…",
+            Mode::Tasks => "Search tasks by title, #id, area or requester…",
         };
         let response = ui.add(
             TextEdit::singleline(&mut self.query)
@@ -163,7 +163,7 @@ impl CommandPalette {
         clicked
     }
 
-    fn commands(&self, theme: &Theme, companies: &[Area]) -> Vec<Item> {
+    fn commands(&self, theme: &Theme, areas: &[Area]) -> Vec<Item> {
         let command = |icon: Icon, label: String, keys: Option<&'static str>, action: Action| Item {
             icon,
             icon_color: theme.icon_muted,
@@ -233,25 +233,25 @@ impl CommandPalette {
         ));
         items.push(command(
             Icon::FolderOpen,
-            "companies: show all".into(),
+            "areas: show all".into(),
             None,
-            Action::FilterCompany(None),
+            Action::FilterArea(None),
         ));
-        for company in companies {
+        for area in areas {
             items.push(Item {
                 icon: Icon::Folder,
-                icon_color: theme::color(company.color),
-                label: format!("companies: filter by {}", company.name),
+                icon_color: theme::color(area.color),
+                label: format!("areas: filter by {}", area.name),
                 detail: None,
                 keys: None,
-                action: Action::FilterCompany(Some(company.id)),
+                action: Action::FilterArea(Some(area.id)),
             });
         }
         items.push(command(
             Icon::Settings,
-            "companies: manage".into(),
+            "areas: manage".into(),
             None,
-            Action::ManageCompanies,
+            Action::ManageAreas,
         ));
         for mode in ThemeMode::ALL {
             let label = format!("theme: {}", mode.label().to_lowercase());

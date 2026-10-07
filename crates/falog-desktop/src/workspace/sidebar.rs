@@ -1,4 +1,4 @@
-//! Left dock listing companies, styled like Zed's project panel.
+//! Left dock listing areas, styled like Zed's project panel.
 
 use super::BAR_HEIGHT;
 use crate::action::{Action, Actions};
@@ -18,7 +18,7 @@ pub fn show(
     ctx: &egui::Context,
     theme: &Theme,
     tasks: &[Task],
-    companies: &[Area],
+    areas: &[Area],
     selected: Option<AreaId>,
     actions: &mut Actions,
 ) {
@@ -29,10 +29,10 @@ pub fn show(
         .frame(Frame::none().fill(theme.panel))
         .show(ctx, |ui| {
             header(ui, theme, actions);
-            let open = |company: Option<AreaId>| {
+            let open = |area: Option<AreaId>| {
                 tasks
                     .iter()
-                    .filter(|t| t.is_open() && (company.is_none() || t.area_id() == company))
+                    .filter(|t| t.is_open() && (area.is_none() || t.area_id() == area))
                     .count()
             };
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -43,36 +43,36 @@ pub fn show(
                     theme,
                     Icon::FolderOpen,
                     theme.icon_muted,
-                    "All companies",
+                    "All areas",
                     open(None),
                     selected.is_none(),
                 );
                 if all.clicked() {
-                    actions.push(Action::FilterCompany(None));
+                    actions.push(Action::FilterArea(None));
                 }
-                for company in companies {
-                    let is_selected = selected == Some(company.id);
-                    let color = theme::color(company.color);
+                for area in areas {
+                    let is_selected = selected == Some(area.id);
+                    let color = theme::color(area.color);
                     let response = row(
                         ui,
                         theme,
                         Icon::Folder,
                         color,
-                        &company.name,
-                        open(Some(company.id)),
+                        &area.name,
+                        open(Some(area.id)),
                         is_selected,
                     );
                     if response.clicked() {
-                        actions.push(Action::FilterCompany(Some(company.id)));
+                        actions.push(Action::FilterArea(Some(area.id)));
                     }
                     response.context_menu(|ui| {
-                        if ui.button("Manage companies…").clicked() {
-                            actions.push(Action::ManageCompanies);
+                        if ui.button("Manage areas…").clicked() {
+                            actions.push(Action::ManageAreas);
                             ui.close_menu();
                         }
                     });
                 }
-                if companies.is_empty() {
+                if areas.is_empty() {
                     empty_state(ui, theme, actions);
                 }
             });
@@ -89,7 +89,7 @@ fn header(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
     ui.painter().text(
         pos2(rect.left() + 12.0, rect.center().y),
         Align2::LEFT_CENTER,
-        "Companies",
+        "Areas",
         fonts::semibold(13.0),
         theme.text_muted,
     );
@@ -100,8 +100,8 @@ fn header(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
             .layout(Layout::right_to_left(Align::Center)),
         |ui| {
             ui.add_space(6.0);
-            if icon_button(ui, Icon::Settings, "Manage companies").clicked() {
-                actions.push(Action::ManageCompanies);
+            if icon_button(ui, Icon::Settings, "Manage areas").clicked() {
+                actions.push(Action::ManageAreas);
             }
         },
     );
@@ -164,14 +164,10 @@ fn empty_state(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
     Frame::none()
         .inner_margin(Margin::symmetric(12.0, 12.0))
         .show(ui, |ui| {
-            ui.label(
-                RichText::new("No companies yet.")
-                    .size(13.0)
-                    .color(theme.text_muted),
-            );
+            ui.label(RichText::new("No areas yet.").size(13.0).color(theme.text_muted));
             ui.add_space(6.0);
-            if button(ui, ButtonStyle::Filled, Some(Icon::Plus), "Add company").clicked() {
-                actions.push(Action::ManageCompanies);
+            if button(ui, ButtonStyle::Filled, Some(Icon::Plus), "Add area").clicked() {
+                actions.push(Action::ManageAreas);
             }
         });
 }

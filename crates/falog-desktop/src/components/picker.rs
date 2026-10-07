@@ -2,18 +2,18 @@ use crate::theme::{self, Theme};
 use eframe::egui::{ComboBox, RichText, Ui};
 use falog_core::domain::{Area, AreaId, Priority, Status, UNASSIGNED};
 
-pub fn company_picker(ui: &mut Ui, id: &str, value: &mut Option<AreaId>, companies: &[Area], width: f32) {
+pub fn area_picker(ui: &mut Ui, id: &str, value: &mut Option<AreaId>, areas: &[Area], width: f32) {
     let selected = value
-        .and_then(|id| companies.iter().find(|c| c.id == id))
-        .map_or(UNASSIGNED, |c| c.name.as_str());
+        .and_then(|id| areas.iter().find(|a| a.id == id))
+        .map_or(UNASSIGNED, |a| a.name.as_str());
     ComboBox::from_id_salt(id)
         .selected_text(selected)
         .width(width)
         .show_ui(ui, |ui| {
             ui.selectable_value(value, None, UNASSIGNED);
-            for company in companies {
-                let label = RichText::new(format!("● {}", company.name)).color(theme::color(company.color));
-                ui.selectable_value(value, Some(company.id), label);
+            for area in areas {
+                let label = RichText::new(format!("● {}", area.name)).color(theme::color(area.color));
+                ui.selectable_value(value, Some(area.id), label);
             }
         });
 }

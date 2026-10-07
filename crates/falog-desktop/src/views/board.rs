@@ -152,10 +152,10 @@ fn column_header(ui: &mut Ui, theme: &Theme, status: Status, count: usize, actio
 fn card(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut BoardState, task: &Task, actions: &mut Actions) {
     let theme = cx.theme;
     let selected = cx.selected == Some(task.id);
-    let company_color = task
+    let area_color = task
         .area
         .as_ref()
-        .map_or(theme.text_placeholder, |c| theme::color(c.color));
+        .map_or(theme.text_placeholder, |a| theme::color(a.color));
     let done = task.status == Status::Done;
 
     let frame = Frame::none()
@@ -174,7 +174,7 @@ fn card(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut BoardState, task: &Task, actio
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
             ui.horizontal(|ui| {
-                ui.add(Icon::Folder.image(12.0, company_color));
+                ui.add(Icon::Folder.image(12.0, area_color));
                 ui.label(RichText::new(task.area_name()).size(12.0).color(theme.text_muted));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(

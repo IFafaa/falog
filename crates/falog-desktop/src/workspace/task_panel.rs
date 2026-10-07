@@ -3,7 +3,7 @@
 //! Edits are kept in a [`Draft`] and written on save (Ctrl+S), like a buffer in Zed.
 
 use super::BAR_HEIGHT;
-use crate::components::{ButtonStyle, button, company_picker, icon_button, priority_picker, status_picker};
+use crate::components::{ButtonStyle, area_picker, button, icon_button, priority_picker, status_picker};
 use crate::fonts;
 use crate::icons::Icon;
 use crate::theme::Theme;
@@ -23,7 +23,7 @@ const TITLE_ID: &str = "task-panel-title";
 pub struct Draft {
     pub title: String,
     pub description: String,
-    pub company_id: Option<AreaId>,
+    pub area_id: Option<AreaId>,
     pub status: Status,
     pub priority: Priority,
     /// Free text; parsed with [`date::parse_due`] on save.
@@ -36,7 +36,7 @@ impl Draft {
         Self {
             title: task.title.clone(),
             description: task.description.clone(),
-            company_id: task.area_id(),
+            area_id: task.area_id(),
             status: task.status,
             priority: task.priority,
             due: task
@@ -59,7 +59,7 @@ impl Draft {
         Ok(NewTask {
             title: self.title.clone(),
             description: self.description.clone(),
-            area_id: self.company_id,
+            area_id: self.area_id,
             status: self.status,
             priority: self.priority,
             due,
@@ -82,9 +82,9 @@ pub struct TaskPanel {
 }
 
 impl TaskPanel {
-    pub fn new(company_id: Option<AreaId>, status: Status) -> Self {
+    pub fn new(area_id: Option<AreaId>, status: Status) -> Self {
         let draft = Draft {
-            company_id,
+            area_id,
             status,
             ..Draft::default()
         };
@@ -140,7 +140,7 @@ pub fn show(
     ctx: &egui::Context,
     theme: &Theme,
     panel: &mut TaskPanel,
-    companies: &[Area],
+    areas: &[Area],
     today: NaiveDate,
 ) -> Vec<PanelEvent> {
     let mut events = Vec::new();
@@ -155,7 +155,7 @@ pub fn show(
                 Frame::none()
                     .inner_margin(Margin::symmetric(16.0, 14.0))
                     .show(ui, |ui| {
-                        body(ui, theme, panel, companies, today, &mut events);
+                        body(ui, theme, panel, areas, today, &mut events);
                     });
             });
         });
@@ -199,7 +199,7 @@ fn body(
     ui: &mut Ui,
     theme: &Theme,
     panel: &mut TaskPanel,
-    companies: &[Area],
+    areas: &[Area],
     today: NaiveDate,
     events: &mut Vec<PanelEvent>,
 ) {
@@ -225,14 +225,8 @@ fn body(
     property(ui, theme, Icon::for_priority(draft.priority), "Priority", |ui| {
         priority_picker(ui, "panel-priority", &mut draft.priority, control_width)
     });
-    property(ui, theme, Icon::Folder, "Company", |ui| {
-        company_picker(
-            ui,
-            "panel-company",
-            &mut draft.company_id,
-            companies,
-            control_width,
-        )
+    property(ui, theme, Icon::Folder, "Area", |ui| {
+        area_picker(ui, "panel-area", &mut draft.area_id, areas, control_width)
     });
     property(ui, theme, Icon::Clock, "Due", |ui| {
         due_field(ui, theme, &mut draft.due, today)

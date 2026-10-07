@@ -60,7 +60,7 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut AgendaState, actions: &mut 
         .color(theme.text_muted),
     );
     ui.add_space(10.0);
-    company_chips(ui, cx, actions);
+    area_chips(ui, cx, actions);
 
     for section in agenda::sections(cx.tasks, cx.today)
         .iter()
@@ -109,19 +109,19 @@ fn bucket_color(theme: &Theme, bucket: Bucket) -> Color32 {
     }
 }
 
-fn company_chips(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
+fn area_chips(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
     let theme = cx.theme;
     ui.horizontal_wrapped(|ui| {
-        for company in cx.companies {
+        for area in cx.areas {
             let open = cx
                 .tasks
                 .iter()
-                .filter(|t| t.is_open() && t.area_id() == Some(company.id))
+                .filter(|t| t.is_open() && t.area_id() == Some(area.id))
                 .count();
             if open == 0 {
                 continue;
             }
-            let color = theme::color(company.color);
+            let color = theme::color(area.color);
             let chip = Frame::none()
                 .fill(theme.element)
                 .stroke((1.0, theme.border_variant))
@@ -131,18 +131,18 @@ fn company_chips(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 6.0;
                         ui.add(Icon::Folder.image(12.0, color));
-                        ui.label(RichText::new(&company.name).size(13.0).color(theme.text));
+                        ui.label(RichText::new(&area.name).size(13.0).color(theme.text));
                         ui.label(RichText::new(open.to_string()).size(12.0).color(theme.text_muted));
                     });
                 })
                 .response;
             let chip = ui.interact(chip.rect, chip.id.with("click"), Sense::click());
             if chip
-                .on_hover_text("Show only this company")
+                .on_hover_text("Show only this area")
                 .on_hover_cursor(CursorIcon::PointingHand)
                 .clicked()
             {
-                actions.push(Action::FilterCompany(Some(company.id)));
+                actions.push(Action::FilterArea(Some(area.id)));
             }
         }
     });
@@ -216,12 +216,11 @@ fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
         detail(task.priority.label(), theme.priority_color(task.priority));
     }
     detail(task.area_name(), theme.text_muted);
-    let company_color = task
+    let area_color = task
         .area
         .as_ref()
-        .map_or(theme.text_placeholder, |c| theme::color(c.color));
-    ui.painter()
-        .circle_filled(pos2(right + 6.0, y), 3.5, company_color);
+        .map_or(theme.text_placeholder, |a| theme::color(a.color));
+    ui.painter().circle_filled(pos2(right + 6.0, y), 3.5, area_color);
 
     let left = rect.left() + 32.0;
     ui.painter().text(

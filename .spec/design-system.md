@@ -21,7 +21,7 @@ Never hard-code colors in UI code; use a token.
 | `text`, `text_muted`, `text_placeholder`, `text_accent` | Text hierarchy |
 | `error`, `warning`, `success`, `hint` | Status colors |
 
-Semantic helpers: `status_color`, `priority_color`, `due_color`. Company colors come from the data.
+Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors come from the data.
 
 ## Typography
 
@@ -49,7 +49,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Company colors 
 | `meta`, `badge` | `Label` + icon, `CountBadge` | Card metadata, counters |
 | `modal(placement)` | `Modal` | Dimmed backdrop, Esc/backdrop dismiss; `Top` for pickers |
 | `switch`, `segmented` | `Switch`, `ToggleButtonGroup` | Settings controls |
-| `*_picker` | `DropdownMenu` | Company, status, priority |
+| `*_picker` | `DropdownMenu` | Area, status, priority |
 | `single_line`, `paint_keybinding` | truncation, `KeyBinding` | Painter helpers |
 
 ## Layout

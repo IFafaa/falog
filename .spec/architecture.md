@@ -68,7 +68,7 @@ src/
   components/    reusable widgets (buttons, chips, modal, pickers, switch, text helpers)
   workspace/     window chrome: sidebar, tab bar, toolbar, status bar, task panel
   views/         board, list, agenda (+ ViewCx, SortOrder)
-  overlays/      command palette, companies, settings, confirm
+  overlays/      command palette, areas, settings, confirm
   platform/      autostart (registry), single instance (loopback port), title bar colors (DWM)
 ```
 

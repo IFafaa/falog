@@ -54,18 +54,18 @@ pub enum SortOrder {
     #[default]
     Urgency,
     DueDate,
-    Company,
+    Area,
     Newest,
 }
 
 impl SortOrder {
-    pub const ALL: [Self; 4] = [Self::Urgency, Self::DueDate, Self::Company, Self::Newest];
+    pub const ALL: [Self; 4] = [Self::Urgency, Self::DueDate, Self::Area, Self::Newest];
 
     pub const fn label(self) -> &'static str {
         match self {
             Self::Urgency => "Urgency",
             Self::DueDate => "Due date",
-            Self::Company => "Company",
+            Self::Area => "Area",
             Self::Newest => "Newest",
         }
     }
@@ -74,7 +74,7 @@ impl SortOrder {
         match self {
             Self::Urgency => tasks.sort_by(|a, b| by_urgency(a, b)),
             Self::DueDate => tasks.sort_by(|a, b| cmp_due(a.due, b.due).then_with(|| by_urgency(a, b))),
-            Self::Company => tasks.sort_by(|a, b| {
+            Self::Area => tasks.sort_by(|a, b| {
                 fold(a.area_name())
                     .cmp(&fold(b.area_name()))
                     .then_with(|| by_urgency(a, b))
@@ -89,9 +89,9 @@ impl SortOrder {
 pub struct ViewCx<'a> {
     pub theme: &'static Theme,
     pub today: NaiveDate,
-    /// Tasks after the company filter and search.
+    /// Tasks after the area filter and search.
     pub tasks: &'a [Task],
-    pub companies: &'a [Area],
+    pub areas: &'a [Area],
     pub prefs: &'a Prefs,
     /// The task open in the side panel.
     pub selected: Option<TaskId>,

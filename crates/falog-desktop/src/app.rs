@@ -2,8 +2,8 @@
 
 use crate::action::{Action, Actions};
 use crate::assistant::{self, Assistant};
+use crate::overlays::areas::{AreaEvent, AreasDialog};
 use crate::overlays::command_palette::{CommandPalette, Mode, Outcome};
-use crate::overlays::companies::{CompaniesDialog, CompanyEvent};
 use crate::overlays::confirm::{Answer, Confirm};
 use crate::overlays::settings::{SettingsDialog, SettingsEvent};
 use crate::platform::{autostart, title_bar};
@@ -32,7 +32,7 @@ const TOAST_DURATION: Duration = Duration::from_secs(5);
 pub struct FalogApp {
     store: Result<Store, String>,
     tasks: Vec<Task>,
-    companies: Vec<Area>,
+    areas: Vec<Area>,
     data_version: i64,
     last_poll: Instant,
     today: NaiveDate,
@@ -43,7 +43,7 @@ pub struct FalogApp {
     task_panel: Option<TaskPanel>,
     assistant: Assistant,
     palette: Option<CommandPalette>,
-    companies_dialog: Option<CompaniesDialog>,
+    areas_dialog: Option<AreasDialog>,
     settings: Option<SettingsDialog>,
     confirm: Option<Confirm>,
     toast: Option<Toast>,
@@ -69,7 +69,7 @@ impl FalogApp {
         let mut app = Self {
             store: store.map_err(|err| err.to_string()),
             tasks: Vec::new(),
-            companies: Vec::new(),
+            areas: Vec::new(),
             data_version: 0,
             last_poll: Instant::now(),
             today: date::today(),
@@ -80,7 +80,7 @@ impl FalogApp {
             task_panel: None,
             assistant,
             palette: None,
-            companies_dialog: None,
+            areas_dialog: None,
             settings: None,
             confirm: None,
             toast: None,
@@ -98,13 +98,13 @@ impl FalogApp {
         let loaded = store.tasks().and_then(|tasks| Ok((tasks, store.areas()?)));
         self.data_version = store.data_version().unwrap_or_default();
         match loaded {
-            Ok((tasks, companies)) => {
+            Ok((tasks, areas)) => {
                 self.tasks = tasks;
-                self.companies = companies;
-                if let Some(id) = self.prefs.company
-                    && !self.companies.iter().any(|c| c.id == id)
+                self.areas = areas;
+                if let Some(id) = self.prefs.area
+                    && !self.areas.iter().any(|a| a.id == id)
                 {
-                    self.prefs.company = None;
+                    self.prefs.area = None;
                 }
             }
             Err(err) => self.notify(format!("Could not load tasks: {err}"), ToastKind::Error),
@@ -166,11 +166,11 @@ impl FalogApp {
         });
     }
 
-    /// Tasks after the company filter and the search box.
+    /// Tasks after the area filter and the search box.
     fn visible_tasks(&self) -> Vec<Task> {
         self.tasks
             .iter()
-            .filter(|t| self.prefs.company.is_none() || t.area_id() == self.prefs.company)
+            .filter(|t| self.prefs.area.is_none() || t.area_id() == self.prefs.area)
             .filter(|t| t.matches(&self.search))
             .cloned()
             .collect()
@@ -178,9 +178,9 @@ impl FalogApp {
 
     fn scope_label(&self) -> String {
         self.prefs
-            .company
-            .and_then(|id| self.companies.iter().find(|c| c.id == id))
-            .map_or_else(|| "All companies".to_owned(), |c| c.name.clone())
+            .area
+            .and_then(|id| self.areas.iter().find(|a| a.id == id))
+            .map_or_else(|| "All areas".to_owned(), |a| a.name.clone())
     }
 
     // ---- task panel ------------------------------------------------------------------------
@@ -326,7 +326,7 @@ impl FalogApp {
 
     fn overlay_open(&self) -> bool {
         self.palette.is_some()
-            || self.companies_dialog.is_some()
+            || self.areas_dialog.is_some()
             || self.settings.is_some()
             || self.confirm.is_some()
     }
@@ -342,18 +342,16 @@ impl FalogApp {
         }
         match action {
             Action::OpenTask(id) => self.open_task(id),
-            Action::NewTask(status) => self.task_panel = Some(TaskPanel::new(self.prefs.company, status)),
+            Action::NewTask(status) => self.task_panel = Some(TaskPanel::new(self.prefs.area, status)),
             Action::MoveTask(id, status) => self.move_task(id, status),
             Action::DeleteTask(id) => self.ask_delete_task(id),
             Action::SetView(view) => self.prefs.view = view,
-            Action::FilterCompany(company) => self.prefs.company = company,
+            Action::FilterArea(area) => self.prefs.area = area,
             Action::ToggleSidebar => self.prefs.sidebar_open = !self.prefs.sidebar_open,
             Action::FocusSearch => ctx.memory_mut(|m| m.request_focus(Id::new(toolbar::SEARCH_ID))),
             Action::OpenCommandPalette => self.palette = Some(CommandPalette::new(Mode::Commands)),
             Action::OpenTaskFinder => self.palette = Some(CommandPalette::new(Mode::Tasks)),
-            Action::ManageCompanies => {
-                self.companies_dialog = Some(CompaniesDialog::new(self.companies.len()))
-            }
+            Action::ManageAreas => self.areas_dialog = Some(AreasDialog::new(self.areas.len())),
             Action::OpenSettings => {
                 let path = self.store.as_ref().ok().and_then(Store::path);
                 self.settings = Some(SettingsDialog::new(autostart::is_enabled(), path));
@@ -409,7 +407,7 @@ impl FalogApp {
 
     fn overlays(&mut self, ctx: &egui::Context, actions: &mut Actions) {
         if let Some(palette) = &mut self.palette {
-            match palette.show(ctx, &self.tasks, &self.companies) {
+            match palette.show(ctx, &self.tasks, &self.areas) {
                 Outcome::Pending => {}
                 Outcome::Dismissed => self.palette = None,
                 Outcome::Run(action) => {
@@ -419,12 +417,12 @@ impl FalogApp {
             }
         }
 
-        if let Some(dialog) = &mut self.companies_dialog {
-            let (events, close) = dialog.show(ctx, &self.companies);
+        if let Some(dialog) = &mut self.areas_dialog {
+            let (events, close) = dialog.show(ctx, &self.areas);
             if close {
-                self.companies_dialog = None;
+                self.areas_dialog = None;
             }
-            self.company_events(events);
+            self.area_events(events);
         }
 
         if let Some(dialog) = &mut self.settings {
@@ -450,27 +448,27 @@ impl FalogApp {
         }
     }
 
-    fn company_events(&mut self, events: Vec<CompanyEvent>) {
+    fn area_events(&mut self, events: Vec<AreaEvent>) {
         for event in events {
             match event {
-                CompanyEvent::Create { name, color } => {
-                    if let Some(company) = self.write(|store| store.create_area(&name, Some(color))) {
-                        self.notify(format!("Added {}", company.name), ToastKind::Success);
-                        let count = self.companies.len();
-                        if let Some(dialog) = &mut self.companies_dialog {
+                AreaEvent::Create { name, color } => {
+                    if let Some(area) = self.write(|store| store.create_area(&name, Some(color))) {
+                        self.notify(format!("Added {}", area.name), ToastKind::Success);
+                        let count = self.areas.len();
+                        if let Some(dialog) = &mut self.areas_dialog {
                             dialog.reset_new(count);
                         }
                     }
                 }
-                CompanyEvent::Update { id, name, color } => {
-                    if let Some(company) = self.write(|store| store.update_area(id, &name, color)) {
-                        self.notify(format!("Saved {}", company.name), ToastKind::Success);
-                        if let Some(dialog) = &mut self.companies_dialog {
+                AreaEvent::Update { id, name, color } => {
+                    if let Some(area) = self.write(|store| store.update_area(id, &name, color)) {
+                        self.notify(format!("Saved {}", area.name), ToastKind::Success);
+                        if let Some(dialog) = &mut self.areas_dialog {
                             dialog.forget(id);
                         }
                     }
                 }
-                CompanyEvent::Delete { id, name } => self.confirm = Some(Confirm::DeleteCompany { id, name }),
+                AreaEvent::Delete { id, name } => self.confirm = Some(Confirm::DeleteArea { id, name }),
             }
         }
     }
@@ -513,10 +511,10 @@ impl FalogApp {
                     }
                 }
             }
-            Confirm::DeleteCompany { id, name } => {
+            Confirm::DeleteArea { id, name } => {
                 if self.write(|store| store.delete_area(id)).is_some() {
                     self.notify(format!("Deleted {name}"), ToastKind::Success);
-                    if let Some(dialog) = &mut self.companies_dialog {
+                    if let Some(dialog) = &mut self.areas_dialog {
                         dialog.forget(id);
                     }
                 }
@@ -588,8 +586,8 @@ impl eframe::App for FalogApp {
                 ctx,
                 theme,
                 &self.tasks,
-                &self.companies,
-                self.prefs.company,
+                &self.areas,
+                self.prefs.area,
                 &mut actions,
             );
         }
@@ -598,7 +596,7 @@ impl eframe::App for FalogApp {
             assistant::panel::show(ctx, theme, &mut self.assistant, options, &mut actions);
         }
         let mut panel_events = match &mut self.task_panel {
-            Some(panel) => task_panel::show(ctx, theme, panel, &self.companies, self.today),
+            Some(panel) => task_panel::show(ctx, theme, panel, &self.areas, self.today),
             None => Vec::new(),
         };
         if save {
@@ -625,7 +623,7 @@ impl eframe::App for FalogApp {
                     theme,
                     today: self.today,
                     tasks: &visible,
-                    companies: &self.companies,
+                    areas: &self.areas,
                     prefs: &self.prefs,
                     selected: self.task_panel.as_ref().and_then(|p| p.id),
                     has_any_task: !self.tasks.is_empty(),
