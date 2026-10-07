@@ -37,14 +37,14 @@ read-only scope; Google shows an "unverified app" warning once).
 
 - [ ] With a client configured, "Connect Google account" opens the browser, and after consenting the
       account and its calendars appear without restarting
-- [ ] Two or more accounts can be connected; each calendar can be hidden from the sidebar
-- [ ] The week view places timed events by hour (overlaps side by side) and all-day events on top;
+- [x] Two or more accounts can be connected; each calendar can be hidden from the sidebar
+- [x] The week view places timed events by hour (overlaps side by side) and all-day events on top;
       the month view lists each day's events with "+N more"
 - [ ] Clicking an event shows its details with join and open links
-- [ ] Events survive a restart offline (cache) and refresh in the background
-- [ ] Refresh tokens are stored outside the repo and the prefs file, and removing an account deletes
+- [x] Events survive a restart offline (cache) and refresh in the background
+- [x] Refresh tokens are stored outside the repo and the prefs file, and removing an account deletes
       its token
-- [ ] Specs updated (`architecture.md`, `design-system.md`, README); tests cover parsing and layout
+- [x] Specs updated (`architecture.md`, `design-system.md`, README); tests cover parsing and layout
       rules; `fmt`, `clippy`, `test` green
 
 ## Plan
@@ -65,4 +65,12 @@ third-party apps cannot connect (then the user has to ask their admin or use ano
 
 ## Outcome
 
-Filled when done.
+In progress. Built and verified with the demo data from `scripts/seed-demo.ps1` (two accounts, three
+calendars, overlapping, all-day and multi-day events): week and month views render as designed
+(`docs/screenshots/calendar-*.png`). Unit tests cover URL encoding, Google error and payload parsing,
+the PKCE URL, the loopback redirect (including cancel and a denied consent), config and cache files,
+all-day rules, deduplication and the column layout.
+
+Not verified yet: a real sign-in and fetch against Google, which needs the user's own OAuth client.
+The first criterion stays open until then. The popover was not exercised by hand (no clicks while
+the user was at the machine).

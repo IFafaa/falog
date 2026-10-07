@@ -17,7 +17,8 @@ point. `falog-core` holds every rule so both binaries behave identically.
 |---|---|---|---|
 | `falog-core` | lib | rusqlite, chrono | Domain types, validation, date parsing, agenda rules, persistence |
 | `falog-mcp` | bin `falog-mcp` | core, serde_json | MCP protocol, tool schemas, argument parsing, text output |
-| `falog-desktop` | bin `falog` | core, eframe/egui | UI, theming, OS integration |
+| `falog-calendar` | lib | ureq, chrono, sha2 | Google OAuth (loopback + PKCE), Calendar API, event model and layout rules, files |
+| `falog-desktop` | bin `falog` | core, calendar, eframe/egui | UI, theming, OS integration |
 
 Dependencies point inward only: the binaries depend on `falog-core`, never on each other, and
 `falog-core` knows nothing about UI or MCP.
@@ -62,12 +63,13 @@ src/
   app.rs         FalogApp: state, per-frame layout, action handling, persistence of prefs
   action.rs      Action enum: user intents emitted by widgets
   assistant/     assistant dock: Claude Code sessions, threads + history, voice capture + Whisper, panel UI
+  calendar.rs    Google Calendar state: accounts, cached events, background sign-in and refresh
   prefs.rs       persisted UI preferences
   theme.rs       Zed color tokens -> egui visuals
   fonts.rs, icons.rs
   components/    reusable widgets (buttons, chips, modal, pickers, switch, text helpers)
   workspace/     window chrome: sidebar, tab bar, toolbar, status bar, task panel
-  views/         board, list, focus (+ ViewCx, SortOrder)
+  views/         board, list, focus, calendar (+ ViewCx, SortOrder)
   overlays/      command palette, areas, settings, confirm
   platform/      autostart (registry), single instance (loopback port), title bar colors (DWM)
 ```
@@ -111,6 +113,20 @@ AVX2 for whisper.cpp under MSVC (without it: ~290 s); `audio_ctx` is sized to th
 30 s window (~20 s → ~8 s). The default voice language follows the regional format, because `Auto` adds a
 full-window language detection pass (~+20 s). OpenMP and flash attention made no measurable difference.
 
+### Calendar
+
+`falog-calendar` has no UI: `oauth` signs in the way Google wants installed apps to (a one-shot
+listener on `127.0.0.1`, PKCE, `access_type=offline`), `google` reads the calendar list and events
+(`singleEvents=true`, paged; cancelled, declined and working-location entries dropped), `model` turns
+them into `Event`s in local time, and `layout` places overlapping events in columns. The user brings
+their own OAuth client (Desktop app type), saved with the accounts in `calendar/google.json`.
+
+`falog-desktop/src/calendar.rs` owns that state. Sign-in and fetching run on short-lived threads that
+report over a channel drained each frame; access tokens stay in memory. The view asks for its visible
+range and the state fetches a month-aligned window around it when it is not cached or older than five
+minutes, only for visible calendars. A rejected refresh token marks the account "needs to sign in"
+instead of dropping its cached events.
+
 ### OS integration
 
 - **Single instance:** binding `127.0.0.1:47613`; a second launch sends `show` and exits.
@@ -131,4 +147,6 @@ full-window language detection pass (~+20 s). OpenMP and flash attention made no
 |---|---|
 | `%APPDATA%\Falog\falog.db` | Tasks (override with `FALOG_DB`) |
 | `%APPDATA%\Falog\data\app.ron` | Window and UI preferences (eframe) |
+| `%APPDATA%\Falog\calendar\google.json` | Google OAuth client, accounts with refresh tokens, calendar choices |
+| `%APPDATA%\Falog\calendar\events.json` | Last fetched events, shown at startup and offline |
 | `%LOCALAPPDATA%\Falog\*.exe` | Installed binaries |

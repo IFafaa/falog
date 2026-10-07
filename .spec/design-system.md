@@ -56,7 +56,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 
 ```
 ┌ native title bar (themed) ─────────────────────────────────────────────────────────┐
-│ sidebar │ tab bar: Board · List · Focus               🔍 ＋ │ task  │ assistant      │
+│ sidebar │ tab bar: Board·List·Focus·Calendar           🔍 ＋ │ task  │ assistant      │
 │ (left   │ toolbar: breadcrumb › view    sort ✓ [search]    │ panel │ thread         │
 │  dock)  │ view                                             │       │ ────────────── │
 │         │                                                  │       │ composer 🎤 ➤  │
@@ -77,6 +77,19 @@ caret), tool calls as compact bordered cards (spinner → check / warning, actio
 the result; click opens the task, hover shows the arguments) and errors in `error`. The composer is an
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
 (pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
+
+### Calendar view
+
+Modeled on Google Calendar, painted with Zed tokens. Header: `Today` (filled), previous/next, the
+range title (SemiBold 16), then the refresh button, status ("Updated 10:32" or the error in `warning`)
+and a Week/Month `segmented`. Week: 52 px hour gutter, 48 px per hour, day names over the day number
+(today in a `text_accent` circle), an all-day row with lanes for all-day and multi-day events and for
+tasks due that day, timed events as blocks tinted with the calendar color and a 3 px bar in full
+color (past events fainter), overlapping events side by side, and an `error` line for now. Month: whole
+weeks, timed events as dot + time + title, all-day events as filled bars, "+N more" opens the week.
+An event opens a popover (`elevated_surface`) with time, calendar, location, description, Join and
+Open in Google Calendar. The sidebar adds a Calendars section with one checkbox per calendar, in its
+Google color, grouped by account.
 
 ## Rules
 
