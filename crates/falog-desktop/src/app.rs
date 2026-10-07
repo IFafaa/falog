@@ -401,18 +401,14 @@ impl FalogApp {
             Action::ConnectGoogle => self.connect_google(ctx),
             Action::RefreshCalendar => self.calendar.refresh(),
             Action::ToggleCalendar { account, calendar } => self.calendar.toggle_calendar(account, calendar),
+            Action::ToggleCalendarLink(index) => self.calendar.toggle_link(index),
         }
     }
 
     fn open_settings(&mut self, tab: SettingsTab) {
         let path = self.store.as_ref().ok().and_then(Store::path);
         let agents = self.assistant.custom_agents().to_vec();
-        let mut dialog = SettingsDialog::new(
-            autostart::is_enabled(),
-            path,
-            agents,
-            &self.calendar.config.client,
-        );
+        let mut dialog = SettingsDialog::new(autostart::is_enabled(), path, agents, &self.calendar);
         dialog.tab = tab;
         self.settings = Some(dialog);
     }
@@ -549,6 +545,16 @@ impl FalogApp {
             SettingsEvent::RemoveGoogleAccount(email) => {
                 self.calendar.remove_account(&email);
                 self.notify(format!("Removed {email}"), ToastKind::Success);
+            }
+            SettingsEvent::AddCalendarLink(link) => self.calendar.add_link(&link.name, &link.url),
+            SettingsEvent::RenameCalendarLink { id, name } => self.calendar.rename_link(&id, &name),
+            SettingsEvent::SetCalendarLinkColor { id, color } => self.calendar.set_link_color(&id, &color),
+            SettingsEvent::RemoveCalendarLink(id) => {
+                let name = self.calendar.config.calendar("", &id).map(|c| c.name.clone());
+                self.calendar.remove_link(&id);
+                if let Some(name) = name {
+                    self.notify(format!("Removed {name}"), ToastKind::Success);
+                }
             }
         }
     }

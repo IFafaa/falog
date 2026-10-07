@@ -11,6 +11,7 @@ use crate::platform::reveal;
 use crate::prefs::Prefs;
 use crate::theme::{Theme, ThemeMode};
 mod calendar;
+use calendar::{CalendarForm, NewLink};
 
 use eframe::egui::{
     self, Align, Align2, Color32, CursorIcon, FontId, Frame, Layout, Margin, Rect, Response, RichText,
@@ -30,6 +31,10 @@ pub enum SettingsEvent {
     ConnectGoogle,
     CancelGoogleConnect,
     RemoveGoogleAccount(String),
+    AddCalendarLink(NewLink),
+    RenameCalendarLink { id: String, name: String },
+    SetCalendarLinkColor { id: String, color: String },
+    RemoveCalendarLink(String),
 }
 
 #[derive(Debug)]
@@ -37,6 +42,7 @@ pub struct SettingsDialog {
     pub autostart: bool,
     google_id: String,
     google_secret: String,
+    calendar: CalendarForm,
     db_path: Option<PathBuf>,
     mcp_command: String,
     agents: AgentsForm,
@@ -48,8 +54,9 @@ impl SettingsDialog {
         autostart: bool,
         db_path: Option<&Path>,
         custom_agents: Vec<AgentConfig>,
-        google: &Client,
+        calendar: &CalendarState,
     ) -> Self {
+        let google = &calendar.config.client;
         let mcp_exe = std::env::current_exe()
             .ok()
             .and_then(|exe| {
@@ -62,6 +69,7 @@ impl SettingsDialog {
             autostart,
             google_id: google.id.clone(),
             google_secret: google.secret.clone(),
+            calendar: CalendarForm::new(calendar),
             db_path: db_path.map(Path::to_path_buf),
             mcp_command: format!("claude mcp add --scope user falog -- \"{mcp_exe}\""),
             agents: AgentsForm::new(custom_agents),

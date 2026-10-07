@@ -34,7 +34,8 @@ pub fn show(
     keyboard(ui, cal, mode, actions);
     header(ui, cx.theme, cal, mode, actions);
     ui.add_space(6.0);
-    if !cal.has_client() || cal.config.accounts.is_empty() {
+    // Accounts without the OAuth client they signed in with cannot be read either.
+    if !cal.has_calendars() || (cal.config.links.is_empty() && !cal.has_client()) {
         connect_banner(ui, cx.theme, cal, actions);
         ui.add_space(6.0);
     }
@@ -150,7 +151,7 @@ fn header(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, mode: CalendarMod
             ui.add_space(6.0);
             if cal.is_busy() {
                 ui.add(Spinner::new().size(14.0).color(theme.text_muted));
-            } else if !cal.config.accounts.is_empty() && icon_button(ui, Icon::Refresh, "Refresh").clicked() {
+            } else if cal.has_calendars() && icon_button(ui, Icon::Refresh, "Refresh").clicked() {
                 cal.refresh();
             }
             status(ui, theme, cal);
@@ -204,18 +205,13 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.add(Icon::Calendar.image(16.0, theme.text_accent));
-                let text = if cal.has_client() {
-                    "Connect a Google account to see your meetings next to your tasks."
-                } else {
-                    "See your Google Calendar meetings here: add your Google OAuth client in Settings, then connect your accounts."
-                };
-                ui.label(RichText::new(text).size(13.0).color(theme.text_muted));
+                ui.label(
+                    RichText::new("See your Google Calendar meetings here: paste each calendar's secret link in Settings.")
+                        .size(13.0)
+                        .color(theme.text_muted),
+                );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !cal.has_client() {
-                        if button(ui, ButtonStyle::Accent, Some(Icon::Settings), "Set up").clicked() {
-                            actions.push(Action::OpenSettingsTab(SettingsTab::Calendar));
-                        }
-                    } else if cal.is_connecting() {
+                    if cal.is_connecting() {
                         if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {
                             cal.cancel_connect();
                         }
@@ -224,8 +220,8 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
                                 .size(12.5)
                                 .color(theme.text_placeholder),
                         );
-                    } else if button(ui, ButtonStyle::Accent, Some(Icon::Plus), "Connect Google account").clicked() {
-                        actions.push(Action::ConnectGoogle);
+                    } else if button(ui, ButtonStyle::Accent, Some(Icon::Plus), "Add a calendar link").clicked() {
+                        actions.push(Action::OpenSettingsTab(SettingsTab::Calendar));
                     }
                 });
             });
@@ -933,11 +929,13 @@ fn popover(ctx: &egui::Context, theme: &Theme, cal: &mut CalendarState, clicked_
                             .color(theme.text_muted),
                     );
                     if let Some(calendar) = &calendar {
-                        ui.label(
-                            RichText::new(format!("{} · {}", calendar.name, event.account))
-                                .size(12.0)
-                                .color(theme.text_placeholder),
-                        );
+                        // Events from a calendar link have no account.
+                        let source = if event.account.is_empty() {
+                            calendar.name.clone()
+                        } else {
+                            format!("{} · {}", calendar.name, event.account)
+                        };
+                        ui.label(RichText::new(source).size(12.0).color(theme.text_placeholder));
                     }
                     if !event.location.is_empty() {
                         ui.add_space(6.0);

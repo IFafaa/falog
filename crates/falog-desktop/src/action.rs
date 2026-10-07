@@ -40,6 +40,8 @@ pub enum Action {
         account: usize,
         calendar: usize,
     },
+    /// Show or hide a calendar link, by its position in the saved links.
+    ToggleCalendarLink(usize),
 }
 
 #[derive(Debug, Default)]

@@ -3,6 +3,7 @@
 use crate::action::Action;
 use crate::components::{Placement, modal, paint_keybinding, single_line};
 use crate::icons::Icon;
+use crate::overlays::settings::SettingsTab;
 use crate::theme::{self, Theme, ThemeMode};
 use crate::views::View;
 use eframe::egui::{
@@ -230,6 +231,12 @@ impl CommandPalette {
             "assistant: show history".into(),
             None,
             Action::ShowAssistantHistory,
+        ));
+        items.push(command(
+            Icon::Calendar,
+            "calendar: add calendar link".into(),
+            None,
+            Action::OpenSettingsTab(SettingsTab::Calendar),
         ));
         items.push(command(
             Icon::Calendar,

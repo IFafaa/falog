@@ -1,12 +1,16 @@
-//! Google Calendar in the app: the saved accounts, the events on screen, and background threads
-//! that sign in and fetch without blocking the UI. Results come back over a channel that
-//! [`CalendarState::poll`] drains each frame, like the assistant does with Claude Code.
+//! Google Calendar in the app: the calendar links and signed-in accounts, the events on screen, and
+//! background threads that check links, sign in and fetch without blocking the UI. Results come back
+//! over a channel that [`CalendarState::poll`] drains each frame, like the assistant does with
+//! Claude Code.
 
 use chrono::{Datelike, Days, Local, NaiveDate};
 use eframe::egui;
 use falog_calendar::config::Files;
+use falog_calendar::ics::{self, Feed};
 use falog_calendar::oauth::{self, AccessToken};
-use falog_calendar::{Account, Calendar, CalendarConfig, Client, Error, Event, EventCache, google, model};
+use falog_calendar::{
+    Account, Calendar, CalendarConfig, Client, Error, Event, EventCache, Link, google, model,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -51,6 +55,14 @@ enum Update {
         from: NaiveDate,
         to: NaiveDate,
         accounts: Vec<(String, AccountResult)>,
+        /// By link id.
+        links: Vec<(String, Result<Vec<Event>, Error>)>,
+    },
+    /// A pasted link was read once, or could not be.
+    LinkChecked {
+        name: String,
+        url: String,
+        result: Result<Feed, Error>,
     },
 }
 
@@ -69,6 +81,10 @@ pub struct CalendarState {
     refreshing: bool,
     /// Set while the browser sign-in is open; storing `true` cancels it.
     connecting: Option<Arc<AtomicBool>>,
+    /// Set while a pasted link is being checked.
+    adding_link: bool,
+    /// Why the last pasted link was refused.
+    pub link_error: Option<String>,
     last_fetch: Option<Instant>,
     /// Time of the last successful fetch, shown as "Updated 10:32".
     pub updated_at: Option<chrono::NaiveDateTime>,
@@ -83,6 +99,7 @@ pub struct CalendarState {
 impl std::fmt::Debug for CalendarState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CalendarState")
+            .field("links", &self.config.links.len())
             .field("accounts", &self.config.accounts.len())
             .field("events", &self.cache.events.len())
             .field("refreshing", &self.refreshing)
@@ -91,7 +108,7 @@ impl std::fmt::Debug for CalendarState {
 }
 
 impl CalendarState {
-    /// Loads accounts and cached events from `<data dir>/calendar`, next to the database.
+    /// Loads links, accounts and cached events from `<data dir>/calendar`, next to the database.
     pub fn new(data_dir: Option<&Path>) -> Self {
         let files = data_dir.map(|dir| Files::new(dir.join("calendar")));
         let (config, cache) = files
@@ -108,6 +125,8 @@ impl CalendarState {
             receiver,
             refreshing: false,
             connecting: None,
+            adding_link: false,
+            link_error: None,
             last_fetch: None,
             updated_at: None,
             error: None,
@@ -121,12 +140,21 @@ impl CalendarState {
         self.config.client.is_set()
     }
 
+    /// At least one calendar is linked or one account connected.
+    pub fn has_calendars(&self) -> bool {
+        !self.config.links.is_empty() || !self.config.accounts.is_empty()
+    }
+
     pub fn is_connecting(&self) -> bool {
         self.connecting.is_some()
     }
 
+    pub fn is_adding_link(&self) -> bool {
+        self.adding_link
+    }
+
     pub fn is_busy(&self) -> bool {
-        self.refreshing || self.connecting.is_some()
+        self.refreshing || self.connecting.is_some() || self.adding_link
     }
 
     /// Visible events touching `from..to`, deduplicated and sorted.
@@ -175,12 +203,50 @@ impl CalendarState {
         }
     }
 
+    pub fn toggle_link(&mut self, index: usize) {
+        let Some(link) = self.config.links.get_mut(index) else {
+            return;
+        };
+        link.calendar.visible = !link.calendar.visible;
+        let shown = link.calendar.visible;
+        self.save_config();
+        if shown {
+            self.last_fetch = None;
+        }
+    }
+
     pub fn remove_account(&mut self, email: &str) {
         if let Some(account) = self.config.remove(email) {
             std::thread::spawn(move || oauth::revoke(&account.refresh_token));
         }
         self.tokens.lock().map(|mut t| t.remove(email)).ok();
         self.cache.events.retain(|e| e.account != email);
+        self.save_config();
+        self.save_cache();
+    }
+
+    pub fn rename_link(&mut self, id: &str, name: &str) {
+        if let Some(link) = self.config.link_mut(id)
+            && !name.trim().is_empty()
+        {
+            link.calendar.name = name.trim().to_owned();
+            self.save_config();
+        }
+    }
+
+    pub fn set_link_color(&mut self, id: &str, color: &str) {
+        if let Some(link) = self.config.link_mut(id) {
+            link.calendar.color = color.to_owned();
+            self.save_config();
+        }
+    }
+
+    /// Forgets the link and its events. The address stays valid in Google until the user resets it.
+    pub fn remove_link(&mut self, id: &str) {
+        self.config.remove_link(id);
+        self.cache
+            .events
+            .retain(|e| !(e.account.is_empty() && e.calendar_id == id));
         self.save_config();
         self.save_cache();
     }
@@ -196,6 +262,61 @@ impl CalendarState {
     fn save_cache(&mut self) {
         if let Some(files) = &self.files {
             let _ = files.save_cache(&self.cache);
+        }
+    }
+
+    // ---- adding a link ------------------------------------------------------------------------
+
+    /// Reads the pasted link once in the background; it is saved only if that works.
+    pub fn add_link(&mut self, name: &str, url: &str) {
+        if self.adding_link {
+            return;
+        }
+        let url = url.trim().to_owned();
+        if self.config.has_link(&url) {
+            self.link_error = Some("This calendar is already linked".into());
+            return;
+        }
+        self.adding_link = true;
+        self.link_error = None;
+        let name = name.trim().to_owned();
+        let sender = self.sender.clone();
+        std::thread::spawn(move || {
+            let result = ics::fetch(&url);
+            let _ = sender.send(Update::LinkChecked { name, url, result });
+        });
+    }
+
+    fn link_checked(&mut self, name: String, url: String, result: Result<Feed, Error>) {
+        self.adding_link = false;
+        let feed = match result {
+            Ok(feed) => feed,
+            Err(err) => {
+                self.link_error = Some(sentence(&err.to_string()));
+                return;
+            }
+        };
+        // The user's name, else the calendar's own (Google uses the account's email for the main
+        // calendar), else the owner from the address.
+        let name = Some(name)
+            .filter(|n| !n.is_empty())
+            .or_else(|| feed.name.clone())
+            .or_else(|| feed.owner.clone())
+            .unwrap_or_else(|| "Calendar".to_owned());
+        let id = match self.config.add_link(&name, &url, feed.color.clone()) {
+            Ok(link) => link.calendar.id.clone(),
+            Err(err) => {
+                self.link_error = Some(sentence(&err.to_string()));
+                return;
+            }
+        };
+        self.save_config();
+        // Show its events right away for the range already on screen; the next refresh widens it.
+        if let (Some(from), Some(to)) = (self.cache.from, self.cache.to) {
+            self.cache.events.extend(feed.events(&id, from, to));
+            self.save_cache();
+        } else {
+            self.last_fetch = None;
         }
     }
 
@@ -232,7 +353,10 @@ impl CalendarState {
     /// Makes sure the days `from..to` are loaded and recent; fetches in the background otherwise.
     pub fn ensure(&mut self, from: NaiveDate, to: NaiveDate) {
         let stale = self.last_fetch.is_none_or(|at| at.elapsed() >= REFRESH_EVERY);
-        if self.refreshing || self.config.accounts.is_empty() || !self.has_client() {
+        // Accounts are read with the OAuth client they signed in with; links need nothing.
+        let fetchable =
+            !self.config.links.is_empty() || (self.has_client() && !self.config.accounts.is_empty());
+        if self.refreshing || !fetchable {
             return;
         }
         if stale || !self.cache.covers(from, to) {
@@ -255,11 +379,22 @@ impl CalendarState {
         self.refreshing = true;
         self.last_fetch = Some(Instant::now());
         let client = self.config.client.clone();
-        let accounts: Vec<Account> = self
+        let accounts: Vec<Account> = if self.has_client() {
+            self.config
+                .accounts
+                .iter()
+                .filter(|a| !a.needs_sign_in)
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+        // Hidden links are not fetched, like hidden calendars of an account.
+        let links: Vec<Link> = self
             .config
-            .accounts
+            .links
             .iter()
-            .filter(|a| !a.needs_sign_in)
+            .filter(|l| l.calendar.visible)
             .cloned()
             .collect();
         let sender = self.sender.clone();
@@ -272,7 +407,20 @@ impl CalendarState {
                     (account.email, result)
                 })
                 .collect();
-            let _ = sender.send(Update::Fetched { from, to, accounts });
+            let links = links
+                .into_iter()
+                .map(|link| {
+                    let id = link.calendar.id;
+                    let result = ics::fetch(&link.url).map(|feed| feed.events(&id, from, to));
+                    (id, result)
+                })
+                .collect();
+            let _ = sender.send(Update::Fetched {
+                from,
+                to,
+                accounts,
+                links,
+            });
         });
     }
 
@@ -295,16 +443,65 @@ impl CalendarState {
                         self.error = Some(err.to_string());
                     }
                 }
-                Update::Fetched { from, to, accounts } => self.fetched(from, to, accounts),
+                Update::Fetched {
+                    from,
+                    to,
+                    accounts,
+                    links,
+                } => self.fetched(from, to, accounts, links),
+                Update::LinkChecked { name, url, result } => self.link_checked(name, url, result),
             }
         }
         changed
     }
 
-    fn fetched(&mut self, from: NaiveDate, to: NaiveDate, accounts: Vec<(String, AccountResult)>) {
+    fn fetched(
+        &mut self,
+        from: NaiveDate,
+        to: NaiveDate,
+        accounts: Vec<(String, AccountResult)>,
+        links: Vec<(String, Result<Vec<Event>, Error>)>,
+    ) {
         self.refreshing = false;
         let mut events = Vec::new();
         let mut errors = Vec::new();
+        // A link added while this fetch ran keeps the events it was added with, and gets fetched
+        // properly next frame.
+        for link in self.config.links.iter().filter(|l| l.calendar.visible) {
+            if !links.iter().any(|(id, _)| *id == link.calendar.id) {
+                let id = &link.calendar.id;
+                events.extend(
+                    self.cache
+                        .events
+                        .iter()
+                        .filter(|e| e.account.is_empty() && e.calendar_id == *id)
+                        .cloned(),
+                );
+                self.last_fetch = None;
+            }
+        }
+        // Links first: when the same meeting comes through a link and an account, the link's copy
+        // is the one kept.
+        for (id, result) in links {
+            match result {
+                Ok(link_events) => events.extend(link_events),
+                Err(err) => {
+                    // Keep what we had for this link rather than blanking it.
+                    events.extend(
+                        self.cache
+                            .events
+                            .iter()
+                            .filter(|e| e.account.is_empty() && e.calendar_id == id)
+                            .cloned(),
+                    );
+                    let name = self.config.calendar("", &id).map(|c| c.name.clone());
+                    errors.push(match name {
+                        Some(name) => format!("{name}: {err}"),
+                        None => err.to_string(),
+                    });
+                }
+            }
+        }
         for (email, result) in accounts {
             match result {
                 Ok((calendars, account_events)) => {
@@ -339,6 +536,15 @@ impl CalendarState {
             self.updated_at = Some(Local::now().naive_local());
         }
     }
+}
+
+/// Error texts are lowercase clauses; the Settings page shows them as sentences.
+fn sentence(text: &str) -> String {
+    let mut chars = text.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 fn month_start(day: NaiveDate) -> NaiveDate {
@@ -407,4 +613,18 @@ fn fetch_account(
         events.extend(google::events(&token, &account.email, &calendar.id, from, to)?);
     }
     Ok((calendars, events))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn errors_read_as_sentences() {
+        assert_eq!(
+            sentence("the calendar link answered 500"),
+            "The calendar link answered 500"
+        );
+        assert_eq!(sentence(""), "");
+    }
 }

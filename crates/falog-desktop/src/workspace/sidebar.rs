@@ -6,11 +6,13 @@ use crate::calendar::CalendarState;
 use crate::components::{ButtonStyle, button, icon_button, single_line};
 use crate::fonts;
 use crate::icons::Icon;
+use crate::overlays::settings::SettingsTab;
 use crate::theme::{self, Theme};
 use eframe::egui::{
     self, Align, Align2, Color32, CursorIcon, FontId, Frame, Layout, Margin, Rect, Response, RichText,
     ScrollArea, Sense, SidePanel, Stroke, Ui, pos2, vec2,
 };
+use falog_calendar::Calendar;
 use falog_core::domain::{Area, AreaId, Task};
 
 const ROW_HEIGHT: f32 = 26.0;
@@ -177,7 +179,7 @@ fn empty_state(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
         });
 }
 
-/// Google calendars grouped by account, with a checkbox each, like Google Calendar's sidebar.
+/// Calendar links, then Google calendars grouped by account, with a checkbox each.
 fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actions: &mut Actions) {
     ui.add_space(12.0);
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::hover());
@@ -195,8 +197,8 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
             .layout(Layout::right_to_left(Align::Center)),
         |ui| {
             ui.add_space(6.0);
-            if icon_button(ui, Icon::Plus, "Connect Google account").clicked() {
-                actions.push(Action::ConnectGoogle);
+            if icon_button(ui, Icon::Plus, "Add a calendar").clicked() {
+                actions.push(Action::OpenSettingsTab(SettingsTab::Calendar));
             }
         },
     );
@@ -210,8 +212,14 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
     };
     if calendars.is_connecting() {
         hint(ui, "Finish signing in in your browser…");
-    } else if calendars.config.accounts.is_empty() {
-        hint(ui, "No Google accounts yet.");
+    } else if !calendars.has_calendars() {
+        hint(ui, "No calendars yet.");
+    }
+    // Links have no account to group them under; they come first, as the usual way to add one.
+    for (l, link) in calendars.config.links.iter().enumerate() {
+        if calendar_row(ui, theme, &link.calendar).clicked() {
+            actions.push(Action::ToggleCalendarLink(l));
+        }
     }
     for (a, account) in calendars.config.accounts.iter().enumerate() {
         let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
@@ -245,39 +253,7 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
             }
         }
         for (c, calendar) in account.calendars.iter().enumerate() {
-            let [r, g, b] = calendar.rgb();
-            let color = Color32::from_rgb(r, g, b);
-            let (rect, response) =
-                ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
-            if response.hovered() {
-                ui.painter().rect_filled(rect, 0.0, theme.ghost_hover);
-            }
-            let check = Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), vec2(13.0, 13.0));
-            if calendar.visible {
-                ui.painter().rect_filled(check, 3.0, color);
-                Icon::Check.paint(ui, check, 11.0, theme.editor);
-            } else {
-                ui.painter().rect_stroke(check, 3.0, Stroke::new(1.5_f32, color));
-            }
-            let text_color = if calendar.visible {
-                theme.text
-            } else {
-                theme.text_muted
-            };
-            let name = single_line(
-                ui,
-                &calendar.name,
-                FontId::proportional(13.5),
-                text_color,
-                rect.right() - check.right() - 14.0,
-                false,
-            );
-            ui.painter().galley(
-                pos2(check.right() + 8.0, rect.center().y - name.size().y / 2.0),
-                name,
-                text_color,
-            );
-            if response.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+            if calendar_row(ui, theme, calendar).clicked() {
                 actions.push(Action::ToggleCalendar {
                     account: a,
                     calendar: c,
@@ -285,4 +261,40 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
             }
         }
     }
+}
+
+/// A checkbox in the calendar's color and its name, like Google Calendar's sidebar.
+fn calendar_row(ui: &mut Ui, theme: &Theme, calendar: &Calendar) -> Response {
+    let [r, g, b] = calendar.rgb();
+    let color = Color32::from_rgb(r, g, b);
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(rect, 0.0, theme.ghost_hover);
+    }
+    let check = Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), vec2(13.0, 13.0));
+    if calendar.visible {
+        ui.painter().rect_filled(check, 3.0, color);
+        Icon::Check.paint(ui, check, 11.0, theme.editor);
+    } else {
+        ui.painter().rect_stroke(check, 3.0, Stroke::new(1.5_f32, color));
+    }
+    let text_color = if calendar.visible {
+        theme.text
+    } else {
+        theme.text_muted
+    };
+    let name = single_line(
+        ui,
+        &calendar.name,
+        FontId::proportional(13.5),
+        text_color,
+        rect.right() - check.right() - 14.0,
+        false,
+    );
+    ui.painter().galley(
+        pos2(check.right() + 8.0, rect.center().y - name.size().y / 2.0),
+        name,
+        text_color,
+    );
+    response.on_hover_cursor(CursorIcon::PointingHand)
 }
