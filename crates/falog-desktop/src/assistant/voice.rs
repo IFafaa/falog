@@ -27,20 +27,31 @@ const UNLOAD_AFTER: Duration = Duration::from_secs(300);
 /// Clips shorter than this are treated as accidental clicks.
 const MIN_SPEECH: Duration = Duration::from_millis(400);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VoiceLanguage {
-    #[default]
+    /// Detect the language on every clip. Accurate but slow: detection runs the full 30 s window.
     Auto,
     Portuguese,
     English,
 }
 
+/// The user's regional language when Whisper knows it well, English otherwise.
+impl Default for VoiceLanguage {
+    fn default() -> Self {
+        if crate::platform::locale::is_portuguese() {
+            Self::Portuguese
+        } else {
+            Self::English
+        }
+    }
+}
+
 impl VoiceLanguage {
-    pub const ALL: [Self; 3] = [Self::Auto, Self::Portuguese, Self::English];
+    pub const ALL: [Self; 3] = [Self::Portuguese, Self::English, Self::Auto];
 
     pub const fn label(self) -> &'static str {
         match self {
-            Self::Auto => "Auto",
+            Self::Auto => "Auto (slower)",
             Self::Portuguese => "Português",
             Self::English => "English",
         }
