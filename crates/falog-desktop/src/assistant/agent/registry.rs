@@ -309,6 +309,28 @@ mod tests {
     }
 
     #[test]
+    fn explains_a_missing_command() {
+        let agent = Agent::from_custom(AgentConfig {
+            id: AgentId("custom-x".into()),
+            name: "X".into(),
+            command: "surely-not-a-real-agent-xyz".into(),
+            args: Vec::new(),
+            env: BTreeMap::new(),
+        });
+        let env = Environment {
+            mcp_server: PathBuf::from("falog-mcp"),
+            database: None,
+            workdir: std::env::temp_dir(),
+            system_prompt: String::new(),
+        };
+        let error = agent
+            .start(&env, &StartOptions::default(), &egui::Context::default())
+            .unwrap_err();
+        assert!(error.starts_with("X was not found"), "{error}");
+        assert!(error.contains("Settings"), "{error}");
+    }
+
+    #[test]
     fn finds_executables_on_path() {
         let name = if cfg!(windows) { "cmd" } else { "sh" };
         assert!(find_executable(name).is_some());
