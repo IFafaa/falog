@@ -59,6 +59,18 @@ Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
 
 ## Install
 
+### Windows installer (no build needed)
+
+Download `Falog-Setup-<version>.exe` and run it. It installs for your user only (no administrator
+rights) into `%LOCALAPPDATA%\Falog`, with a Start menu shortcut and, if you keep the box ticked, launch
+at sign-in. When [Claude Code](https://claude.com/claude-code) is installed, it also connects Falog to it.
+The installer is not code-signed yet, so Windows SmartScreen may say it "protected your PC": choose
+*More info → Run anyway*. Speech recognition runs on the CPU (it needs a processor with AVX2, from 2013
+on) and downloads its model (~574 MB) the first time you dictate. Uninstall from Windows Settings ›
+Apps; your tasks stay in `%USERPROFILE%\.falog`.
+
+### From source
+
 Falog runs on Windows, macOS and Linux. Every platform needs [Rust](https://rustup.rs) to build it, and
 the assistant dock uses [Claude Code](https://claude.com/claude-code), signed in with `claude` once.
 It can also talk to any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com):
@@ -77,7 +89,7 @@ points both binaries at another file). On Windows it is not in AppData because p
 Claude desktop give the processes they start a private copy of AppData, so tasks filed from there would
 not show up in Falog. Older versions kept it in `%APPDATA%\Falog`; Falog moves it on first start.
 
-### Windows
+#### Windows
 
 Requires the MSVC build tools (with CMake). For voice, [LLVM](https://llvm.org)
 (`winget install LLVM.LLVM`); for speech recognition on the GPU, the
@@ -91,7 +103,7 @@ Installs to `%LOCALAPPDATA%\Falog` with a Start menu shortcut. `scripts\uninstal
 reverts it. Keep the checkout path short (like `C:\Projects\falog`) when building with the GPU: the
 Vulkan shader build fails past Windows' 260-character path limit.
 
-### macOS
+#### macOS
 
 Requires the Xcode command line tools (`xcode-select --install`) and, for voice, CMake
 (`brew install cmake`). Speech recognition runs on the GPU through Metal.
@@ -105,7 +117,7 @@ and a LaunchAgent for launch at sign-in. macOS asks for the microphone the first
 app is signed ad hoc on your Mac, so it asks again after a reinstall. `scripts/uninstall.sh
 [--remove-data]` reverts it.
 
-### Linux
+#### Linux
 
 Requires a C toolchain, `pkg-config` and the ALSA headers; for voice, CMake and libclang. On Debian and
 Ubuntu:
@@ -242,6 +254,13 @@ macOS, Vulkan elsewhere).
 
 Building on Linux also needs `pkg-config` and the ALSA headers (`libasound2-dev`); CI installs the
 packages it uses in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+The Windows installer is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+(`winget install JRSoftware.InnoSetup`) from [`installer/falog.iss`](installer/falog.iss):
+
+```powershell
+.\scripts\build-installer.ps1          # target\installer\Falog-Setup-<version>.exe
+```
 
 ## Credits
 
