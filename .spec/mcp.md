@@ -15,6 +15,7 @@ request). Keep it in sync with `assistant/CLAUDE.md`.
 | `get_agenda` | `area?` | Markdown agenda: headline, per-area counts, non-empty buckets, completed last 7 days |
 | `list_areas` | — | One line per area with open count |
 | `create_area` | `name`, `color?` | Confirmation |
+| `update_area` | `area`, `name?`, `color?` | Confirmation with the new name and color |
 | `create_task` | `title`, `area?`, `description?`, `priority?`, `due_date?`, `requester?`, `status?` | `Created #id [...]` line |
 | `update_task` | `id`, any task field, `note?` | `Updated ...` line |
 | `add_note` | `id`, `note` | Confirmation line |

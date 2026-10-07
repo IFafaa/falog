@@ -13,6 +13,7 @@ pub fn call(store: &Store, name: &str, args: Value) -> Result<String> {
         "get_agenda" => get_agenda(store, parse(args)?),
         "list_areas" => list_areas(store),
         "create_area" => create_area(store, parse(args)?),
+        "update_area" => update_area(store, parse(args)?),
         "create_task" => create_task(store, parse(args)?),
         "update_task" => update_task(store, parse(args)?),
         "add_note" => add_note(store, parse(args)?),
@@ -62,6 +63,17 @@ fn create_area(store: &Store, args: CreateAreaArgs) -> Result<String> {
     let color = args.color.as_deref().map(str::parse::<Rgb>).transpose()?;
     let area = store.create_area(&args.name, color)?;
     Ok(format!("Created area {} ({})", area.name, area.color))
+}
+
+fn update_area(store: &Store, args: UpdateAreaArgs) -> Result<String> {
+    let area = store.find_area(&args.area)?;
+    let name = non_empty(args.name).unwrap_or(area.name);
+    let color = match non_empty(args.color) {
+        Some(color) => color.parse::<Rgb>()?,
+        None => area.color,
+    };
+    let area = store.update_area(area.id, &name, color)?;
+    Ok(format!("Updated area {} ({})", area.name, area.color))
 }
 
 fn create_task(store: &Store, args: CreateTaskArgs) -> Result<String> {

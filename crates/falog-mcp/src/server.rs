@@ -164,7 +164,7 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names.len(), 9);
+        assert_eq!(names.len(), 10);
         assert!(names.contains(&"create_task") && names.contains(&"get_agenda"));
     }
 
@@ -196,6 +196,33 @@ mod tests {
         let details = call(&server, 4, "get_task", json!({ "id": 1 }));
         assert!(text(&details).contains("repro'd"));
         assert!(text(&call(&server, 5, "get_agenda", json!({}))).contains("Fix Google login"));
+    }
+
+    #[test]
+    fn recolors_and_renames_areas() {
+        let server = server();
+        call(&server, 1, "create_area", json!({ "name": "Globex" }));
+        let updated = call(
+            &server,
+            2,
+            "update_area",
+            json!({ "area": "globex", "color": "#39ff14" }),
+        );
+        assert_eq!(text(&updated), "Updated area Globex (#39ff14)");
+        let renamed = call(
+            &server,
+            3,
+            "update_area",
+            json!({ "area": "glob", "name": "House" }),
+        );
+        assert_eq!(text(&renamed), "Updated area House (#39ff14)");
+        let bad = call(
+            &server,
+            4,
+            "update_area",
+            json!({ "area": "medi", "color": "green" }),
+        );
+        assert_eq!(bad["isError"], true);
     }
 
     #[test]

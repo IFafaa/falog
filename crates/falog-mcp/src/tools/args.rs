@@ -16,6 +16,14 @@ pub struct CreateAreaArgs {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct UpdateAreaArgs {
+    /// Current name, or a unique part of it.
+    pub area: String,
+    pub name: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateTaskArgs {
     pub title: String,
     pub area: Option<String>,

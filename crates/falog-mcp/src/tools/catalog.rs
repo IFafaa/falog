@@ -35,6 +35,15 @@ pub fn catalog() -> Value {
             }, "required": ["name"] }
         },
         {
+            "name": "update_area",
+            "description": "Renames an area or changes its color. Turn color names into hex yourself (neon green #39ff14, purple #b477cf, blue #74ade8...).",
+            "inputSchema": { "type": "object", "properties": {
+                "area": { "type": "string", "description": "Current area name or a unique part of it" },
+                "name": { "type": "string", "description": "New name" },
+                "color": { "type": "string", "description": "New hex color, e.g. #74ade8" }
+            }, "required": ["area"] }
+        },
+        {
             "name": "create_task",
             "description": "Creates a task and returns it with its id.",
             "inputSchema": { "type": "object", "properties": {
