@@ -618,6 +618,7 @@ fn fetch_account(
     for calendar in &mut calendars {
         if let Some(old) = account.calendars.iter().find(|c| c.id == calendar.id) {
             calendar.visible = old.visible;
+            calendar.areas = old.areas.clone();
         }
     }
     let mut events = Vec::new();

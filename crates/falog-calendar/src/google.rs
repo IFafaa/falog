@@ -105,6 +105,7 @@ fn parse_calendars(json: &Value) -> Vec<Calendar> {
                 color: text(item, "backgroundColor"),
                 primary: item.get("primary").and_then(Value::as_bool).unwrap_or(false),
                 visible: item.get("selected").and_then(Value::as_bool).unwrap_or(false),
+                areas: Vec::new(),
             }
         })
         .collect()

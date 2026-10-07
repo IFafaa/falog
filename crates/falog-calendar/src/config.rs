@@ -77,6 +77,7 @@ impl CalendarConfig {
             for calendar in &mut account.calendars {
                 if let Some(old) = existing.calendars.iter().find(|c| c.id == calendar.id) {
                     calendar.visible = old.visible;
+                    calendar.areas = old.areas.clone();
                 }
             }
             *existing = account;
@@ -103,6 +104,7 @@ impl CalendarConfig {
                 color,
                 primary: false,
                 visible: true,
+                areas: Vec::new(),
             },
             url: url.trim().to_owned(),
         });
@@ -158,6 +160,63 @@ impl CalendarConfig {
         {
             calendar.visible = visible;
         }
+    }
+
+    /// Mutable access to a calendar of an account, or to the link `id` when `account` is empty.
+    pub fn calendar_mut(&mut self, account: &str, id: &str) -> Option<&mut Calendar> {
+        if account.is_empty() {
+            return self
+                .links
+                .iter_mut()
+                .map(|link| &mut link.calendar)
+                .find(|c| c.id == id);
+        }
+        self.accounts
+            .iter_mut()
+            .find(|a| a.email == account)?
+            .calendars
+            .iter_mut()
+            .find(|c| c.id == id)
+    }
+
+    /// Adds `area` to the calendar, or removes it when it is already there.
+    pub fn toggle_area(&mut self, account: &str, id: &str, area: i64) {
+        if let Some(calendar) = self.calendar_mut(account, id) {
+            match calendar.areas.iter().position(|a| *a == area) {
+                Some(index) => {
+                    calendar.areas.remove(index);
+                }
+                None => calendar.areas.push(area),
+            }
+        }
+    }
+
+    /// Drops a deleted area from every calendar.
+    pub fn forget_area(&mut self, area: i64) {
+        let calendars = self
+            .accounts
+            .iter_mut()
+            .flat_map(|a| a.calendars.iter_mut())
+            .chain(self.links.iter_mut().map(|l| &mut l.calendar));
+        for calendar in calendars {
+            calendar.areas.retain(|a| *a != area);
+        }
+    }
+
+    /// The areas of the calendar an event comes from.
+    pub fn areas_of(&self, event: &Event) -> &[i64] {
+        self.calendar(&event.account, &event.calendar_id)
+            .map_or(&[], |c| c.areas.as_slice())
+    }
+
+    /// Calendars linked to `area` as `(account, calendar)`; links have an empty account.
+    pub fn calendars_of_area(&self, area: i64) -> Vec<(&str, &Calendar)> {
+        self.accounts
+            .iter()
+            .flat_map(|a| a.calendars.iter().map(move |c| (a.email.as_str(), c)))
+            .chain(self.links.iter().map(|l| ("", &l.calendar)))
+            .filter(|(_, c)| c.areas.contains(&area))
+            .collect()
     }
 
     pub fn is_visible(&self, event: &Event) -> bool {
@@ -244,6 +303,7 @@ mod tests {
             color: "#4285f4".into(),
             primary: false,
             visible,
+            areas: Vec::new(),
         }
     }
 
@@ -254,6 +314,49 @@ mod tests {
             calendars,
             needs_sign_in: false,
         }
+    }
+
+    #[test]
+    fn links_calendars_and_areas_many_to_many() {
+        let mut config = CalendarConfig::default();
+        config.upsert(account("me@acme.example", vec![calendar("work", true)]));
+        config.upsert(account("me@gmail.example", vec![calendar("home", true)]));
+        config
+            .add_link("Team", "https://example.com/team.ics", None)
+            .unwrap();
+        let link = config.links[0].calendar.id.clone();
+
+        config.toggle_area("me@acme.example", "work", 1);
+        config.toggle_area("", &link, 1);
+        config.toggle_area("me@acme.example", "work", 2);
+        let of_one: Vec<&str> = config
+            .calendars_of_area(1)
+            .iter()
+            .map(|(_, c)| c.id.as_str())
+            .collect();
+        assert_eq!(of_one, vec!["work", link.as_str()]);
+        assert_eq!(
+            config.calendar("me@acme.example", "work").unwrap().areas,
+            vec![1, 2]
+        );
+
+        // A refresh brings a fresh calendar list; the areas stay.
+        config.upsert(account("me@acme.example", vec![calendar("work", true)]));
+        assert_eq!(
+            config.calendar("me@acme.example", "work").unwrap().areas,
+            vec![1, 2]
+        );
+
+        config.toggle_area("me@acme.example", "work", 1);
+        config.forget_area(2);
+        assert!(
+            config
+                .calendar("me@acme.example", "work")
+                .unwrap()
+                .areas
+                .is_empty()
+        );
+        assert_eq!(config.calendars_of_area(1).len(), 1);
     }
 
     #[test]
