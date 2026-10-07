@@ -1,4 +1,4 @@
-//! The MCP tools: their JSON schemas ([`catalog`]) and implementations ([`call`]).
+//! The MCP tools: their JSON schemas ([`catalog()`]) and implementations ([`call`]).
 
 mod args;
 mod calendar;
