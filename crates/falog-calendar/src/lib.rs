@@ -13,6 +13,7 @@ pub mod ics;
 pub mod layout;
 pub mod model;
 pub mod oauth;
+pub mod service;
 mod url;
 
 pub use config::{Account, CalendarConfig, Client, EventCache, Files, LINK_COLORS, Link};

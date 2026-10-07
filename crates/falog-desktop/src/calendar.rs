@@ -7,16 +7,16 @@ use chrono::{Datelike, Days, Local, NaiveDate};
 use eframe::egui;
 use falog_calendar::config::Files;
 use falog_calendar::ics::{self, Feed};
-use falog_calendar::oauth::{self, AccessToken};
+use falog_calendar::oauth;
+use falog_calendar::service::{self, Tokens};
 use falog_calendar::{
     Account, Calendar, CalendarConfig, Client, Error, Event, EventCache, Link, google, model,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Events are fetched again after this long, while the calendar is on screen.
@@ -66,8 +66,6 @@ enum Update {
     },
 }
 
-type Tokens = Arc<Mutex<HashMap<String, AccessToken>>>;
-
 /// What one account returned: its calendars and the events of the visible ones.
 type AccountResult = Result<(Vec<Calendar>, Vec<Event>), Error>;
 
@@ -75,7 +73,7 @@ pub struct CalendarState {
     files: Option<Files>,
     pub config: CalendarConfig,
     cache: EventCache,
-    tokens: Tokens,
+    tokens: Arc<Tokens>,
     sender: Sender<Update>,
     receiver: Receiver<Update>,
     refreshing: bool,
@@ -120,7 +118,7 @@ impl CalendarState {
             files,
             config,
             cache,
-            tokens: Tokens::default(),
+            tokens: Arc::default(),
             sender,
             receiver,
             refreshing: false,
@@ -219,7 +217,7 @@ impl CalendarState {
         if let Some(account) = self.config.remove(email) {
             std::thread::spawn(move || oauth::revoke(&account.refresh_token));
         }
-        self.tokens.lock().map(|mut t| t.remove(email)).ok();
+        self.tokens.forget(email);
         self.cache.events.retain(|e| e.account != email);
         self.save_config();
         self.save_cache();
@@ -251,9 +249,9 @@ impl CalendarState {
         self.save_cache();
     }
 
-    /// Links or unlinks a calendar and an area (Settings › Calendar).
-    pub fn toggle_area(&mut self, account: &str, calendar: &str, area: i64) {
-        self.config.toggle_area(account, calendar, area);
+    /// Puts an account (by email) or a calendar link (by id) in an area, or in none.
+    pub fn set_area(&mut self, source: &str, area: Option<falog_core::domain::AreaId>) {
+        self.config.set_area(source, area.map(|a| a.0));
         self.save_config();
     }
 
@@ -415,7 +413,7 @@ impl CalendarState {
             let accounts = accounts
                 .into_iter()
                 .map(|account| {
-                    let result = fetch_account(&client, &account, &tokens, from, to);
+                    let result = service::fetch_account(&client, &account, &tokens, from, to);
                     (account.email, result)
                 })
                 .collect();
@@ -583,61 +581,21 @@ fn sign_in(
 ) -> Result<Account, Error> {
     let pending = oauth::begin(client)?;
     let _ = sender.send(Update::OpenUrl(pending.url().to_owned()));
-    let refresh_token = pending.finish(client, cancel)?;
-    let access = oauth::refresh(client, &refresh_token, "the new account")?;
+    let grant = pending.finish(client, cancel)?;
+    let access = oauth::refresh(client, &grant.refresh_token, "the new account")?;
     let calendars = google::calendars(&access.token)?;
     let email = google::account_email(&calendars)
         .ok_or_else(|| Error::Parse("the account has no primary calendar".into()))?
         .to_owned();
-    if let Ok(mut tokens) = tokens.lock() {
-        tokens.insert(email.clone(), access);
-    }
+    tokens.insert(&email, access);
     Ok(Account {
         email,
-        refresh_token,
+        can_write: grant.can_write(),
+        refresh_token: grant.refresh_token,
         calendars,
         needs_sign_in: false,
+        area: None,
     })
-}
-
-fn access_token(client: &Client, account: &Account, tokens: &Tokens) -> Result<String, Error> {
-    if let Some(token) = tokens
-        .lock()
-        .ok()
-        .and_then(|t| t.get(&account.email).filter(|t| t.is_fresh()).cloned())
-    {
-        return Ok(token.token);
-    }
-    let fresh = oauth::refresh(client, &account.refresh_token, &account.email)?;
-    let token = fresh.token.clone();
-    if let Ok(mut tokens) = tokens.lock() {
-        tokens.insert(account.email.clone(), fresh);
-    }
-    Ok(token)
-}
-
-/// The account's current calendar list (keeping the user's show/hide choices) and the events of
-/// its visible calendars.
-fn fetch_account(
-    client: &Client,
-    account: &Account,
-    tokens: &Tokens,
-    from: NaiveDate,
-    to: NaiveDate,
-) -> AccountResult {
-    let token = access_token(client, account, tokens)?;
-    let mut calendars = google::calendars(&token)?;
-    for calendar in &mut calendars {
-        if let Some(old) = account.calendars.iter().find(|c| c.id == calendar.id) {
-            calendar.visible = old.visible;
-            calendar.areas = old.areas.clone();
-        }
-    }
-    let mut events = Vec::new();
-    for calendar in calendars.iter().filter(|c| c.visible) {
-        events.extend(google::events(&token, &account.email, &calendar.id, from, to)?);
-    }
-    Ok((calendars, events))
 }
 
 #[cfg(test)]
@@ -678,6 +636,8 @@ mod tests {
             refresh_token: "t".into(),
             calendars: Vec::new(),
             needs_sign_in: false,
+            can_write: false,
+            area: None,
         });
         let work = state
             .config

@@ -18,7 +18,7 @@ use eframe::egui::{
     Rounding, ScrollArea, Sense, Stroke, Ui, UiBuilder, pos2, vec2,
 };
 use falog_calendar::Client;
-use falog_core::domain::Area;
+use falog_core::domain::{Area, AreaId};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -42,11 +42,10 @@ pub enum SettingsEvent {
         color: String,
     },
     RemoveCalendarLink(String),
-    /// Links or unlinks a calendar (of `account`, or a link when it is empty) and an area.
-    ToggleCalendarArea {
-        account: String,
-        calendar: String,
-        area: i64,
+    /// Puts a calendar account (its email) or a calendar link (its id) in an area, or in none.
+    SetCalendarArea {
+        source: String,
+        area: Option<AreaId>,
     },
 }
 

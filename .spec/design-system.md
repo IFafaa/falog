@@ -112,9 +112,10 @@ checkbox per calendar in its color: calendar links first, then calendars grouped
 email; its `+` opens Settings › Calendar. With no calendar yet, the view shows a banner whose
 "Add a calendar link" (accent) opens the same page.
 
-Calendars belong to areas, many to many. Settings › Calendar starts with "Calendars by area": a row per
-calendar (color dot, name) with one pill per area, filled with the area color when linked. The sidebar's
-area filter then applies to meetings through those links, and the event popover lists the areas.
+Each email (signed-in account or calendar link) belongs to one area; an area may have several emails.
+Settings › Calendar starts with "Area of each account": a row per email with an area select (the same
+picker as tasks). The sidebar's area filter then applies to meetings, and the event popover shows the
+area.
 
 ## App icon
 

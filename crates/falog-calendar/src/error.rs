@@ -20,6 +20,12 @@ pub enum Error {
     #[error("{0} needs to sign in again")]
     Reauthorize(String),
 
+    /// The account granted reading only: reconnecting it asks for the write permission.
+    #[error(
+        "{0} was connected for reading only; reconnect it in Settings › Calendar to let Falog create and change events"
+    )]
+    ReadOnly(String),
+
     #[error("Google answered {status}: {message}")]
     Api { status: u16, message: String },
 

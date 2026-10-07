@@ -11,10 +11,6 @@ pub struct Calendar {
     pub primary: bool,
     /// Shown in Falog. Starts as whatever the calendar's checkbox is in Google Calendar.
     pub visible: bool,
-    /// Falog areas (ids from `falog-core`) this calendar belongs to; empty for none. Many to many:
-    /// an area may span several calendars and a calendar several areas.
-    #[serde(default)]
-    pub areas: Vec<i64>,
 }
 
 impl Calendar {
@@ -254,7 +250,6 @@ mod tests {
             color: "#9fe1e7".into(),
             primary: true,
             visible: true,
-            areas: Vec::new(),
         };
         assert_eq!(calendar.rgb(), [0x9f, 0xe1, 0xe7]);
         calendar.color = "teal".into();

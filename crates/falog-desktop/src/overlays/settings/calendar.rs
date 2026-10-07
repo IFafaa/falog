@@ -3,7 +3,7 @@
 
 use super::{SettingsDialog, SettingsEvent, section};
 use crate::calendar::CalendarState;
-use crate::components::{ButtonStyle, button};
+use crate::components::{ButtonStyle, area_picker, button};
 use crate::icons::Icon;
 use crate::theme::Theme;
 use eframe::egui::{
@@ -11,7 +11,7 @@ use eframe::egui::{
     TextEdit, Ui, pos2, vec2,
 };
 use falog_calendar::{Client, LINK_COLORS, ics};
-use falog_core::domain::Area;
+use falog_core::domain::{Area, AreaId};
 
 /// What the user is typing on the Calendar page.
 #[derive(Debug, Default)]
@@ -329,8 +329,9 @@ impl SettingsDialog {
     }
 }
 
-/// Every calendar with a pill per area: click a pill to link or unlink them. The sidebar's area filter
-/// then shows that area's meetings, and the assistant books meetings for an area in its calendar.
+/// One row per email (and per calendar link) with a select for its area. An email belongs to one
+/// area; an area may have several emails. The sidebar's area filter then shows that area's meetings,
+/// and the assistant books an area's meetings in its account.
 fn areas_section(
     ui: &mut Ui,
     theme: &Theme,
@@ -338,88 +339,47 @@ fn areas_section(
     areas: &[Area],
     events: &mut Vec<SettingsEvent>,
 ) {
-    let calendars: Vec<(&str, &falog_calendar::Calendar)> = calendar
+    let sources: Vec<(&str, &str, Option<i64>)> = calendar
         .config
         .accounts
         .iter()
-        .flat_map(|a| a.calendars.iter().map(move |c| (a.email.as_str(), c)))
-        .chain(calendar.config.links.iter().map(|l| ("", &l.calendar)))
+        .map(|a| (a.email.as_str(), a.email.as_str(), a.area))
+        .chain(
+            calendar
+                .config
+                .links
+                .iter()
+                .map(|l| (l.calendar.id.as_str(), l.calendar.name.as_str(), l.area)),
+        )
         .collect();
-    if calendars.is_empty() || areas.is_empty() {
+    if sources.is_empty() || areas.is_empty() {
         return;
     }
-    section(ui, theme, "Calendars by area");
+    section(ui, theme, "Area of each account");
     ui.label(
-        RichText::new("Pick the areas each calendar belongs to. A calendar can serve several areas.")
+        RichText::new("Pick the area each email belongs to. An area can have several emails.")
             .size(12.5)
             .color(theme.text_muted),
     );
     ui.add_space(4.0);
-    let mut last_account = None;
-    for (account, cal) in calendars {
-        if last_account != Some(account) {
-            last_account = Some(account);
-            let heading = if account.is_empty() {
-                "Calendar links"
-            } else {
-                account
-            };
-            ui.add_space(4.0);
-            ui.label(RichText::new(heading).size(12.0).color(theme.text_placeholder));
-        }
-        ui.horizontal_wrapped(|ui| {
-            let (dot, _) = ui.allocate_exact_size(vec2(10.0, 18.0), Sense::hover());
-            ui.painter().circle_filled(dot.center(), 4.5, hex(&cal.color));
-            let name = RichText::new(&cal.name).size(13.0).color(theme.text);
-            ui.allocate_ui_with_layout(vec2(150.0, 18.0), Layout::left_to_right(Align::Center), |ui| {
-                ui.set_width(150.0);
-                ui.add(egui::Label::new(name).truncate());
+    for (source, label, area) in sources {
+        ui.horizontal(|ui| {
+            ui.add(Icon::Calendar.image(13.0, theme.icon_muted));
+            ui.allocate_ui_with_layout(vec2(300.0, 22.0), Layout::left_to_right(Align::Center), |ui| {
+                ui.set_width(300.0);
+                ui.add(egui::Label::new(RichText::new(label).size(13.0).color(theme.text)).truncate());
             });
-            for area in areas {
-                let linked = cal.areas.contains(&area.id.0);
-                if area_pill(ui, theme, &area.name, crate::theme::color(area.color), linked).clicked() {
-                    events.push(SettingsEvent::ToggleCalendarArea {
-                        account: account.to_owned(),
-                        calendar: cal.id.clone(),
-                        area: area.id.0,
-                    });
-                }
+            let mut value = area.map(AreaId);
+            let before = value;
+            area_picker(ui, &format!("calendar-area-{source}"), &mut value, areas, 200.0);
+            if value != before {
+                events.push(SettingsEvent::SetCalendarArea {
+                    source: source.to_owned(),
+                    area: value,
+                });
             }
         });
     }
-}
-
-/// A toggle shaped like a tag: filled with the area color when on, outlined when off.
-fn area_pill(ui: &mut Ui, theme: &Theme, name: &str, color: Color32, on: bool) -> egui::Response {
-    let text_color = if on { theme.text } else { theme.text_muted };
-    let galley = ui
-        .painter()
-        .layout_no_wrap(name.to_owned(), FontId::proportional(12.0), text_color);
-    let size = vec2(galley.size().x + 22.0, 20.0);
-    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-    let fill = if on {
-        color.gamma_multiply(0.28)
-    } else if response.hovered() {
-        theme.ghost_hover
-    } else {
-        Color32::TRANSPARENT
-    };
-    let stroke = if on { color } else { theme.border_variant };
-    ui.painter().rect(rect, 10.0, fill, Stroke::new(1.0_f32, stroke));
-    ui.painter()
-        .circle_filled(pos2(rect.left() + 9.0, rect.center().y), 3.0, color);
-    ui.painter().galley(
-        pos2(rect.left() + 16.0, rect.center().y - galley.size().y / 2.0),
-        galley,
-        text_color,
-    );
-    response
-        .on_hover_cursor(CursorIcon::PointingHand)
-        .on_hover_text(if on {
-            "Linked: click to unlink"
-        } else {
-            "Click to link"
-        })
 }
 
 /// A label column of fixed width, then the control filling the row.

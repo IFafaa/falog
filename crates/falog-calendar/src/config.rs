@@ -32,6 +32,14 @@ pub struct Account {
     /// Set when Google rejected the refresh token; the account must sign in again.
     #[serde(default)]
     pub needs_sign_in: bool,
+    /// Connected with permission to create and change events. Accounts connected before Falog asked
+    /// for it read only, until they reconnect.
+    #[serde(default)]
+    pub can_write: bool,
+    /// The Falog area (id from `falog-core`) this account belongs to. One area per email; an area may
+    /// have several emails.
+    #[serde(default)]
+    pub area: Option<i64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,6 +61,9 @@ pub struct Link {
     /// The secret address. Whoever has it reads the calendar: never log it or show it whole (see
     /// [`crate::ics::masked`]).
     pub url: String,
+    /// The Falog area this calendar belongs to, like an account's.
+    #[serde(default)]
+    pub area: Option<i64>,
 }
 
 impl std::fmt::Debug for Link {
@@ -77,9 +88,10 @@ impl CalendarConfig {
             for calendar in &mut account.calendars {
                 if let Some(old) = existing.calendars.iter().find(|c| c.id == calendar.id) {
                     calendar.visible = old.visible;
-                    calendar.areas = old.areas.clone();
                 }
             }
+            // The area is the user's choice in Falog, not something Google sends.
+            account.area = account.area.or(existing.area);
             *existing = account;
         } else {
             self.accounts.push(account);
@@ -104,9 +116,9 @@ impl CalendarConfig {
                 color,
                 primary: false,
                 visible: true,
-                areas: Vec::new(),
             },
             url: url.trim().to_owned(),
+            area: None,
         });
         Ok(&self.links[self.links.len() - 1])
     }
@@ -179,44 +191,40 @@ impl CalendarConfig {
             .find(|c| c.id == id)
     }
 
-    /// Adds `area` to the calendar, or removes it when it is already there.
-    pub fn toggle_area(&mut self, account: &str, id: &str, area: i64) {
-        if let Some(calendar) = self.calendar_mut(account, id) {
-            match calendar.areas.iter().position(|a| *a == area) {
-                Some(index) => {
-                    calendar.areas.remove(index);
-                }
-                None => calendar.areas.push(area),
-            }
+    /// Puts the account with this email, or the link with this id, in `area` (or in none).
+    pub fn set_area(&mut self, source: &str, area: Option<i64>) {
+        if let Some(account) = self.accounts.iter_mut().find(|a| a.email == source) {
+            account.area = area;
+        } else if let Some(link) = self.link_mut(source) {
+            link.area = area;
         }
     }
 
-    /// Drops a deleted area from every calendar.
+    /// Takes a deleted area off every account and link.
     pub fn forget_area(&mut self, area: i64) {
-        let calendars = self
-            .accounts
-            .iter_mut()
-            .flat_map(|a| a.calendars.iter_mut())
-            .chain(self.links.iter_mut().map(|l| &mut l.calendar));
-        for calendar in calendars {
-            calendar.areas.retain(|a| *a != area);
+        for account in self.accounts.iter_mut().filter(|a| a.area == Some(area)) {
+            account.area = None;
+        }
+        for link in self.links.iter_mut().filter(|l| l.area == Some(area)) {
+            link.area = None;
         }
     }
 
-    /// The areas of the calendar an event comes from.
-    pub fn areas_of(&self, event: &Event) -> &[i64] {
-        self.calendar(&event.account, &event.calendar_id)
-            .map_or(&[], |c| c.areas.as_slice())
+    /// The area of the account or link an event comes from.
+    pub fn area_of(&self, event: &Event) -> Option<i64> {
+        if event.account.is_empty() {
+            return self
+                .links
+                .iter()
+                .find(|l| l.calendar.id == event.calendar_id)?
+                .area;
+        }
+        self.accounts.iter().find(|a| a.email == event.account)?.area
     }
 
-    /// Calendars linked to `area` as `(account, calendar)`; links have an empty account.
-    pub fn calendars_of_area(&self, area: i64) -> Vec<(&str, &Calendar)> {
-        self.accounts
-            .iter()
-            .flat_map(|a| a.calendars.iter().map(move |c| (a.email.as_str(), c)))
-            .chain(self.links.iter().map(|l| ("", &l.calendar)))
-            .filter(|(_, c)| c.areas.contains(&area))
-            .collect()
+    /// The signed-in accounts in `area`; those are the ones events can be created in.
+    pub fn accounts_of_area(&self, area: i64) -> Vec<&Account> {
+        self.accounts.iter().filter(|a| a.area == Some(area)).collect()
     }
 
     pub fn is_visible(&self, event: &Event) -> bool {
@@ -265,6 +273,17 @@ impl Files {
     pub fn save_cache(&self, cache: &EventCache) -> Result<()> {
         save(&self.dir, "events.json", cache)
     }
+
+    /// Tells the desktop app that events changed elsewhere (the MCP server created one), so it
+    /// fetches again instead of waiting for its next refresh.
+    pub fn mark_changed(&self) -> Result<()> {
+        save(&self.dir, "changed", &chrono::Local::now().to_rfc3339())
+    }
+
+    /// When [`Files::mark_changed`] last ran, if ever.
+    pub fn changed_at(&self) -> Option<std::time::SystemTime> {
+        std::fs::metadata(self.dir.join("changed")).ok()?.modified().ok()
+    }
 }
 
 /// A missing or unreadable file gives the default: losing the cache costs one refresh, and a broken
@@ -303,7 +322,6 @@ mod tests {
             color: "#4285f4".into(),
             primary: false,
             visible,
-            areas: Vec::new(),
         }
     }
 
@@ -313,50 +331,57 @@ mod tests {
             refresh_token: "token".into(),
             calendars,
             needs_sign_in: false,
+            can_write: false,
+            area: None,
         }
     }
 
     #[test]
-    fn links_calendars_and_areas_many_to_many() {
+    fn each_email_has_one_area_and_an_area_many_emails() {
         let mut config = CalendarConfig::default();
         config.upsert(account("me@acme.example", vec![calendar("work", true)]));
         config.upsert(account("me@gmail.example", vec![calendar("home", true)]));
+        config.upsert(account("me@globex.example", vec![calendar("med", true)]));
         config
             .add_link("Team", "https://example.com/team.ics", None)
             .unwrap();
         let link = config.links[0].calendar.id.clone();
 
-        config.toggle_area("me@acme.example", "work", 1);
-        config.toggle_area("", &link, 1);
-        config.toggle_area("me@acme.example", "work", 2);
-        let of_one: Vec<&str> = config
-            .calendars_of_area(1)
+        config.set_area("me@acme.example", Some(1));
+        config.set_area("me@globex.example", Some(1));
+        config.set_area(&link, Some(2));
+        config.set_area("me@acme.example", Some(3));
+        let emails: Vec<&str> = config
+            .accounts_of_area(1)
             .iter()
-            .map(|(_, c)| c.id.as_str())
+            .map(|a| a.email.as_str())
             .collect();
-        assert_eq!(of_one, vec!["work", link.as_str()]);
-        assert_eq!(
-            config.calendar("me@acme.example", "work").unwrap().areas,
-            vec![1, 2]
-        );
+        assert_eq!(emails, vec!["me@globex.example"]);
 
-        // A refresh brings a fresh calendar list; the areas stay.
+        let event = |account: &str, calendar: &str| Event {
+            account: account.into(),
+            calendar_id: calendar.into(),
+            id: "e".into(),
+            ical_uid: String::new(),
+            title: "Meeting".into(),
+            start: crate::EventTime::Date(chrono::NaiveDate::from_ymd_opt(2026, 10, 7).unwrap()),
+            end: crate::EventTime::Date(chrono::NaiveDate::from_ymd_opt(2026, 10, 8).unwrap()),
+            location: String::new(),
+            description: String::new(),
+            join_link: None,
+            html_link: None,
+        };
+        assert_eq!(config.area_of(&event("me@acme.example", "work")), Some(3));
+        assert_eq!(config.area_of(&event("", &link)), Some(2));
+        assert_eq!(config.area_of(&event("me@gmail.example", "home")), None);
+
+        // Reconnecting brings a fresh account from Google; the area stays.
         config.upsert(account("me@acme.example", vec![calendar("work", true)]));
-        assert_eq!(
-            config.calendar("me@acme.example", "work").unwrap().areas,
-            vec![1, 2]
-        );
+        assert_eq!(config.area_of(&event("me@acme.example", "work")), Some(3));
 
-        config.toggle_area("me@acme.example", "work", 1);
-        config.forget_area(2);
-        assert!(
-            config
-                .calendar("me@acme.example", "work")
-                .unwrap()
-                .areas
-                .is_empty()
-        );
-        assert_eq!(config.calendars_of_area(1).len(), 1);
+        config.forget_area(3);
+        assert_eq!(config.area_of(&event("me@acme.example", "work")), None);
+        assert_eq!(config.accounts_of_area(1).len(), 1);
     }
 
     #[test]

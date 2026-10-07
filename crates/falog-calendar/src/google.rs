@@ -1,4 +1,5 @@
-//! The two Google Calendar API calls Falog needs: the calendar list and events in a time range.
+//! The Google Calendar API calls Falog makes: the calendar list, events in a time range, and creating,
+//! changing or deleting an event.
 
 use crate::Result;
 use crate::model::{Calendar, Event, EventTime};
@@ -66,6 +67,151 @@ pub fn events(
     Ok(events)
 }
 
+/// An event to create. Times are local; all-day events use [`EventTime::Date`] with an exclusive end.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NewEvent {
+    pub title: String,
+    pub start: Option<EventTime>,
+    pub end: Option<EventTime>,
+    pub description: String,
+    pub location: String,
+    /// Guests' emails; Google emails them the invitation.
+    pub attendees: Vec<String>,
+    /// Ask Google to attach a Meet link.
+    pub meet: bool,
+}
+
+/// Fields to change on an event; `None` keeps the current value.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EventPatch {
+    pub title: Option<String>,
+    pub start: Option<EventTime>,
+    pub end: Option<EventTime>,
+    pub description: Option<String>,
+    pub location: Option<String>,
+}
+
+pub fn insert_event(token: &str, account: &str, calendar_id: &str, event: &NewEvent) -> Result<Event> {
+    let url = format!("{API}/calendars/{}/events", encode(calendar_id));
+    let mut request = authorized(ureq::post(&url), token).query("conferenceDataVersion", "1");
+    if !event.attendees.is_empty() {
+        request = request.query("sendUpdates", "all");
+    }
+    let body = send_json(request, &insert_body(event))?.into_string()?;
+    returned_event(&body, account, calendar_id)
+}
+
+pub fn patch_event(
+    token: &str,
+    account: &str,
+    calendar_id: &str,
+    event_id: &str,
+    patch: &EventPatch,
+) -> Result<Event> {
+    let url = format!(
+        "{API}/calendars/{}/events/{}",
+        encode(calendar_id),
+        encode(event_id)
+    );
+    let request = authorized(ureq::request("PATCH", &url), token).query("sendUpdates", "all");
+    let body = send_json(request, &patch_body(patch))?.into_string()?;
+    returned_event(&body, account, calendar_id)
+}
+
+pub fn delete_event(token: &str, calendar_id: &str, event_id: &str) -> Result<()> {
+    let url = format!(
+        "{API}/calendars/{}/events/{}",
+        encode(calendar_id),
+        encode(event_id)
+    );
+    authorized(ureq::delete(&url), token)
+        .query("sendUpdates", "all")
+        .call()?;
+    Ok(())
+}
+
+fn authorized(request: ureq::Request, token: &str) -> ureq::Request {
+    request
+        .timeout(TIMEOUT)
+        .set("Authorization", &format!("Bearer {token}"))
+}
+
+/// `ureq` 2 sends JSON only with its `json` feature; a string body does the same.
+fn send_json(request: ureq::Request, body: &Value) -> Result<ureq::Response> {
+    Ok(request
+        .set("Content-Type", "application/json")
+        .send_string(&body.to_string())?)
+}
+
+fn returned_event(body: &str, account: &str, calendar_id: &str) -> Result<Event> {
+    let json: Value = serde_json::from_str(body)?;
+    parse_event(&json, account, calendar_id)
+        .ok_or_else(|| crate::Error::Parse("Google returned an event without times".into()))
+}
+
+fn time_json(time: EventTime) -> Value {
+    match time {
+        EventTime::Date(date) => serde_json::json!({ "date": date.format("%Y-%m-%d").to_string() }),
+        EventTime::At(at) => {
+            let local = Local
+                .from_local_datetime(&at)
+                .earliest()
+                .map_or_else(|| at.and_utc().to_rfc3339(), |at| at.to_rfc3339());
+            serde_json::json!({ "dateTime": local })
+        }
+    }
+}
+
+fn insert_body(event: &NewEvent) -> Value {
+    let mut body = serde_json::json!({ "summary": event.title });
+    if let Some(start) = event.start {
+        body["start"] = time_json(start);
+    }
+    if let Some(end) = event.end {
+        body["end"] = time_json(end);
+    }
+    if !event.description.is_empty() {
+        body["description"] = event.description.clone().into();
+    }
+    if !event.location.is_empty() {
+        body["location"] = event.location.clone().into();
+    }
+    if !event.attendees.is_empty() {
+        body["attendees"] = event
+            .attendees
+            .iter()
+            .map(|email| serde_json::json!({ "email": email }))
+            .collect();
+    }
+    if event.meet {
+        let request_id = format!("falog-{}", Local::now().timestamp_millis());
+        body["conferenceData"] = serde_json::json!({
+            "createRequest": { "requestId": request_id, "conferenceSolutionKey": { "type": "hangoutsMeet" } }
+        });
+    }
+    body
+}
+
+fn patch_body(patch: &EventPatch) -> Value {
+    let mut body = serde_json::json!({});
+    if let Some(title) = &patch.title {
+        body["summary"] = title.clone().into();
+    }
+    if let Some(start) = patch.start {
+        body["start"] = time_json(start);
+    }
+    if let Some(end) = patch.end {
+        body["end"] = time_json(end);
+    }
+    if let Some(description) = &patch.description {
+        body["description"] = description.clone().into();
+    }
+    if let Some(location) = &patch.location {
+        body["location"] = location.clone().into();
+    }
+    body
+}
+
 fn get(url: &str, token: &str) -> ureq::Request {
     ureq::get(url)
         .timeout(TIMEOUT)
@@ -105,7 +251,6 @@ fn parse_calendars(json: &Value) -> Vec<Calendar> {
                 color: text(item, "backgroundColor"),
                 primary: item.get("primary").and_then(Value::as_bool).unwrap_or(false),
                 visible: item.get("selected").and_then(Value::as_bool).unwrap_or(false),
-                areas: Vec::new(),
             }
         })
         .collect()
@@ -121,24 +266,27 @@ fn parse_events(json: &Value, account: &str, calendar_id: &str) -> Vec<Event> {
         // Working-location entries ("Home", "Office") are status, not meetings.
         .filter(|item| text(item, "eventType") != "workingLocation")
         .filter(|item| !declined(item))
-        .filter_map(|item| {
-            Some(Event {
-                account: account.to_owned(),
-                calendar_id: calendar_id.to_owned(),
-                id: text(item, "id"),
-                ical_uid: text(item, "iCalUID"),
-                title: Some(text(item, "summary"))
-                    .filter(|title| !title.trim().is_empty())
-                    .unwrap_or_else(|| "(No title)".to_owned()),
-                start: event_time(item.get("start")?)?,
-                end: event_time(item.get("end")?)?,
-                location: text(item, "location"),
-                description: text(item, "description"),
-                join_link: join_link(item),
-                html_link: Some(text(item, "htmlLink")).filter(|link| !link.is_empty()),
-            })
-        })
+        .filter_map(|item| parse_event(item, account, calendar_id))
         .collect()
+}
+
+/// One event resource, as listed or as returned by an insert or a patch.
+fn parse_event(item: &Value, account: &str, calendar_id: &str) -> Option<Event> {
+    Some(Event {
+        account: account.to_owned(),
+        calendar_id: calendar_id.to_owned(),
+        id: text(item, "id"),
+        ical_uid: text(item, "iCalUID"),
+        title: Some(text(item, "summary"))
+            .filter(|title| !title.trim().is_empty())
+            .unwrap_or_else(|| "(No title)".to_owned()),
+        start: event_time(item.get("start")?)?,
+        end: event_time(item.get("end")?)?,
+        location: text(item, "location"),
+        description: text(item, "description"),
+        join_link: join_link(item),
+        html_link: Some(text(item, "htmlLink")).filter(|link| !link.is_empty()),
+    })
 }
 
 /// The user said no to this invitation.
@@ -235,6 +383,64 @@ mod tests {
         assert!(untitled.is_all_day());
         assert_eq!(untitled.join_link.as_deref(), Some("https://zoom.us/j/1"));
         assert_eq!(untitled.html_link, None);
+    }
+
+    #[test]
+    fn builds_insert_and_patch_bodies() {
+        let day = NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();
+        let start = EventTime::At(day.and_hms_opt(15, 0, 0).unwrap());
+        let event = NewEvent {
+            title: "Call with Ana".into(),
+            start: Some(start),
+            end: Some(EventTime::At(day.and_hms_opt(15, 30, 0).unwrap())),
+            attendees: vec!["ana@example.com".into()],
+            meet: true,
+            ..NewEvent::default()
+        };
+        let body = insert_body(&event);
+        assert_eq!(body["summary"], "Call with Ana");
+        assert!(
+            body["start"]["dateTime"]
+                .as_str()
+                .unwrap()
+                .starts_with("2026-10-08T15:00:00")
+        );
+        assert_eq!(body["attendees"][0]["email"], "ana@example.com");
+        assert_eq!(
+            body["conferenceData"]["createRequest"]["conferenceSolutionKey"]["type"],
+            "hangoutsMeet"
+        );
+        assert!(body.get("description").is_none());
+
+        let all_day = insert_body(&NewEvent {
+            title: "Offsite".into(),
+            start: Some(EventTime::Date(day)),
+            end: Some(EventTime::Date(day.succ_opt().unwrap())),
+            ..NewEvent::default()
+        });
+        assert_eq!(all_day["start"], json!({ "date": "2026-10-08" }));
+        assert_eq!(all_day["end"], json!({ "date": "2026-10-09" }));
+
+        let patch = patch_body(&EventPatch {
+            title: Some("Call with Ana and Leo".into()),
+            location: Some(String::new()),
+            ..EventPatch::default()
+        });
+        assert_eq!(
+            patch,
+            json!({ "summary": "Call with Ana and Leo", "location": "" })
+        );
+    }
+
+    #[test]
+    fn reads_the_event_google_returns() {
+        let body = r#"{ "id": "abc", "summary": "Call", "htmlLink": "https://calendar.google.com/x",
+            "start": { "dateTime": "2026-10-08T15:00:00-03:00" }, "end": { "dateTime": "2026-10-08T15:30:00-03:00" },
+            "hangoutLink": "https://meet.google.com/xyz" }"#;
+        let event = returned_event(body, "me@example.com", "primary").unwrap();
+        assert_eq!(event.id, "abc");
+        assert_eq!(event.join_link.as_deref(), Some("https://meet.google.com/xyz"));
+        assert!(returned_event("{}", "me@example.com", "primary").is_err());
     }
 
     #[test]

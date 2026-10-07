@@ -47,7 +47,7 @@ pub fn show(
     let mut events = cal.events(from, to);
     // The sidebar's area filter applies to meetings too, through the calendars linked to the area.
     if let Some(area) = cx.prefs.area {
-        events.retain(|e| cal.config.areas_of(e).contains(&area.0));
+        events.retain(|e| cal.config.area_of(e) == Some(area.0));
     }
     let tasks: Vec<&Task> = cx
         .tasks
@@ -945,7 +945,7 @@ fn popover(ctx: &egui::Context, theme: &Theme, areas: &[Area], cal: &mut Calenda
                     }
                     let linked: Vec<&Area> = areas
                         .iter()
-                        .filter(|a| cal.config.areas_of(event).contains(&a.id.0))
+                        .filter(|a| cal.config.area_of(event) == Some(a.id.0))
                         .collect();
                     if !linked.is_empty() {
                         ui.horizontal_wrapped(|ui| {

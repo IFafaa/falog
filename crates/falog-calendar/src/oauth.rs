@@ -19,7 +19,33 @@ use std::time::{Duration, Instant};
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
-pub const SCOPE: &str = "https://www.googleapis.com/auth/calendar.readonly";
+/// Reading the calendar list, and reading and writing events (the assistant creates meetings).
+pub const SCOPES: &str = "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events";
+/// The scope that allows creating and changing events. Accounts connected before Falog asked for it
+/// can only read.
+pub const WRITE_SCOPE: &str = "https://www.googleapis.com/auth/calendar.events";
+
+/// What a finished sign-in gives: the refresh token and the scopes the user granted.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Grant {
+    pub refresh_token: String,
+    /// Space-separated, as Google sends them.
+    pub scope: String,
+}
+
+impl Grant {
+    pub fn can_write(&self) -> bool {
+        self.scope.split_whitespace().any(|scope| scope == WRITE_SCOPE)
+    }
+}
+
+impl std::fmt::Debug for Grant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Grant")
+            .field("scope", &self.scope)
+            .finish_non_exhaustive()
+    }
+}
 
 /// How long to wait for the user to finish in the browser.
 pub const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -48,7 +74,7 @@ pub fn begin(client: &Client) -> Result<Pending> {
         ("client_id", client.id.trim()),
         ("redirect_uri", &redirect_uri),
         ("response_type", "code"),
-        ("scope", SCOPE),
+        ("scope", SCOPES),
         ("code_challenge", &challenge),
         ("code_challenge_method", "S256"),
         ("state", &state),
@@ -77,7 +103,7 @@ impl Pending {
 
     /// Waits for Google's redirect (until `cancel` is set or [`SIGN_IN_TIMEOUT`]) and exchanges the
     /// code for a refresh token.
-    pub fn finish(self, client: &Client, cancel: &AtomicBool) -> Result<String> {
+    pub fn finish(self, client: &Client, cancel: &AtomicBool) -> Result<Grant> {
         self.listener.set_nonblocking(true)?;
         let deadline = Instant::now() + SIGN_IN_TIMEOUT;
         let code = loop {
@@ -153,7 +179,7 @@ fn read_redirect(query: &str, state: &str) -> Result<String> {
         .ok_or_else(|| Error::Denied("Google sent no authorization code".into()))
 }
 
-fn exchange(client: &Client, code: &str, redirect_uri: &str, verifier: &str) -> Result<String> {
+fn exchange(client: &Client, code: &str, redirect_uri: &str, verifier: &str) -> Result<Grant> {
     let json = token_request(&[
         ("client_id", client.id.trim()),
         ("client_secret", client.secret.trim()),
@@ -166,10 +192,17 @@ fn exchange(client: &Client, code: &str, redirect_uri: &str, verifier: &str) -> 
         Error::Api { message, .. } => Error::Denied(message),
         other => other,
     })?;
-    json.get("refresh_token")
+    let refresh_token = json
+        .get("refresh_token")
         .and_then(|token| token.as_str())
         .map(str::to_owned)
-        .ok_or_else(|| Error::Denied("Google sent no refresh token".into()))
+        .ok_or_else(|| Error::Denied("Google sent no refresh token".into()))?;
+    let scope = json
+        .get("scope")
+        .and_then(|scope| scope.as_str())
+        .unwrap_or_default()
+        .to_owned();
+    Ok(Grant { refresh_token, scope })
 }
 
 /// A short-lived access token.
@@ -252,6 +285,17 @@ mod tests {
             id: "123.apps.googleusercontent.com".into(),
             secret: "shh".into(),
         }
+    }
+
+    #[test]
+    fn knows_when_writing_was_granted() {
+        let grant = |scope: &str| Grant {
+            refresh_token: "t".into(),
+            scope: scope.into(),
+        };
+        assert!(grant(SCOPES).can_write());
+        assert!(!grant("https://www.googleapis.com/auth/calendar.readonly").can_write());
+        assert!(!format!("{:?}", grant(SCOPES)).contains("\"t\""));
     }
 
     #[test]

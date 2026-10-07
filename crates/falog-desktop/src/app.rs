@@ -556,13 +556,7 @@ impl FalogApp {
                     self.notify(format!("Removed {name}"), ToastKind::Success);
                 }
             }
-            SettingsEvent::ToggleCalendarArea {
-                account,
-                calendar,
-                area,
-            } => {
-                self.calendar.toggle_area(&account, &calendar, area);
-            }
+            SettingsEvent::SetCalendarArea { source, area } => self.calendar.set_area(&source, area),
         }
     }
 

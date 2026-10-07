@@ -13,8 +13,8 @@ at 3 pm on Acme".
 
 The calendar (0010, 0014) shows several Google accounts and calendar links, but nothing ties a
 calendar to an area, and only the desktop app reads events. The user connects one Google account per
-employer plus a personal one, so an area maps naturally to one or more calendars, and one calendar
-may serve more than one area (many to many).
+employer plus a personal one, so an area maps to one or more emails, and each email belongs to exactly one area.
+The area is chosen per email, not per calendar.
 
 Writing needs a wider OAuth scope: `calendar.events` (read and write events) plus
 `calendar.calendarlist.readonly` (the calendar list) instead of `calendar.readonly`. Accounts connected
@@ -23,8 +23,8 @@ read-only by nature.
 
 ## Scope
 
-- In: `areas` (area ids) on every calendar, accounts' and links' alike, kept across refreshes and
-  reconnects; Settings › Calendar lets each calendar pick its areas; the sidebar area filter also
+- In: an `area` on every account (email) and calendar link, kept across refreshes and reconnects;
+  Settings › Calendar has an area select next to each email; the sidebar area filter also
   filters the calendar view (calendars with no area show only under "All areas"); the event popover
   names the areas. MCP tools `list_events` (range, area) and `create_event` (title, start, end or
   duration, area or calendar, description, location, attendees, Meet link) plus `update_event` and
@@ -34,8 +34,8 @@ read-only by nature.
 
 ## Acceptance criteria
 
-- [ ] A calendar can be linked to several areas and an area to several calendars, from Settings
-- [ ] Filtering by an area in the sidebar shows only that area's meetings in the calendar view
+- [x] Each email gets one area from a select next to it; an area can have several emails
+- [x] Filtering by an area in the sidebar shows only that area's meetings in the calendar view
 - [ ] `list_events` returns the meetings of a day or range, optionally for one area
 - [ ] `create_event` puts the event in the area's calendar and the desktop shows it within seconds
 - [ ] An account connected with the old read-only scope gets a clear "reconnect" message on write
@@ -43,7 +43,7 @@ read-only by nature.
 
 ## Plan
 
-1. `falog-calendar`: `Calendar::areas`, kept by `upsert` and refreshes; area queries on the config; a
+1. `falog-calendar`: `Account::area` and `Link::area`, kept by `upsert`; area queries on the config; a
    `google::insert_event` / `patch_event` / `delete_event` client; scopes; a `changed` marker file.
 2. Desktop: area filter on events; Settings › Calendar area pickers (the page gets the areas); event
    popover; refresh on the marker.
