@@ -7,6 +7,7 @@
 pub mod agent;
 pub mod history;
 pub mod panel;
+pub mod slash;
 pub mod thread;
 pub mod voice;
 

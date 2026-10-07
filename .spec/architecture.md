@@ -91,7 +91,8 @@ those of a `falog-mcp` child with `FALOG_DB` set to the app's database (`--stric
 --allowedTools mcp__falog --permission-mode dontAsk --setting-sources ""`). The system prompt is
 `assets/assistant-prompt.md`; the working directory is `<data dir>/assistant`, so no project
 `CLAUDE.md` leaks in. A reader thread maps stream-json lines to `AgentEvent`s (text deltas, tool use and
-results, turn end, exit). Stopping kills the process; the next message resumes the conversation with
+results, turn end, slash commands from `init` and `system/commands_changed`, exit). A slash command
+is sent as a plain user message. Stopping kills the process; the next message resumes the conversation with
 `--resume <session>`. When a tool result arrives the app syncs immediately instead of waiting for the poll.
 
 Threads (`assistant/thread.rs`): each conversation is a `Thread` owning its items, draft and Claude

@@ -7,6 +7,7 @@
 
 pub mod claude_code;
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -41,10 +42,23 @@ pub enum AgentEvent {
         is_error: bool,
         message: Option<String>,
     },
+    /// The commands the agent accepts as `/name` messages (replaces earlier lists).
+    Commands(Vec<SlashCommand>),
     /// The process ended; `stderr` may explain why.
     Exited {
         stderr: String,
     },
+}
+
+/// A command the agent runs when sent `/name [input]`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlashCommand {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    /// What to type after the name, if it takes input (`[what to design]`).
+    #[serde(default)]
+    pub hint: String,
 }
 
 /// A running conversation with an agent.
@@ -76,6 +90,8 @@ pub struct StartOptions {
     pub resume: Option<String>,
     /// Model to ask for; `None` uses the agent's default.
     pub model: Option<String>,
+    /// Effort (thinking) level to ask for; `None` uses the agent's default.
+    pub effort: Option<String>,
 }
 
 /// The `falog-mcp` executable shipped next to the app.

@@ -1,7 +1,7 @@
 //! One assistant conversation: what the user sees, plus the agent session behind it.
 
 use super::agent::claude_code::{self, ClaudeSession};
-use super::agent::{self, AgentEvent, Environment, Session, StartOptions};
+use super::agent::{self, AgentEvent, Environment, Session, SlashCommand, StartOptions};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -104,6 +104,8 @@ pub struct Thread {
     pub draft: String,
     pub busy: bool,
     pub model_name: Option<String>,
+    /// What the agent accepts as `/name` messages, as last reported.
+    pub commands: Vec<SlashCommand>,
     pub created_at: i64,
     pub updated_at: i64,
     session: Option<Box<dyn Session>>,
@@ -120,6 +122,7 @@ impl Thread {
             draft: String::new(),
             busy: false,
             model_name: None,
+            commands: Vec::new(),
             created_at: now,
             updated_at: now,
             session: None,
@@ -195,6 +198,7 @@ impl Thread {
             let options = StartOptions {
                 resume: self.session_id.clone(),
                 model: model.map(str::to_owned),
+                ..StartOptions::default()
             };
             match launcher.start(ctx, &options) {
                 Ok(session) => self.session = Some(session),
@@ -225,7 +229,7 @@ impl Thread {
         let mut activity = Activity::default();
         while let Some(event) = self.session.as_mut().and_then(|session| session.try_recv()) {
             activity.tasks_changed |= matches!(event, AgentEvent::ToolResult { .. });
-            activity.changed |= !matches!(event, AgentEvent::TextDelta(_));
+            activity.changed |= !matches!(event, AgentEvent::TextDelta(_) | AgentEvent::Commands(_));
             self.apply(event);
         }
         activity
@@ -280,6 +284,7 @@ impl Thread {
                 }
                 self.touch();
             }
+            AgentEvent::Commands(commands) => self.commands = commands,
             AgentEvent::Exited { stderr } => {
                 self.session = None;
                 if self.busy {

@@ -5,7 +5,9 @@
 //! the only tools available are the ones of the `falog` MCP server, so the assistant can manage
 //! tasks and nothing else. It runs on the user's own Claude Code login.
 
-use super::{AgentEvent, Environment, Session, StartOptions, StderrLog, hide_console, home_dir, missing};
+use super::{
+    AgentEvent, Environment, Session, SlashCommand, StartOptions, StderrLog, hide_console, home_dir, missing,
+};
 use eframe::egui;
 use serde_json::{Value, json};
 use std::io::{self, BufRead, BufReader, Write};
@@ -13,6 +15,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
+
+/// The choice that leaves a setting to Claude Code (no flag is passed).
+const DEFAULT: &str = "default";
 
 #[derive(Debug)]
 pub struct ClaudeSession {
@@ -53,8 +58,11 @@ impl ClaudeSession {
         ]);
         command.arg("--mcp-config").arg(&mcp_config);
         command.arg("--append-system-prompt").arg(&env.system_prompt);
-        if let Some(model) = &options.model {
+        if let Some(model) = options.model.as_deref().filter(|m| *m != DEFAULT) {
             command.args(["--model", model]);
+        }
+        if let Some(effort) = options.effort.as_deref().filter(|e| *e != DEFAULT) {
+            command.args(["--effort", effort]);
         }
         if let Some(session) = &options.resume {
             command.args(["--resume", session]);
@@ -160,11 +168,30 @@ pub fn parse_line(line: &str) -> Vec<AgentEvent> {
                     .iter()
                     .any(|s| s["name"] == "falog" && s["status"] == "connected")
             });
-            vec![AgentEvent::Ready {
-                session_id: text(&message["session_id"]),
-                model: message["model"].as_str().map(str::to_owned),
-                tools_connected,
-            }]
+            vec![
+                AgentEvent::Ready {
+                    session_id: text(&message["session_id"]),
+                    model: message["model"].as_str().map(str::to_owned),
+                    tools_connected,
+                },
+                AgentEvent::Commands(init_commands(&message)),
+            ]
+        }
+        Some("system") if message["subtype"] == "commands_changed" => {
+            let commands = message["commands"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|command| {
+                    let name = command["name"].as_str()?;
+                    usable(name).then(|| SlashCommand {
+                        name: name.to_owned(),
+                        description: text(&command["description"]),
+                        hint: text(&command["argumentHint"]),
+                    })
+                })
+                .collect();
+            vec![AgentEvent::Commands(commands)]
         }
         Some("stream_event") => {
             let event = &message["event"];
@@ -208,6 +235,34 @@ pub fn parse_line(line: &str) -> Vec<AgentEvent> {
     }
 }
 
+/// The `init` message only names the commands; descriptions follow in `commands_changed`.
+/// Commands that only work in the interactive terminal are left out.
+fn init_commands(init: &Value) -> Vec<SlashCommand> {
+    let names = |key: &str| -> Vec<&str> {
+        init[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect()
+    };
+    let terminal_only = names("terminal_slash_commands");
+    names("slash_commands")
+        .into_iter()
+        .filter(|name| usable(name) && !terminal_only.contains(name))
+        .map(|name| SlashCommand {
+            name: name.to_owned(),
+            description: String::new(),
+            hint: String::new(),
+        })
+        .collect()
+}
+
+/// Names starting with `__` are Claude Code internals.
+fn usable(name: &str) -> bool {
+    !name.is_empty() && !name.starts_with("__")
+}
+
 fn blocks(message: &Value) -> impl Iterator<Item = &Value> {
     message["message"]["content"].as_array().into_iter().flatten()
 }
@@ -233,11 +288,34 @@ mod tests {
         let line = r#"{"type":"system","subtype":"init","session_id":"abc","model":"claude-haiku-4-5","mcp_servers":[{"name":"falog","status":"connected"}]}"#;
         assert_eq!(
             parse_line(line),
-            vec![AgentEvent::Ready {
-                session_id: "abc".into(),
-                model: Some("claude-haiku-4-5".into()),
-                tools_connected: true
-            }]
+            vec![
+                AgentEvent::Ready {
+                    session_id: "abc".into(),
+                    model: Some("claude-haiku-4-5".into()),
+                    tools_connected: true
+                },
+                AgentEvent::Commands(Vec::new())
+            ]
+        );
+    }
+
+    #[test]
+    fn parses_slash_commands() {
+        let init = r#"{"type":"system","subtype":"init","session_id":"s","slash_commands":["compact","doctor","__remote","context"],"terminal_slash_commands":["doctor"]}"#;
+        let names: Vec<String> = match &parse_line(init)[1] {
+            AgentEvent::Commands(commands) => commands.iter().map(|c| c.name.clone()).collect(),
+            other => panic!("unexpected {other:?}"),
+        };
+        assert_eq!(names, vec!["compact", "context"]);
+
+        let changed = r#"{"type":"system","subtype":"commands_changed","commands":[{"name":"design","description":"Make a design","argumentHint":"[what to design]","builtin":true},{"name":"__x","description":""}]}"#;
+        assert_eq!(
+            parse_line(changed),
+            vec![AgentEvent::Commands(vec![SlashCommand {
+                name: "design".into(),
+                description: "Make a design".into(),
+                hint: "[what to design]".into(),
+            }])]
         );
     }
 

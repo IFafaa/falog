@@ -2,8 +2,8 @@
 //! history view listing past threads.
 
 use super::thread::{self, Thread};
-use super::voice;
 use super::{Assistant, AssistantOptions, Item, ToolCall, VoiceState};
+use super::{slash, voice};
 use crate::action::{Action, Actions};
 use crate::components::{ButtonStyle, button, icon_button, icon_toggle, single_line};
 use crate::fonts;
@@ -458,7 +458,7 @@ pub fn first_task_id(text: &str) -> Option<TaskId> {
 fn composer(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: AssistantOptions) {
     let id = Id::new(COMPOSER_ID);
     let focused = ui.memory(|m| m.has_focus(id));
-    Frame::none()
+    let frame = Frame::none()
         .fill(theme.editor)
         .stroke(Stroke::new(
             1.0_f32,
@@ -491,6 +491,33 @@ fn composer(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: Assi
                 VoiceState::Idle => text_input(ui, theme, assistant, options, focused),
             }
         });
+    if matches!(assistant.voice, VoiceState::Idle) {
+        let thread = assistant.active();
+        if let Some(draft) = slash::show(
+            ui.ctx(),
+            theme,
+            id,
+            frame.response.rect,
+            focused,
+            &thread.commands,
+            &thread.draft,
+        ) {
+            set_draft(ui, assistant, draft);
+        }
+    }
+}
+
+/// Replaces the draft and puts the cursor at its end, as after picking a completion.
+fn set_draft(ui: &Ui, assistant: &mut Assistant, draft: String) {
+    let id = Id::new(COMPOSER_ID);
+    let end = draft.chars().count();
+    assistant.active_mut().draft = draft;
+    if let Some(mut state) = TextEdit::load_state(ui.ctx(), id) {
+        let cursor = egui::text::CCursorRange::one(egui::text::CCursor::new(end));
+        state.cursor.set_char_range(Some(cursor));
+        state.store(ui.ctx(), id);
+    }
+    ui.memory_mut(|m| m.request_focus(id));
 }
 
 fn text_input(
@@ -501,6 +528,13 @@ fn text_input(
     focused: bool,
 ) {
     let id = Id::new(COMPOSER_ID);
+    // The command menu takes arrows, Tab, Esc and (on a partial name) Enter first.
+    if focused {
+        let thread = assistant.active();
+        if let slash::MenuKey::Complete(draft) = slash::handle_keys(ui, id, &thread.commands, &thread.draft) {
+            set_draft(ui, assistant, draft);
+        }
+    }
     // Enter sends, Shift+Enter breaks the line; consume Enter before the text field sees it.
     let enter = focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
     let response = ui.add(
