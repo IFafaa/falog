@@ -480,6 +480,15 @@ impl CalendarState {
                 self.last_fetch = None;
             }
         }
+        // Accounts this fetch skipped (no OAuth client, waiting to sign in again, connected while it
+        // ran) keep their events too.
+        let skipped: Vec<String> = self
+            .config
+            .accounts
+            .iter()
+            .map(|a| a.email.clone())
+            .filter(|email| !accounts.iter().any(|(fetched, _)| fetched == email))
+            .collect();
         // Links first: when the same meeting comes through a link and an account, the link's copy
         // is the one kept.
         for (id, result) in links {
@@ -523,6 +532,9 @@ impl CalendarState {
                     errors.push(err.to_string());
                 }
             }
+        }
+        for email in skipped {
+            events.extend(self.cache.events.iter().filter(|e| e.account == email).cloned());
         }
         self.save_config();
         self.cache = EventCache {
@@ -618,6 +630,80 @@ fn fetch_account(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn day(d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 10, d).unwrap()
+    }
+
+    fn event(account: &str, calendar_id: &str, title: &str) -> Event {
+        Event {
+            account: account.into(),
+            calendar_id: calendar_id.into(),
+            id: title.into(),
+            ical_uid: String::new(),
+            title: title.into(),
+            start: falog_calendar::EventTime::Date(day(7)),
+            end: falog_calendar::EventTime::Date(day(8)),
+            location: String::new(),
+            description: String::new(),
+            join_link: None,
+            html_link: None,
+        }
+    }
+
+    fn titles(state: &CalendarState) -> Vec<&str> {
+        let mut titles: Vec<&str> = state.cache.events.iter().map(|e| e.title.as_str()).collect();
+        titles.sort_unstable();
+        titles
+    }
+
+    #[test]
+    fn a_refresh_keeps_what_it_did_not_or_could_not_fetch() {
+        let mut state = CalendarState::new(None);
+        state.config.upsert(Account {
+            email: "me@acme.com".into(),
+            refresh_token: "t".into(),
+            calendars: Vec::new(),
+            needs_sign_in: false,
+        });
+        let work = state
+            .config
+            .add_link("Work", "https://example.com/w.ics", None)
+            .unwrap()
+            .calendar
+            .id
+            .clone();
+        let home = state
+            .config
+            .add_link("Home", "https://example.com/h.ics", None)
+            .unwrap()
+            .calendar
+            .id
+            .clone();
+        state.cache.events = vec![
+            event("me@acme.com", "me@acme.com", "Account meeting"),
+            event("", &work, "Old work"),
+            event("", &home, "Old home"),
+        ];
+        // No OAuth client, so the account was skipped; the work link answered, the home one failed.
+        state.fetched(
+            day(1),
+            day(31),
+            Vec::new(),
+            vec![
+                (work.clone(), Ok(vec![event("", &work, "New work")])),
+                (
+                    home.clone(),
+                    Err(Error::Link("the calendar link answered 500".into())),
+                ),
+            ],
+        );
+        assert_eq!(titles(&state), vec!["Account meeting", "New work", "Old home"]);
+        assert_eq!(
+            state.error.as_deref(),
+            Some("Home: the calendar link answered 500")
+        );
+    }
 
     #[test]
     fn errors_read_as_sentences() {
