@@ -19,6 +19,7 @@ starts; move it to `tasks/done` when shipped.
 | 0012 | [macOS and Linux](tasks/done/0012-macos-and-linux.md) | The same board on the Mac and the Linux machine |
 | 0013 | [Data folder outside AppData](tasks/done/0013-data-outside-appdata.md) | Claude desktop's sandbox must not hide tasks from Falog |
 | 0014 | [Google Calendar through secret iCal links](tasks/done/0014-ical-links.md) | Connect a calendar by pasting a link instead of creating an OAuth client |
+| 0015 | [Calendars by area, events by voice](tasks/doing/0015-calendar-areas-and-events.md) | Which meetings belong to which job, and booking them through the assistant |
 
 Later, unordered: tags/labels, manual ordering within a column, weekly report export (Markdown),
 undo for destructive actions, signed macOS builds and Linux packages (Flatpak, `.deb`).
