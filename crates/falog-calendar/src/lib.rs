@@ -7,6 +7,7 @@
 
 
 mod error;
+pub mod layout;
 pub mod model;
 mod url;
 
