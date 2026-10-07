@@ -2,6 +2,7 @@
 //! Keeping UI code side-effect free avoids borrowing the app mutably while rendering it.
 
 use crate::calendar::CalendarMode;
+use crate::overlays::settings::SettingsTab;
 use crate::theme::ThemeMode;
 use crate::views::View;
 use falog_core::domain::{AreaId, Status, TaskId};
@@ -20,6 +21,7 @@ pub enum Action {
     OpenTaskFinder,
     ManageAreas,
     OpenSettings,
+    OpenSettingsTab(SettingsTab),
     SetTheme(ThemeMode),
     Reload,
     ToggleAssistant,

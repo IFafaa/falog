@@ -71,7 +71,7 @@ src/
   components/    reusable widgets (buttons, chips, modal, pickers, switch, text helpers)
   workspace/     window chrome: sidebar, tab bar, toolbar, status bar, task panel
   views/         board, list, focus, calendar (+ ViewCx, SortOrder)
-  overlays/      command palette, areas, settings, confirm
+  overlays/      command palette, areas, settings/ (one page per tab), confirm
   platform/      autostart (registry, LaunchAgent, XDG autostart), single instance (loopback port),
                  title bar colors (DWM), regional format, reveal in Explorer/Finder/Files
 ```

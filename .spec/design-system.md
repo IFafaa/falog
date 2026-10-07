@@ -89,7 +89,7 @@ burn mode; the tooltip says why it is unavailable), "Ultracode" in `text_placeho
 agents with a tooltip on why it is off, and on the right the context ring and icon-only Send or
 Stop (tooltips "Send (Enter)", "Stop"). The context ring is 13 px across: a 2 px `border_variant`
 track filled clockwise from twelve o'clock in `text_muted`, `warning` from 70 % and `error` from
-90 %; its tooltip reads "Context: 12.4k of 200k tokens (6%)". Settings › Agents lists the agents one per line (name, command line in monospace `text_muted`,
+90 %; its tooltip reads "Context: 12.4k of 200k tokens (6%)". Settings › Assistant lists the agents one per line (name, command line in monospace `text_muted`,
 `Installed` in `success` or `Not found` in `text_placeholder` with the setup hint on hover, a trash
 button for custom ones); "Add agent" opens a bordered form (name, command, environment).
 Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
@@ -132,6 +132,14 @@ Edit the SVGs, never the generated files, then run
 `cargo run --release --manifest-path tools/icon/Cargo.toml` and check `docs/icon-preview.png` (dark and
 light taskbar backgrounds, 16/24/32 px magnified). A change to the master's geometry goes to the hinted
 copies too. On Linux, install the PNGs and the SVG into the `hicolor` theme and use `Icon=falog`.
+
+### Settings
+
+A 780 × 520 modal with a 184 px `panel` column of pages on the left (General, Appearance, Assistant,
+Voice, Calendar, Data; icon + label rows of 30 px, `ghost_selected` for the open page) and the page on
+the right: its title in SemiBold 16, then rows of title, description in `text_muted` and the control on
+the right. Each page is one function in `overlays/settings/` (Calendar in its own file).
+`Action::OpenSettingsTab` opens a given page, as the calendar's "Set up" does.
 
 ## Rules
 

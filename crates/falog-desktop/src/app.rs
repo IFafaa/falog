@@ -6,7 +6,7 @@ use crate::calendar::CalendarState;
 use crate::overlays::areas::{AreaEvent, AreasDialog};
 use crate::overlays::command_palette::{CommandPalette, Mode, Outcome};
 use crate::overlays::confirm::{Answer, Confirm};
-use crate::overlays::settings::{SettingsDialog, SettingsEvent};
+use crate::overlays::settings::{SettingsDialog, SettingsEvent, SettingsTab};
 use crate::platform::{autostart, title_bar};
 use crate::prefs::Prefs;
 use crate::theme::{self, Theme};
@@ -366,16 +366,8 @@ impl FalogApp {
             Action::OpenCommandPalette => self.palette = Some(CommandPalette::new(Mode::Commands)),
             Action::OpenTaskFinder => self.palette = Some(CommandPalette::new(Mode::Tasks)),
             Action::ManageAreas => self.areas_dialog = Some(AreasDialog::new(self.areas.len())),
-            Action::OpenSettings => {
-                let path = self.store.as_ref().ok().and_then(Store::path);
-                let agents = self.assistant.custom_agents().to_vec();
-                self.settings = Some(SettingsDialog::new(
-                    autostart::is_enabled(),
-                    path,
-                    agents,
-                    &self.calendar.config.client,
-                ));
-            }
+            Action::OpenSettings => self.open_settings(SettingsTab::General),
+            Action::OpenSettingsTab(tab) => self.open_settings(tab),
             Action::SetTheme(mode) => {
                 self.prefs.theme = mode;
                 theme::set_mode(ctx, mode);
@@ -412,12 +404,25 @@ impl FalogApp {
         }
     }
 
+    fn open_settings(&mut self, tab: SettingsTab) {
+        let path = self.store.as_ref().ok().and_then(Store::path);
+        let agents = self.assistant.custom_agents().to_vec();
+        let mut dialog = SettingsDialog::new(
+            autostart::is_enabled(),
+            path,
+            agents,
+            &self.calendar.config.client,
+        );
+        dialog.tab = tab;
+        self.settings = Some(dialog);
+    }
+
     fn connect_google(&mut self, ctx: &egui::Context) {
         if self.calendar.has_client() {
             self.calendar.connect();
         } else {
             self.notify("Add your Google OAuth client in Settings first", ToastKind::Error);
-            self.apply(ctx, Action::OpenSettings);
+            self.apply(ctx, Action::OpenSettingsTab(SettingsTab::Calendar));
         }
     }
 

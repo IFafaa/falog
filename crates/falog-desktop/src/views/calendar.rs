@@ -7,6 +7,7 @@ use crate::calendar::{CalendarMode, CalendarState, Selected};
 use crate::components::{ButtonStyle, button, icon_button, segmented, single_line};
 use crate::fonts;
 use crate::icons::Icon;
+use crate::overlays::settings::SettingsTab;
 use crate::theme::{self, Theme};
 use chrono::{Datelike, Days, Local, Months, NaiveDate, Timelike, Weekday};
 use eframe::egui::{
@@ -212,7 +213,7 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if !cal.has_client() {
                         if button(ui, ButtonStyle::Accent, Some(Icon::Settings), "Set up").clicked() {
-                            actions.push(Action::OpenSettings);
+                            actions.push(Action::OpenSettingsTab(SettingsTab::Calendar));
                         }
                     } else if cal.is_connecting() {
                         if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {

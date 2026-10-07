@@ -62,7 +62,7 @@ Falog runs on Windows, macOS and Linux. Every platform needs [Rust](https://rust
 the assistant dock uses [Claude Code](https://claude.com/claude-code), signed in with `claude` once.
 It can also talk to any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com):
 Claude through its ACP adapter (Node.js 22+), [Gemini CLI](https://github.com/google-gemini/gemini-cli)
-and Codex are built in, and Settings › Agents adds your own (name, command, environment). Each one runs
+and Codex are built in, and Settings › Assistant adds your own (name, command, environment). Each one runs
 on your own login or subscription.
 Voice input compiles whisper.cpp, which needs CMake and libclang at build time; when they are missing
 the installers build Falog without voice.
