@@ -229,9 +229,17 @@ impl Transcriber {
     }
 }
 
+/// Encoder frames for a clip: 50 per second, 50% headroom, never above the 30 s window.
+#[cfg_attr(not(feature = "whisper"), allow(dead_code))]
+fn audio_context(samples: usize) -> i32 {
+    let seconds = samples as f32 / SAMPLE_RATE as f32;
+    ((seconds * 50.0 * 1.5) as i32 + 128).min(1500)
+}
+
 /// Whisper itself, behind the `whisper` feature so the app also builds without LLVM.
 #[cfg(feature = "whisper")]
 mod engine {
+    use super::audio_context;
     use std::path::Path;
     use std::thread;
     use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
@@ -264,6 +272,11 @@ mod engine {
         params.set_language(Some(language));
         let threads = thread::available_parallelism().map_or(4, |n| n.get()).min(8);
         params.set_n_threads(threads as i32);
+        // The encoder always works on a 30 s window (1500 frames). Shrinking it to the clip length
+        // (plus headroom) is the biggest speedup for short dictations.
+        params.set_audio_ctx(audio_context(audio.len()));
+        // Dictations are short: one segment avoids repeated trailing phrases.
+        params.set_single_segment(true);
         params.set_no_timestamps(true);
         params.set_suppress_blank(true);
         params.set_print_progress(false);
@@ -400,6 +413,12 @@ mod tests {
         assert_eq!(out, vec![0.0, 0.0]);
         let up = resample(&[0.0, 1.0], 1, 2);
         assert_eq!(up, vec![0.0, 0.5, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn audio_context_follows_clip_length() {
+        assert_eq!(audio_context(5 * SAMPLE_RATE as usize), 503);
+        assert_eq!(audio_context(60 * SAMPLE_RATE as usize), 1500);
     }
 
     #[test]
