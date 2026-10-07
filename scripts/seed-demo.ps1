@@ -47,4 +47,55 @@ $requests = foreach ($call in $calls) {
 $requests | & "$root\target\debug\falog-mcp.exe" | ForEach-Object {
     ($_ | ConvertFrom-Json).result.content[0].text
 }
+# Sample Google Calendar data next to the database, as if two accounts were connected. With no
+# OAuth client configured Falog never goes online for it, so the calendar shows exactly this.
+$calendarDir = Join-Path (Split-Path $Database) 'calendar'
+New-Item -ItemType Directory -Force $calendarDir | Out-Null
+$monday = (Get-Date).Date.AddDays(-(((Get-Date).DayOfWeek.value__ + 6) % 7))
+function At([int]$day, [string]$time) { $monday.AddDays($day).ToString('yyyy-MM-dd') + "T${time}:00" }
+function Date([int]$day) { $monday.AddDays($day).ToString('yyyy-MM-dd') }
+$calendars = @{
+    work = @{ id = 'me@acme.example'; name = 'Acme'; color = '#9fe1e7'; primary = $true; visible = $true }
+    team = @{ id = 'team@acme.example'; name = 'Mobile team'; color = '#f691b2'; primary = $false; visible = $true }
+    home = @{ id = 'me@gmail.example'; name = 'Personal'; color = '#7bd148'; primary = $true; visible = $true }
+}
+$accounts = @(
+    @{ email = 'me@acme.example'; refresh_token = 'demo'; calendars = @($calendars.work, $calendars.team) },
+    @{ email = 'me@gmail.example'; refresh_token = 'demo'; calendars = @($calendars.home) }
+)
+$n = 0
+function Meeting($calendar, [string]$title, $start, $end, [string]$link = $null, [string]$location = '') {
+    $script:n++
+    $account = if ($calendar.id -like '*gmail*') { 'me@gmail.example' } else { 'me@acme.example' }
+    $kind = if ($start -match 'T') { 'At' } else { 'Date' }
+    @{
+        account = $account; calendar_id = $calendar.id; id = "demo$script:n"; ical_uid = "demo$script:n@example"
+        title = $title; start = @{ $kind = $start }; end = @{ $kind = $end }
+        location = $location; description = ''; join_link = $link; html_link = $null
+    }
+}
+$meet = 'https://meet.google.com/abc-defg-hij'
+$events = @(
+    (Meeting $calendars.work 'Daily standup' (At 0 '09:30') (At 0 '09:45') $meet),
+    (Meeting $calendars.work 'Daily standup' (At 1 '09:30') (At 1 '09:45') $meet),
+    (Meeting $calendars.work 'Daily standup' (At 2 '09:30') (At 2 '09:45') $meet),
+    (Meeting $calendars.work 'Daily standup' (At 3 '09:30') (At 3 '09:45') $meet),
+    (Meeting $calendars.work 'Daily standup' (At 4 '09:30') (At 4 '09:45') $meet),
+    (Meeting $calendars.team 'Sprint planning' (At 0 '10:00') (At 0 '11:30') $meet),
+    (Meeting $calendars.work 'Payments review with Carlos' (At 1 '14:00') (At 1 '15:00') $meet),
+    (Meeting $calendars.team 'Design sync: new navbar' (At 1 '14:30') (At 1 '15:30') $meet),
+    (Meeting $calendars.work '1:1 with Ana' (At 2 '11:00') (At 2 '11:30') $meet),
+    (Meeting $calendars.home 'Dentist' (At 3 '15:00') (At 3 '16:00') $null 'Rua Augusta, 1200'),
+    (Meeting $calendars.team 'Release 4.2 go/no-go' (At 3 '17:00') (At 3 '17:30') $meet),
+    (Meeting $calendars.work 'Architecture guild' (At 4 '16:00') (At 4 '17:30') $meet),
+    (Meeting $calendars.home 'Gym' (At 4 '19:00') (At 4 '20:00')),
+    (Meeting $calendars.team 'Mobile offsite' (Date 2) (Date 4)),
+    (Meeting $calendars.home 'Mom''s birthday' (Date 5) (Date 6))
+)
+$cache = @{ from = (Date -35); to = (Date 42); events = $events }
+$config = @{ client = @{ id = ''; secret = '' }; accounts = $accounts }
+$utf8 = [Text.UTF8Encoding]::new($false)
+[IO.File]::WriteAllText((Join-Path $calendarDir 'google.json'), ($config | ConvertTo-Json -Depth 6), $utf8)
+[IO.File]::WriteAllText((Join-Path $calendarDir 'events.json'), ($cache | ConvertTo-Json -Depth 6), $utf8)
+
 Write-Host "`nDemo database: $Database"
