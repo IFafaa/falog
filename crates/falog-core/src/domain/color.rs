@@ -22,7 +22,7 @@ impl Rgb {
     }
 }
 
-/// Default company colors: the player colors of Zed's One Dark theme.
+/// Default area colors: the player colors of Zed's One Dark theme.
 pub const PALETTE: [Rgb; 8] = [
     Rgb::from_u32(0x74ade8),
     Rgb::from_u32(0xbf956a),

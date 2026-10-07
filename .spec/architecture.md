@@ -26,8 +26,8 @@ Dependencies point inward only: the binaries depend on `falog-core`, never on ea
 
 ```
 src/
-  domain/      entities and value types (Task, Company, Note, Status, Priority, Rgb, ids)
-  store/       Store (connection) + one file per aggregate: tasks, companies, notes, schema
+  domain/      entities and value types (Task, Area, Note, Status, Priority, Rgb, ids)
+  store/       Store (connection) + one file per aggregate: tasks, areas, notes, schema
   date.rs      today/now, natural-language due dates, urgency and formatting
   agenda.rs    buckets, sorting, summaries
   text.rs      accent/case-insensitive matching

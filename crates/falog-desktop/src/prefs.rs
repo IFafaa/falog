@@ -2,7 +2,7 @@ use crate::assistant::voice::VoiceLanguage;
 use crate::assistant::{AssistantModel, AssistantOptions};
 use crate::theme::ThemeMode;
 use crate::views::{SortOrder, View};
-use falog_core::domain::CompanyId;
+use falog_core::domain::AreaId;
 use serde::{Deserialize, Serialize};
 
 /// UI preferences persisted by eframe between runs.
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct Prefs {
     pub view: View,
-    pub company: Option<CompanyId>,
+    pub company: Option<AreaId>,
     pub sort: SortOrder,
     pub theme: ThemeMode,
     pub sidebar_open: bool,

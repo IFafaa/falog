@@ -13,7 +13,7 @@ use eframe::egui::{
     Stroke, TextEdit, Ui, pos2, vec2,
 };
 use falog_core::date;
-use falog_core::domain::{Company, CompanyId, NewTask, Note, NoteId, Priority, Status, Task, TaskId};
+use falog_core::domain::{Area, AreaId, NewTask, Note, NoteId, Priority, Status, Task, TaskId};
 
 const LABEL_WIDTH: f32 = 104.0;
 const TITLE_ID: &str = "task-panel-title";
@@ -23,7 +23,7 @@ const TITLE_ID: &str = "task-panel-title";
 pub struct Draft {
     pub title: String,
     pub description: String,
-    pub company_id: Option<CompanyId>,
+    pub company_id: Option<AreaId>,
     pub status: Status,
     pub priority: Priority,
     /// Free text; parsed with [`date::parse_due`] on save.
@@ -36,7 +36,7 @@ impl Draft {
         Self {
             title: task.title.clone(),
             description: task.description.clone(),
-            company_id: task.company_id(),
+            company_id: task.area_id(),
             status: task.status,
             priority: task.priority,
             due: task
@@ -59,7 +59,7 @@ impl Draft {
         Ok(NewTask {
             title: self.title.clone(),
             description: self.description.clone(),
-            company_id: self.company_id,
+            area_id: self.company_id,
             status: self.status,
             priority: self.priority,
             due,
@@ -82,7 +82,7 @@ pub struct TaskPanel {
 }
 
 impl TaskPanel {
-    pub fn new(company_id: Option<CompanyId>, status: Status) -> Self {
+    pub fn new(company_id: Option<AreaId>, status: Status) -> Self {
         let draft = Draft {
             company_id,
             status,
@@ -140,7 +140,7 @@ pub fn show(
     ctx: &egui::Context,
     theme: &Theme,
     panel: &mut TaskPanel,
-    companies: &[Company],
+    companies: &[Area],
     today: NaiveDate,
 ) -> Vec<PanelEvent> {
     let mut events = Vec::new();
@@ -199,7 +199,7 @@ fn body(
     ui: &mut Ui,
     theme: &Theme,
     panel: &mut TaskPanel,
-    companies: &[Company],
+    companies: &[Area],
     today: NaiveDate,
     events: &mut Vec<PanelEvent>,
 ) {

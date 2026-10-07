@@ -18,7 +18,7 @@ pub fn task_line(task: &Task, today: NaiveDate) -> String {
     format!(
         "#{} [{}] {} — {}",
         task.id,
-        task.company_name(),
+        task.area_name(),
         task.title,
         facts.join(" · ")
     )
@@ -29,7 +29,7 @@ pub fn task_details(task: &Task, notes: &[Note], today: NaiveDate) -> String {
         format!("#{} {}", task.id, task.title),
         format!(
             "Company: {} | Status: {} | Priority: {}",
-            task.company_name(),
+            task.area_name(),
             task.status,
             task.priority
         ),
@@ -69,12 +69,9 @@ pub fn agenda(tasks: &[Task], today: NaiveDate) -> String {
 
     let mut per_company: Vec<(&str, usize)> = Vec::new();
     for task in tasks.iter().filter(|t| t.is_open()) {
-        match per_company
-            .iter_mut()
-            .find(|(name, _)| *name == task.company_name())
-        {
+        match per_company.iter_mut().find(|(name, _)| *name == task.area_name()) {
             Some((_, count)) => *count += 1,
-            None => per_company.push((task.company_name(), 1)),
+            None => per_company.push((task.area_name(), 1)),
         }
     }
     per_company.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
@@ -108,7 +105,7 @@ pub fn agenda(tasks: &[Task], today: NaiveDate) -> String {
             out.push_str(&format!(
                 "- #{} [{}] {} — completed {on}\n",
                 task.id,
-                task.company_name(),
+                task.area_name(),
                 task.title
             ));
         }

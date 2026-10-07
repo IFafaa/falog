@@ -166,7 +166,7 @@ mod tests {
             id: TaskId(id),
             title: format!("task {id}"),
             description: String::new(),
-            company: None,
+            area: None,
             status,
             priority,
             due,

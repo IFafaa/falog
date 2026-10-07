@@ -9,7 +9,7 @@ use eframe::egui::{
     self, Color32, CursorIcon, FontId, Id, Key, Margin, Modifiers, Rect, ScrollArea, Sense, Stroke, TextEdit,
     Ui, pos2, vec2,
 };
-use falog_core::domain::{Company, Status, Task};
+use falog_core::domain::{Area, Status, Task};
 use falog_core::text::fuzzy_contains;
 
 const WIDTH: f32 = 560.0;
@@ -57,7 +57,7 @@ impl CommandPalette {
         }
     }
 
-    pub fn show(&mut self, ctx: &egui::Context, tasks: &[Task], companies: &[Company]) -> Outcome {
+    pub fn show(&mut self, ctx: &egui::Context, tasks: &[Task], companies: &[Area]) -> Outcome {
         let theme = Theme::current(ctx);
         let items = match self.mode {
             Mode::Commands => self.commands(theme, companies),
@@ -163,7 +163,7 @@ impl CommandPalette {
         clicked
     }
 
-    fn commands(&self, theme: &Theme, companies: &[Company]) -> Vec<Item> {
+    fn commands(&self, theme: &Theme, companies: &[Area]) -> Vec<Item> {
         let command = |icon: Icon, label: String, keys: Option<&'static str>, action: Action| Item {
             icon,
             icon_color: theme.icon_muted,
@@ -285,7 +285,7 @@ impl CommandPalette {
                 icon: Icon::for_status(task.status),
                 icon_color: theme.status_color(task.status),
                 label: format!("#{}  {}", task.id, task.title),
-                detail: Some(task.company_name().to_owned()),
+                detail: Some(task.area_name().to_owned()),
                 keys: None,
                 action: Action::OpenTask(task.id),
             })

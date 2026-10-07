@@ -10,7 +10,7 @@ use eframe::egui::{
     self, Align, Align2, Color32, CursorIcon, FontId, Frame, Layout, Margin, Rect, Response, RichText,
     ScrollArea, Sense, SidePanel, Stroke, Ui, pos2, vec2,
 };
-use falog_core::domain::{Company, CompanyId, Task};
+use falog_core::domain::{Area, AreaId, Task};
 
 const ROW_HEIGHT: f32 = 26.0;
 
@@ -18,8 +18,8 @@ pub fn show(
     ctx: &egui::Context,
     theme: &Theme,
     tasks: &[Task],
-    companies: &[Company],
-    selected: Option<CompanyId>,
+    companies: &[Area],
+    selected: Option<AreaId>,
     actions: &mut Actions,
 ) {
     SidePanel::left("sidebar")
@@ -29,10 +29,10 @@ pub fn show(
         .frame(Frame::none().fill(theme.panel))
         .show(ctx, |ui| {
             header(ui, theme, actions);
-            let open = |company: Option<CompanyId>| {
+            let open = |company: Option<AreaId>| {
                 tasks
                     .iter()
-                    .filter(|t| t.is_open() && (company.is_none() || t.company_id() == company))
+                    .filter(|t| t.is_open() && (company.is_none() || t.area_id() == company))
                     .count()
             };
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {

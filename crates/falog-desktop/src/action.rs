@@ -3,7 +3,7 @@
 
 use crate::theme::ThemeMode;
 use crate::views::View;
-use falog_core::domain::{CompanyId, Status, TaskId};
+use falog_core::domain::{AreaId, Status, TaskId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
@@ -12,7 +12,7 @@ pub enum Action {
     MoveTask(TaskId, Status),
     DeleteTask(TaskId),
     SetView(View),
-    FilterCompany(Option<CompanyId>),
+    FilterCompany(Option<AreaId>),
     ToggleSidebar,
     FocusSearch,
     OpenCommandPalette,

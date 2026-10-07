@@ -9,7 +9,7 @@ use crate::prefs::Prefs;
 use crate::theme::Theme;
 use chrono::NaiveDate;
 use falog_core::agenda::{by_urgency, cmp_due};
-use falog_core::domain::{Company, Task, TaskId};
+use falog_core::domain::{Area, Task, TaskId};
 use falog_core::text::fold;
 use serde::{Deserialize, Serialize};
 
@@ -75,8 +75,8 @@ impl SortOrder {
             Self::Urgency => tasks.sort_by(|a, b| by_urgency(a, b)),
             Self::DueDate => tasks.sort_by(|a, b| cmp_due(a.due, b.due).then_with(|| by_urgency(a, b))),
             Self::Company => tasks.sort_by(|a, b| {
-                fold(a.company_name())
-                    .cmp(&fold(b.company_name()))
+                fold(a.area_name())
+                    .cmp(&fold(b.area_name()))
                     .then_with(|| by_urgency(a, b))
             }),
             Self::Newest => tasks.sort_by_key(|t| std::cmp::Reverse(t.id)),
@@ -91,7 +91,7 @@ pub struct ViewCx<'a> {
     pub today: NaiveDate,
     /// Tasks after the company filter and search.
     pub tasks: &'a [Task],
-    pub companies: &'a [Company],
+    pub companies: &'a [Area],
     pub prefs: &'a Prefs,
     /// The task open in the side panel.
     pub selected: Option<TaskId>,

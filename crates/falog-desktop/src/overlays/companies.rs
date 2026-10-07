@@ -2,19 +2,19 @@ use crate::components::{ButtonStyle, Placement, button, icon_button, modal, moda
 use crate::icons::Icon;
 use crate::theme::Theme;
 use eframe::egui::{self, Align, Frame, Key, Layout, Margin, RichText, TextEdit, Ui};
-use falog_core::domain::{Company, CompanyId, PALETTE, Rgb};
+use falog_core::domain::{Area, AreaId, PALETTE, Rgb};
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum CompanyEvent {
     Create { name: String, color: Rgb },
-    Update { id: CompanyId, name: String, color: Rgb },
-    Delete { id: CompanyId, name: String },
+    Update { id: AreaId, name: String, color: Rgb },
+    Delete { id: AreaId, name: String },
 }
 
 #[derive(Debug)]
 pub struct CompaniesDialog {
-    edits: HashMap<CompanyId, (String, [u8; 3])>,
+    edits: HashMap<AreaId, (String, [u8; 3])>,
     new_name: String,
     new_color: [u8; 3],
 }
@@ -34,12 +34,12 @@ impl CompaniesDialog {
         self.new_color = PALETTE[existing % PALETTE.len()].0;
     }
 
-    pub fn forget(&mut self, id: CompanyId) {
+    pub fn forget(&mut self, id: AreaId) {
         self.edits.remove(&id);
     }
 
     /// Returns the requested changes and whether the dialog should close.
-    pub fn show(&mut self, ctx: &egui::Context, companies: &[Company]) -> (Vec<CompanyEvent>, bool) {
+    pub fn show(&mut self, ctx: &egui::Context, companies: &[Area]) -> (Vec<CompanyEvent>, bool) {
         let theme = Theme::current(ctx);
         let mut events = Vec::new();
         let (closed, dismissed) = modal(ctx, "companies", 460.0, Placement::Center, |ui| {
@@ -68,7 +68,7 @@ impl CompaniesDialog {
         (events, closed || dismissed)
     }
 
-    fn company_row(&mut self, ui: &mut Ui, company: &Company, events: &mut Vec<CompanyEvent>) {
+    fn company_row(&mut self, ui: &mut Ui, company: &Area, events: &mut Vec<CompanyEvent>) {
         let (name, color) = self
             .edits
             .entry(company.id)

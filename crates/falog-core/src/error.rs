@@ -12,14 +12,14 @@ pub enum Error {
     #[error("task #{0} not found")]
     TaskNotFound(TaskId),
 
-    #[error("company \"{query}\" not found{}", known_companies(.known))]
-    CompanyNotFound { query: String, known: Vec<String> },
+    #[error("area \"{query}\" not found{}", known_areas(.known))]
+    AreaNotFound { query: String, known: Vec<String> },
 
-    #[error("\"{query}\" matches more than one company: {}", .candidates.join(", "))]
-    AmbiguousCompany { query: String, candidates: Vec<String> },
+    #[error("\"{query}\" matches more than one area: {}", .candidates.join(", "))]
+    AmbiguousArea { query: String, candidates: Vec<String> },
 
-    #[error("company \"{0}\" already exists")]
-    DuplicateCompany(String),
+    #[error("area \"{0}\" already exists")]
+    DuplicateArea(String),
 
     #[error("could not create the data directory {path}: {source}")]
     DataDir {
@@ -38,10 +38,10 @@ impl Error {
     }
 }
 
-fn known_companies(known: &[String]) -> String {
+fn known_areas(known: &[String]) -> String {
     if known.is_empty() {
-        " (no companies registered yet)".to_string()
+        " (no areas registered yet)".to_string()
     } else {
-        format!("; registered companies: {}", known.join(", "))
+        format!("; registered areas: {}", known.join(", "))
     }
 }

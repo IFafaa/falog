@@ -116,7 +116,7 @@ fn company_chips(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
             let open = cx
                 .tasks
                 .iter()
-                .filter(|t| t.is_open() && t.company_id() == Some(company.id))
+                .filter(|t| t.is_open() && t.area_id() == Some(company.id))
                 .count();
             if open == 0 {
                 continue;
@@ -215,9 +215,9 @@ fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
     if task.priority != Priority::Medium {
         detail(task.priority.label(), theme.priority_color(task.priority));
     }
-    detail(task.company_name(), theme.text_muted);
+    detail(task.area_name(), theme.text_muted);
     let company_color = task
-        .company
+        .area
         .as_ref()
         .map_or(theme.text_placeholder, |c| theme::color(c.color));
     ui.painter()

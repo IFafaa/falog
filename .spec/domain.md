@@ -9,7 +9,7 @@
 | `id` | `TaskId` | Assigned by SQLite, shown as `#12` |
 | `title` | text | Required, trimmed; short and actionable |
 | `description` | text | Full context; may be long |
-| `company` | `Option<Company>` | Deleting a company keeps its tasks with no company |
+| `area` | `Option<Area>` | Deleting an area keeps its tasks with no area |
 | `status` | `Status` | Default `todo` |
 | `priority` | `Priority` | Default `medium` |
 | `due` | `Option<NaiveDate>` | Local calendar date, no time |
@@ -18,10 +18,11 @@
 | `created_at`, `updated_at` | local datetime | `updated_at` also bumps when a note is added |
 | `completed_at` | `Option` | Set when moving into `done`, cleared when moving out |
 
-### Company
+### Area
 
-`id`, `name` (unique, compared ignoring case **and** accents), `color` (`#rrggbb`). New companies take
-the next color of `PALETTE` (Zed's player colors).
+A sphere of the user's life a task belongs to: an employer, a client, "Personal", "Health"...
+`id`, `name` (unique, compared ignoring case **and** accents), `color` (`#rrggbb`). New areas take the
+next color of `PALETTE` (Zed's player colors). Areas were called companies until migration 2.
 
 ### Note
 
@@ -73,6 +74,6 @@ Within a bucket: priority (highest first), then due date, then id. Overdue sorts
 
 ## Matching
 
-`text::fold` lowercases and strips diacritics. Company lookup (`Store::find_company`) accepts an exact
-folded name or a fragment matching exactly one company; otherwise it fails listing the candidates.
-Task search (`Task::matches`) checks `#id`, title, description, requester and company name.
+`text::fold` lowercases and strips diacritics. Area lookup (`Store::find_area`) accepts an exact folded
+name or a fragment matching exactly one area; otherwise it fails listing the candidates.
+Task search (`Task::matches`) checks `#id`, title, description, requester and area name.

@@ -18,7 +18,7 @@ use crate::workspace::{sidebar, tab_bar, toolbar};
 use crate::{fonts, icons::Icon};
 use chrono::NaiveDate;
 use eframe::egui::{self, Frame, Id, Key, Margin, Modifiers, RichText, ViewportCommand};
-use falog_core::domain::{Company, Status, Task, TaskId, TaskPatch};
+use falog_core::domain::{Area, Status, Task, TaskId, TaskPatch};
 use falog_core::{Store, agenda, date};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -32,7 +32,7 @@ const TOAST_DURATION: Duration = Duration::from_secs(5);
 pub struct FalogApp {
     store: Result<Store, String>,
     tasks: Vec<Task>,
-    companies: Vec<Company>,
+    companies: Vec<Area>,
     data_version: i64,
     last_poll: Instant,
     today: NaiveDate,
@@ -95,7 +95,7 @@ impl FalogApp {
 
     fn reload(&mut self) {
         let Ok(store) = &self.store else { return };
-        let loaded = store.tasks().and_then(|tasks| Ok((tasks, store.companies()?)));
+        let loaded = store.tasks().and_then(|tasks| Ok((tasks, store.areas()?)));
         self.data_version = store.data_version().unwrap_or_default();
         match loaded {
             Ok((tasks, companies)) => {
@@ -170,7 +170,7 @@ impl FalogApp {
     fn visible_tasks(&self) -> Vec<Task> {
         self.tasks
             .iter()
-            .filter(|t| self.prefs.company.is_none() || t.company_id() == self.prefs.company)
+            .filter(|t| self.prefs.company.is_none() || t.area_id() == self.prefs.company)
             .filter(|t| t.matches(&self.search))
             .cloned()
             .collect()
@@ -454,7 +454,7 @@ impl FalogApp {
         for event in events {
             match event {
                 CompanyEvent::Create { name, color } => {
-                    if let Some(company) = self.write(|store| store.create_company(&name, Some(color))) {
+                    if let Some(company) = self.write(|store| store.create_area(&name, Some(color))) {
                         self.notify(format!("Added {}", company.name), ToastKind::Success);
                         let count = self.companies.len();
                         if let Some(dialog) = &mut self.companies_dialog {
@@ -463,7 +463,7 @@ impl FalogApp {
                     }
                 }
                 CompanyEvent::Update { id, name, color } => {
-                    if let Some(company) = self.write(|store| store.update_company(id, &name, color)) {
+                    if let Some(company) = self.write(|store| store.update_area(id, &name, color)) {
                         self.notify(format!("Saved {}", company.name), ToastKind::Success);
                         if let Some(dialog) = &mut self.companies_dialog {
                             dialog.forget(id);
@@ -514,7 +514,7 @@ impl FalogApp {
                 }
             }
             Confirm::DeleteCompany { id, name } => {
-                if self.write(|store| store.delete_company(id)).is_some() {
+                if self.write(|store| store.delete_area(id)).is_some() {
                     self.notify(format!("Deleted {name}"), ToastKind::Success);
                     if let Some(dialog) = &mut self.companies_dialog {
                         dialog.forget(id);

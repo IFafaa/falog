@@ -178,14 +178,14 @@ fn row(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns, task: &Task, actions: &m
     );
 
     let company_color = task
-        .company
+        .area
         .as_ref()
         .map_or(theme.text_placeholder, |c| theme::color(c.color));
     ui.painter()
         .circle_filled(pos2(edges[3] + 10.0, y), 4.0, company_color);
     let galley = single_line(
         ui,
-        task.company_name(),
+        task.area_name(),
         FontId::proportional(13.0),
         theme.text_muted,
         columns.company - 28.0,

@@ -1,20 +1,20 @@
 use super::Store;
 use crate::date::now;
-use crate::domain::{Company, NewTask, Status, Task, TaskId, TaskPatch};
+use crate::domain::{Area, NewTask, Status, Task, TaskId, TaskPatch};
 use crate::{Error, Result};
 use rusqlite::{OptionalExtension, Row, params};
 
 const SELECT: &str = "
     SELECT t.id, t.title, t.description, t.status, t.priority, t.due_date, t.requester,
            t.created_at, t.updated_at, t.completed_at,
-           c.id, c.name, c.color,
+           a.id, a.name, a.color,
            (SELECT COUNT(*) FROM notes n WHERE n.task_id = t.id)
     FROM tasks t
-    LEFT JOIN areas c ON c.id = t.area_id";
+    LEFT JOIN areas a ON a.id = t.area_id";
 
 fn map_row(row: &Row<'_>) -> rusqlite::Result<Task> {
-    let company = match row.get(10)? {
-        Some(id) => Some(Company {
+    let area = match row.get(10)? {
+        Some(id) => Some(Area {
             id,
             name: row.get(11)?,
             color: row.get(12)?,
@@ -32,7 +32,7 @@ fn map_row(row: &Row<'_>) -> rusqlite::Result<Task> {
         created_at: row.get(7)?,
         updated_at: row.get(8)?,
         completed_at: row.get(9)?,
-        company,
+        area,
         note_count: row.get(13)?,
     })
 }
@@ -75,7 +75,7 @@ impl Store {
             params![
                 title,
                 new.description.trim(),
-                new.company_id,
+                new.area_id,
                 new.status,
                 new.priority,
                 new.due,
@@ -109,7 +109,7 @@ impl Store {
                     .as_deref()
                     .unwrap_or(&current.description)
                     .trim(),
-                patch.company_id.unwrap_or(current.company_id()),
+                patch.area_id.unwrap_or(current.area_id()),
                 status,
                 patch.priority.unwrap_or(current.priority),
                 patch.due.unwrap_or(current.due),
@@ -147,13 +147,13 @@ mod tests {
     #[test]
     fn creates_and_reads_back_all_fields() {
         let store = store();
-        let company = store.create_company("Acme", None).unwrap();
+        let area = store.create_area("Acme", None).unwrap();
         let due = NaiveDate::from_ymd_opt(2026, 10, 9);
         let task = store
             .create_task(&NewTask {
                 title: "  Fix login  ".into(),
                 description: "Android only".into(),
-                company_id: Some(company.id),
+                area_id: Some(area.id),
                 priority: Priority::High,
                 due,
                 requester: "Ana".into(),
@@ -161,7 +161,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(task.title, "Fix login");
-        assert_eq!(task.company, Some(company));
+        assert_eq!(task.area, Some(area));
         assert_eq!(task.priority, Priority::High);
         assert_eq!(task.due, due);
         assert_eq!(task.status, Status::Todo);
@@ -211,17 +211,17 @@ mod tests {
     }
 
     #[test]
-    fn deleting_a_company_keeps_its_tasks() {
+    fn deleting_a_area_keeps_its_tasks() {
         let store = store();
-        let company = store.create_company("Acme", None).unwrap();
+        let area = store.create_area("Acme", None).unwrap();
         let task = store
             .create_task(&NewTask {
-                company_id: Some(company.id),
+                area_id: Some(area.id),
                 ..NewTask::new("A")
             })
             .unwrap();
-        store.delete_company(company.id).unwrap();
-        assert_eq!(store.require_task(task.id).unwrap().company, None);
+        store.delete_area(area.id).unwrap();
+        assert_eq!(store.require_task(task.id).unwrap().area, None);
     }
 
     #[test]

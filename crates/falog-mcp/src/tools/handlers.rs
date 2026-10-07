@@ -38,7 +38,7 @@ fn get_agenda(store: &Store, args: AgendaArgs) -> Result<String> {
 }
 
 fn list_companies(store: &Store) -> Result<String> {
-    let companies = store.companies()?;
+    let companies = store.areas()?;
     if companies.is_empty() {
         return Ok(
             "No companies registered yet. Ask the user for their names and call create_company.".into(),
@@ -50,7 +50,7 @@ fn list_companies(store: &Store) -> Result<String> {
         .map(|c| {
             let open = tasks
                 .iter()
-                .filter(|t| t.is_open() && t.company_id() == Some(c.id))
+                .filter(|t| t.is_open() && t.area_id() == Some(c.id))
                 .count();
             format!("- {} ({open} open)", c.name)
         })
@@ -60,19 +60,19 @@ fn list_companies(store: &Store) -> Result<String> {
 
 fn create_company(store: &Store, args: CreateCompanyArgs) -> Result<String> {
     let color = args.color.as_deref().map(str::parse::<Rgb>).transpose()?;
-    let company = store.create_company(&args.name, color)?;
+    let company = store.create_area(&args.name, color)?;
     Ok(format!("Created company {} ({})", company.name, company.color))
 }
 
 fn create_task(store: &Store, args: CreateTaskArgs) -> Result<String> {
     let company_id = match non_empty(args.company) {
-        Some(name) => Some(store.find_company(&name)?.id),
+        Some(name) => Some(store.find_area(&name)?.id),
         None => None,
     };
     let task = store.create_task(&NewTask {
         title: args.title,
         description: args.description,
-        company_id,
+        area_id: company_id,
         status: parse_status(args.status)?.unwrap_or_default(),
         priority: parse_priority(args.priority)?.unwrap_or_default(),
         due: parse_due(args.due_date)?.flatten(),
@@ -86,12 +86,12 @@ fn update_task(store: &Store, args: UpdateTaskArgs) -> Result<String> {
     let company_id = match args.company {
         None => None,
         Some(name) if name.trim().is_empty() => Some(None),
-        Some(name) => Some(Some(store.find_company(&name)?.id)),
+        Some(name) => Some(Some(store.find_area(&name)?.id)),
     };
     let patch = TaskPatch {
         title: non_empty(args.title),
         description: args.description,
-        company_id,
+        area_id: company_id,
         status: parse_status(args.status)?,
         priority: parse_priority(args.priority)?,
         due: parse_due(args.due_date)?,
@@ -159,7 +159,7 @@ fn delete_task(store: &Store, args: TaskArgs) -> Result<String> {
     Ok(format!(
         "Deleted #{} [{}] {}",
         task.id,
-        task.company_name(),
+        task.area_name(),
         task.title
     ))
 }
@@ -168,8 +168,8 @@ fn delete_task(store: &Store, args: TaskArgs) -> Result<String> {
 fn tasks_of(store: &Store, company: Option<&str>) -> Result<Vec<Task>> {
     let mut tasks = store.tasks()?;
     if let Some(name) = company.filter(|c| !c.trim().is_empty()) {
-        let company = store.find_company(name)?;
-        tasks.retain(|t| t.company_id() == Some(company.id));
+        let company = store.find_area(name)?;
+        tasks.retain(|t| t.area_id() == Some(company.id));
     }
     Ok(tasks)
 }

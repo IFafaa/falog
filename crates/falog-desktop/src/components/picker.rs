@@ -1,14 +1,8 @@
 use crate::theme::{self, Theme};
 use eframe::egui::{ComboBox, RichText, Ui};
-use falog_core::domain::{Company, CompanyId, Priority, Status, UNASSIGNED};
+use falog_core::domain::{Area, AreaId, Priority, Status, UNASSIGNED};
 
-pub fn company_picker(
-    ui: &mut Ui,
-    id: &str,
-    value: &mut Option<CompanyId>,
-    companies: &[Company],
-    width: f32,
-) {
+pub fn company_picker(ui: &mut Ui, id: &str, value: &mut Option<AreaId>, companies: &[Area], width: f32) {
     let selected = value
         .and_then(|id| companies.iter().find(|c| c.id == id))
         .map_or(UNASSIGNED, |c| c.name.as_str());

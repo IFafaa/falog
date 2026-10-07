@@ -1,16 +1,16 @@
-use super::{Company, CompanyId, Priority, Status, TaskId};
+use super::{Area, AreaId, Priority, Status, TaskId};
 use crate::text::fuzzy_contains;
 use chrono::{NaiveDate, NaiveDateTime};
 
-/// Label shown for tasks that do not belong to any company.
-pub const UNASSIGNED: &str = "No company";
+/// Label shown for tasks that do not belong to any area.
+pub const UNASSIGNED: &str = "No area";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Task {
     pub id: TaskId,
     pub title: String,
     pub description: String,
-    pub company: Option<Company>,
+    pub area: Option<Area>,
     pub status: Status,
     pub priority: Priority,
     pub due: Option<NaiveDate>,
@@ -27,19 +27,19 @@ impl Task {
         self.status.is_open()
     }
 
-    pub fn company_id(&self) -> Option<CompanyId> {
-        self.company.as_ref().map(|c| c.id)
+    pub fn area_id(&self) -> Option<AreaId> {
+        self.area.as_ref().map(|a| a.id)
     }
 
-    pub fn company_name(&self) -> &str {
-        self.company.as_ref().map_or(UNASSIGNED, |c| c.name.as_str())
+    pub fn area_name(&self) -> &str {
+        self.area.as_ref().map_or(UNASSIGNED, |a| a.name.as_str())
     }
 
     pub fn completed_on(&self) -> Option<NaiveDate> {
         self.completed_at.map(|at| at.date())
     }
 
-    /// Free-text search over id, title, description, requester and company.
+    /// Free-text search over id, title, description, requester and area.
     pub fn matches(&self, query: &str) -> bool {
         let query = query.trim();
         query.is_empty()
@@ -47,7 +47,7 @@ impl Task {
             || [&self.title, &self.description, &self.requester]
                 .into_iter()
                 .any(|field| fuzzy_contains(field, query))
-            || fuzzy_contains(self.company_name(), query)
+            || fuzzy_contains(self.area_name(), query)
     }
 }
 
@@ -56,7 +56,7 @@ impl Task {
 pub struct NewTask {
     pub title: String,
     pub description: String,
-    pub company_id: Option<CompanyId>,
+    pub area_id: Option<AreaId>,
     pub status: Status,
     pub priority: Priority,
     pub due: Option<NaiveDate>,
@@ -78,7 +78,7 @@ impl NewTask {
 pub struct TaskPatch {
     pub title: Option<String>,
     pub description: Option<String>,
-    pub company_id: Option<Option<CompanyId>>,
+    pub area_id: Option<Option<AreaId>>,
     pub status: Option<Status>,
     pub priority: Option<Priority>,
     pub due: Option<Option<NaiveDate>>,
@@ -100,7 +100,7 @@ impl From<NewTask> for TaskPatch {
         Self {
             title: Some(task.title),
             description: Some(task.description),
-            company_id: Some(task.company_id),
+            area_id: Some(task.area_id),
             status: Some(task.status),
             priority: Some(task.priority),
             due: Some(task.due),

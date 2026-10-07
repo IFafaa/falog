@@ -32,7 +32,7 @@ macro_rules! id_type {
 }
 
 id_type!(TaskId);
-id_type!(CompanyId);
+id_type!(AreaId);
 id_type!(NoteId);
 
 impl FromStr for TaskId {

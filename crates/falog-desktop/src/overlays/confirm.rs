@@ -3,7 +3,7 @@ use crate::components::{ButtonStyle, Placement, button, modal};
 use crate::fonts;
 use crate::theme::Theme;
 use eframe::egui::{self, Align, Frame, Key, Layout, Margin, RichText};
-use falog_core::domain::{CompanyId, TaskId};
+use falog_core::domain::{AreaId, TaskId};
 
 /// A destructive or lossy operation waiting for confirmation.
 #[derive(Clone, Debug)]
@@ -13,7 +13,7 @@ pub enum Confirm {
         title: String,
     },
     DeleteCompany {
-        id: CompanyId,
+        id: AreaId,
         name: String,
     },
     /// Leave the task panel with unsaved edits, then run `then` (if any).

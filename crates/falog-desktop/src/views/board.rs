@@ -153,7 +153,7 @@ fn card(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut BoardState, task: &Task, actio
     let theme = cx.theme;
     let selected = cx.selected == Some(task.id);
     let company_color = task
-        .company
+        .area
         .as_ref()
         .map_or(theme.text_placeholder, |c| theme::color(c.color));
     let done = task.status == Status::Done;
@@ -175,11 +175,7 @@ fn card(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut BoardState, task: &Task, actio
             ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
             ui.horizontal(|ui| {
                 ui.add(Icon::Folder.image(12.0, company_color));
-                ui.label(
-                    RichText::new(task.company_name())
-                        .size(12.0)
-                        .color(theme.text_muted),
-                );
+                ui.label(RichText::new(task.area_name()).size(12.0).color(theme.text_muted));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
                         RichText::new(format!("#{}", task.id))
