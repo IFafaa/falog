@@ -1,6 +1,6 @@
 # 0006: Assistant panel with voice
 
-**Status:** doing
+**Status:** done
 **Area:** desktop
 
 ## Goal
@@ -37,14 +37,14 @@ Decisions (2026-10-06, with the user):
 
 ## Acceptance criteria
 
-- [ ] "Add a task for Globex to review the payments PR by friday" (typed or spoken) creates the task and
+- [x] "Add a task for Globex to review the payments PR by friday" (typed or spoken) creates the task and
       the board shows it within a second of the reply
-- [ ] Tool calls appear in the thread; a created/updated task can be opened from its card
-- [ ] Push-to-talk records, transcribes Portuguese and English correctly, and sends
-- [ ] The Whisper model downloads once with visible progress and is reused
-- [ ] Stop interrupts a turn; the next message continues the same conversation
-- [ ] Missing `claude` CLI or Whisper model produce an actionable message, never a crash
-- [ ] `architecture.md`, `design-system.md` and the README updated
+- [x] Tool calls appear in the thread; a created/updated task can be opened from its card
+- [x] Push-to-talk records, transcribes Portuguese and English correctly, and sends
+- [x] The Whisper model downloads once with visible progress and is reused
+- [x] Stop interrupts a turn; the next message continues the same conversation
+- [x] Missing `claude` CLI or Whisper model produce an actionable message, never a crash
+- [x] `architecture.md`, `design-system.md` and the README updated
 
 ## Plan
 
@@ -56,3 +56,11 @@ Decisions (2026-10-06, with the user):
 - `assistant/mod.rs`: `Assistant` state machine tying the three together.
 - Assistant system prompt in `assets/assistant-prompt.md`.
 - Prefs, actions, shortcuts, status bar button, palette commands, settings section.
+
+## Outcome
+
+Shipped as planned. Verified on a demo database: a Portuguese request created a task and another
+completed one with a note, about 4 to 5 s per turn; Whisper transcribed the English sample word for
+word. Decisions: Claude Code headless on the user's subscription instead of an API key; Whisper runs
+locally (`large-v3-turbo` q5_0) behind the `whisper` feature, with an optional `gpu` (Vulkan) feature;
+replies are text only. Follow-ups: threads (0007) and live transcription (0008).

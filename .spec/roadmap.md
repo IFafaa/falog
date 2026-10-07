@@ -10,7 +10,7 @@ starts; move it to `tasks/done` when shipped.
 | 0003 | [Executable icon](tasks/backlog/0003-executable-icon.md) | Proper icon in Explorer, Start menu and installer |
 | 0004 | [Recurring tasks](tasks/backlog/0004-recurring-tasks.md) | Weekly reports, monthly invoices, standing chores |
 | 0005 | [Quick capture hotkey](tasks/backlog/0005-quick-capture-hotkey.md) | File a task from anywhere without the assistant |
-| 0006 | [Assistant panel with voice](tasks/doing/0006-assistant-panel.md) | Talk to Falog itself instead of a separate Claude window |
+| 0006 | [Assistant panel with voice](tasks/done/0006-assistant-panel.md) | Talk to Falog itself instead of a separate Claude window |
 | 0007 | [Assistant threads](tasks/doing/0007-assistant-threads.md) | Several conversations with their own context, like Zed |
 | 0008 | [Live transcription](tasks/doing/0008-live-transcription.md) | See the words while dictating |
 
