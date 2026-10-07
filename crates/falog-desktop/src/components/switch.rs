@@ -47,7 +47,9 @@ pub fn segmented<T: Copy + PartialEq>(ui: &mut Ui, value: &mut T, options: &[(T,
         })
         .collect();
     let width = segments.iter().map(|(_, _, g)| g.size().x + 20.0).sum::<f32>() + PADDING * 2.0;
-    let (outer, _) = ui.allocate_exact_size(vec2(width, HEIGHT + PADDING * 2.0), Sense::hover());
+    // Child ids derive from this control's own id: `ui.id()` is shared by every segmented control in
+    // the same parent, which made one click select options in several of them.
+    let (outer, block) = ui.allocate_exact_size(vec2(width, HEIGHT + PADDING * 2.0), Sense::hover());
     ui.painter().rect(
         outer,
         4.0,
@@ -63,7 +65,7 @@ pub fn segmented<T: Copy + PartialEq>(ui: &mut Ui, value: &mut T, options: &[(T,
             vec2(galley.size().x + 20.0, HEIGHT),
         );
         x = rect.right();
-        let response = ui.interact(rect, ui.id().with(("segment", index)), Sense::click());
+        let response = ui.interact(rect, block.id.with(("segment", index)), Sense::click());
         let fill = if selected {
             theme.element_selected
         } else if response.hovered() {
@@ -81,4 +83,51 @@ pub fn segmented<T: Copy + PartialEq>(ui: &mut Ui, value: &mut T, options: &[(T,
         }
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::{CentralPanel, Context, Event, Modifiers, PointerButton, RawInput};
+
+    /// Two controls in sibling rows, like the settings rows. Returns the second row's rect.
+    fn frame(ctx: &Context, events: Vec<Event>, first: &mut u8, second: &mut u8) -> Rect {
+        let input = RawInput {
+            events,
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+            ..RawInput::default()
+        };
+        let mut rect = Rect::NOTHING;
+        let _ = ctx.run(input, |ctx| {
+            CentralPanel::default().show(ctx, |ui| {
+                let options = [(0, "One"), (1, "Two")];
+                ui.horizontal(|ui| segmented(ui, first, &options));
+                rect = ui.horizontal(|ui| segmented(ui, second, &options)).response.rect;
+            });
+        });
+        rect
+    }
+
+    #[test]
+    fn a_click_changes_only_the_control_it_hits() {
+        let ctx = Context::default();
+        let (mut first, mut second) = (0, 0);
+        let row = frame(&ctx, Vec::new(), &mut first, &mut second);
+        // The second option of the second control.
+        let target = pos2(row.left() + 50.0, row.center().y);
+        let press = |pressed| Event::PointerButton {
+            pos: target,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        frame(
+            &ctx,
+            vec![Event::PointerMoved(target), press(true)],
+            &mut first,
+            &mut second,
+        );
+        frame(&ctx, vec![press(false)], &mut first, &mut second);
+        assert_eq!((first, second), (0, 1));
+    }
 }
