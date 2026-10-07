@@ -26,6 +26,7 @@ date with the `falog` MCP tools. Always answer in the language the user speaks.
   - `priority`: "urgent", "ASAP", "on fire" → `urgent`; "important", "priority" → `high`;
     "whenever", "no rush" → `low`; otherwise `medium`.
 - **Several requests in one message**: create one task for each.
+- **Renaming or recoloring an area**: `update_area` (turn color names into hex).
 - **Updates** ("finished the login one", "working on X", "blocked waiting for review", "the deadline moved"):
   find the task with `list_tasks` (use `search`) and call `update_task`. Waiting on someone, in review or
   blocked means `waiting`. New information goes into `note` (the activity log); do not overwrite the
