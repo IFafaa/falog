@@ -2,7 +2,7 @@
 
 **A task board you talk to.** Falog is a local-first desktop app for developers who juggle work for
 several companies at once and still have a life to run. You tell your AI assistant about a request or
-an appointment, by voice or text, and it files the task for you; Falog shows everything on a Zed-inspired board, list and focus view.
+an appointment, by voice or text, and it files the task for you; Falog shows everything on a Zed-inspired board, list, focus view and calendar.
 
 ![Falog board with the task panel open](docs/screenshots/board.png)
 
@@ -17,6 +17,8 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
 
 - **Board, List and Focus views.** Drag cards between *To do*, *In progress*, *Waiting* and *Done*.
   Focus groups open work into *Overdue*, *Due today*, *Due this week*, and so on.
+- **Your meetings too.** A Calendar tab shows Google Calendar from as many accounts as you like (work
+  and personal), by week or month, next to the tasks due each day.
 - **An assistant you talk to, built in.** Open the assistant dock (`Ctrl+Shift+A`), press `Ctrl+Space`
   and say what changed: Claude creates, updates and summarizes tasks while the board updates live.
   Speech is transcribed locally with Whisper, and Claude runs on your own Claude Code login.
@@ -43,12 +45,13 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
                        falog (desktop app)  ◄─────────────────┘    the app reloads when the file changes
 ```
 
-The workspace has three crates:
+The workspace has four crates:
 
 | Crate | What it is |
 |---|---|
 | `falog-core` | Domain model, natural-language due dates, agenda rules and the SQLite store |
 | `falog-mcp` | MCP server over stdio (`falog-mcp.exe`) |
+| `falog-calendar` | Read-only Google Calendar: OAuth sign-in, calendars, events, local cache |
 | `falog-desktop` | The egui desktop app (`falog.exe`) |
 
 Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
@@ -88,6 +91,28 @@ your user.
 
 Any MCP client works; point it at `falog-mcp.exe`.
 
+## Google Calendar
+
+![Calendar week view](docs/screenshots/calendar-week.png)
+
+Falog reads your meetings (read-only) with **your own** Google OAuth client, because Google does not
+let an open source app ship a shared one. Set it up once, in about five minutes:
+
+1. In the [Google Cloud console](https://console.cloud.google.com), create a project and enable the
+   [Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com).
+2. Open the [OAuth consent screen](https://console.cloud.google.com/auth/overview): pick *External*,
+   fill in the app name and your email, and **publish** the app. While it is in *Testing*, Google
+   signs you out every 7 days. Google shows an "unverified app" warning when you sign in; choose
+   *Advanced → Go to …* (it is your own client).
+3. In [Credentials](https://console.cloud.google.com/apis/credentials), create an *OAuth client ID*
+   of type **Desktop app**.
+4. In Falog, open Settings (`Ctrl+,`) → *Google Calendar*, paste the client ID and secret, save, and
+   click **Connect Google account**. Repeat for each account (work, personal...).
+
+The sidebar of the Calendar tab lists each account's calendars to show or hide. Tokens and the event
+cache live in `calendar/` next to the database; removing an account in Settings revokes its token.
+Work accounts whose admins block third-party apps cannot connect.
+
 ## Keyboard shortcuts
 
 | Keys | Action |
@@ -95,7 +120,8 @@ Any MCP client works; point it at `falog-mcp.exe`.
 | `Ctrl+Shift+P` | Command palette |
 | `Ctrl+P` | Find a task |
 | `Ctrl+N` | New task |
-| `Ctrl+1` / `Ctrl+2` / `Ctrl+3` | Board / List / Focus |
+| `Ctrl+1` … `Ctrl+4` | Board / List / Focus / Calendar |
+| `T` / `J` / `K` / `W` / `M` | Calendar: today / next / previous / week / month |
 | `Ctrl+F` | Search |
 | `Ctrl+B` | Toggle sidebar |
 | `Ctrl+Shift+A` | Toggle the assistant |
