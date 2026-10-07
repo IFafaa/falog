@@ -101,6 +101,16 @@ fn live_agents_answer_with_falog_tools() {
         });
         println!("{id}: {commands:?} commands");
 
+        // Slash commands are sent as messages and run by the agent.
+        let events = turn(session.as_mut(), "/context");
+        assert!(
+            matches!(
+                events.last(),
+                Some(AgentEvent::TurnFinished { is_error: false, .. })
+            ),
+            "{id}: /context failed"
+        );
+
         // The conversation survives a restart.
         drop(session);
         let resumed = StartOptions {
