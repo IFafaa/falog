@@ -34,6 +34,10 @@ cargo run -p falog-desktop               # run the app (FALOG_DB=path to use ano
 On macOS and Linux the scripts are `./scripts/seed-demo.sh`, `./scripts/install.sh` and
 `./scripts/uninstall.sh`. `--no-default-features` builds without voice input (no CMake or libclang).
 
+CI (`.github/workflows/ci.yml`) runs fmt and shellcheck once; clippy (with and without voice) and tests on
+Windows, macOS and Ubuntu; and clippy with `--features falog-desktop/gpu` on macOS (Metal) and Ubuntu
+(Vulkan). Code behind `cfg(windows)`/`cfg(target_os = ...)` must stay warning-free on all three.
+
 ## Rules that always apply
 
 @conventions.md

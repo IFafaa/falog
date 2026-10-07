@@ -4,7 +4,7 @@
 
 ```
  assistant ──stdio JSON-RPC──► falog-mcp ──┐
-                                           ├──► SQLite (WAL)  %APPDATA%\Falog\falog.db
+                                           ├──► SQLite (WAL)  <data dir>/falog.db (see Files on disk)
             falog (desktop) ◄── polls ─────┘
 ```
 
@@ -135,12 +135,18 @@ instead of dropping its cached events.
 
 ### OS integration
 
-- **Single instance:** binding `127.0.0.1:47613`; a second launch sends `show` and exits.
+- **Single instance:** binding `127.0.0.1:47613`; a second launch sends `show` and exits. Portable as
+  is: on macOS and Linux a second bind of the same address fails while the first process listens
+  (`SO_REUSEADDR` only reuses ports in `TIME_WAIT`). Wayland compositors may refuse to raise the window.
 - **Launch at sign-in:** toggled in Settings and set by the installers. Windows: the
   `HKCU\...\Run\Falog` registry value; macOS: a LaunchAgent,
   `~/Library/LaunchAgents/app.falog.Falog.plist`; Linux: an XDG autostart entry,
   `~/.config/autostart/falog.desktop`. Each starts the executable that wrote it.
-- **Title bar:** DWM caption/text/border colors follow the theme (Windows 11).
+- **Title bar:** DWM caption/text/border colors follow the theme (Windows 11). macOS and Linux keep the
+  native title bar.
+- **Microphone (macOS):** the bundle's `Info.plist` carries `NSMicrophoneUsageDescription`; without it
+  macOS ends the app when it opens the microphone. Run from a terminal, the terminal's permission applies.
+- **Shortcuts:** `Modifiers::COMMAND` is Ctrl on Windows and Linux and Cmd on macOS.
 - **Finding `claude`** (`platform/paths.rs`): `PATH`, then `~/.local/bin` (Claude Code's native
   installer) and, on macOS and Linux, `~/.claude/local`, `~/.npm-global/bin`, `/opt/homebrew/bin` and
   `/usr/local/bin`. Apps started from Finder, the Dock, a LaunchAgent or a desktop autostart do not get
@@ -156,10 +162,20 @@ instead of dropping its cached events.
 
 ## Files on disk
 
-| Path | Content |
-|---|---|
-| `%APPDATA%\Falog\falog.db` | Tasks (override with `FALOG_DB`) |
-| `%APPDATA%\Falog\data\app.ron` | Window and UI preferences (eframe) |
-| `%APPDATA%\Falog\calendar\google.json` | Google OAuth client, accounts with refresh tokens, calendar choices |
-| `%APPDATA%\Falog\calendar\events.json` | Last fetched events, shown at startup and offline |
-| `%LOCALAPPDATA%\Falog\*.exe` | Installed binaries |
+`<data dir>` is `dirs::data_dir()/Falog`: `%APPDATA%\Falog` on Windows,
+`~/Library/Application Support/Falog` on macOS, `$XDG_DATA_HOME/Falog` (`~/.local/share/Falog`) on Linux.
+
+| Content | Windows | macOS | Linux |
+|---|---|---|---|
+| Tasks (override with `FALOG_DB`) | `<data dir>\falog.db` | `<data dir>/falog.db` | `<data dir>/falog.db` |
+| Assistant threads, MCP config | `<data dir>\assistant\` | `<data dir>/assistant/` | `<data dir>/assistant/` |
+| Whisper model | `<data dir>\models\` | `<data dir>/models/` | `<data dir>/models/` |
+| Google OAuth client, accounts with refresh tokens, calendar choices | `<data dir>\calendar\google.json` | `<data dir>/calendar/google.json` | `<data dir>/calendar/google.json` |
+| Last fetched events, shown at startup and offline | `<data dir>\calendar\events.json` | `<data dir>/calendar/events.json` | `<data dir>/calendar/events.json` |
+| Window and UI preferences (eframe, app id `falog`) | `%APPDATA%\falog\data\app.ron` | `~/Library/Application Support/falog/app.ron` | `~/.local/share/falog/app.ron` |
+| Installed binaries | `%LOCALAPPDATA%\Falog\*.exe` | `~/Applications/Falog.app/Contents/MacOS/` | `~/.local/bin/` |
+| Launch at sign-in | `HKCU\...\Run\Falog` | `~/Library/LaunchAgents/app.falog.Falog.plist` | `~/.config/autostart/falog.desktop` |
+| App menu entry | Start menu `Falog.lnk` | the bundle itself | `~/.local/share/applications/falog.desktop` |
+
+Windows and macOS file systems ignore case, so eframe's `falog` folder is the same as `Falog` there; on
+Linux they are two folders.
