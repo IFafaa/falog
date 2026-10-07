@@ -1,25 +1,24 @@
 # Falog
 
-**A task board you talk to.** Falog is a local-first desktop app for developers who juggle work for
-several companies at once and still have a life to run. You tell your AI assistant about a request or
-an appointment, by voice or text, and it files the task for you; Falog shows everything on a board, a list, a focus view and a
-calendar, in a fast, keyboard-first desktop app.
+**A personal organizer you talk to.** Falog is a local-first desktop app to keep your tasks, errands
+and appointments in one place. Tell your AI assistant what you need to do, by voice or text, and it
+files it for you; Falog shows everything on a board, a list, a focus view and a calendar, in a fast,
+keyboard-first desktop app.
 
 ![Falog board with the task panel open](docs/screenshots/board.png)
 
 ## Why
 
-Requests arrive everywhere: a call, a chat message, a hallway comment. Writing each one down breaks your
-flow, so many never get written down, and Monday morning starts with an hour of "what was I supposed to
-do?". Falog removes the friction: say *"Ana from Acme asked me to fix the Google sign-in on Android,
-it's urgent, needs to ship Friday"* and the task exists, with area, requester, due date and priority.
+Things to do show up everywhere: a call, a message, something you remember in the shower. Writing each
+one down breaks your flow, so many never get written down, and the week starts with "what was I
+supposed to do?". Falog removes the friction: say *"remind me to renew the car insurance, it's
+important, by Friday"* and the task exists, with area, due date and priority.
 
 ## Features
 
 - **Board, List and Focus views.** Drag cards between *To do*, *In progress*, *Waiting* and *Done*.
   Focus groups open work into *Overdue*, *Due today*, *Due this week*, and so on.
-- **Your meetings too.** A Calendar tab shows Google Calendar from as many accounts as you like (work
-  and personal), by week or month, next to the tasks due each day. Paste each calendar's private link;
+- **Your appointments too.** A Calendar tab shows Google Calendar from as many accounts as you like, by week or month, next to the tasks due each day. Paste each calendar's private link;
   no sign-in needed.
 - **An assistant you talk to, built in.** Open the assistant dock (`Ctrl+Shift+A`), press `Ctrl+Space`
   and say what changed: Claude creates, updates and summarizes tasks while the board updates live.
@@ -27,8 +26,8 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
 - **Works with any MCP client too.** `falog-mcp` exposes your tasks through the
   [Model Context Protocol](https://modelcontextprotocol.io). Due dates like "friday", "next week" or
   "amanhã" are understood.
-- **Work and life, one place.** Tasks belong to areas: each employer or client, plus personal ones like
-  *Personal* or *Health*. Each area has a color and a sidebar entry to filter by.
+- **Every part of life, one place.** Tasks belong to areas you choose, like *Work*, *Personal*,
+  *Health*, *Home* or *Studies*. Each area has a color and a sidebar entry to filter by.
 - **An editor's look and feel.** One Dark / One Light palettes, IBM Plex Sans, Lucide icons, a command
   palette (`Ctrl+Shift+P`) and a task finder (`Ctrl+P`).
 - **Local and private.** A single SQLite file on your machine. No account, no server.
@@ -138,10 +137,10 @@ to fill the window.
 teaches Claude how to file tasks) or mention tasks in any session, since the server is registered for
 your user.
 
-- *"Got two things from Globex: review Carlos's payments PR today, and upgrade the API to Node 22 by Friday."*
-- *"I'm blocked on the navbar until Lia signs off on the design."*
-- *"Dentist on Thursday at 3, put it in Personal."*
-- *"Book a call with Ana tomorrow at 3 on Acme, with a Meet link."*
+- *"Two things for work: review the payments PR today, and send the report by Friday."*
+- *"I'm waiting on the plumber to confirm before I can book the kitchen."*
+- *"Dentist on Thursday at 3, put it in Health."*
+- *"Book a call with Ana tomorrow at 3, with a Meet link."*
 - *"What meetings do I have today?"*
 - *"Good morning, what's on my plate this week?"*
 
@@ -187,7 +186,7 @@ Google does not let an open source app ship a shared one. Set it up once, in abo
 Work accounts whose admins block third-party apps cannot connect this way either. While the app is in
 *Testing*, add each email you connect under *Audience › Test users*, or Google answers "Access blocked".
 
-Signed-in accounts also let the assistant **book meetings**: "call with Ana tomorrow at 3 on Acme"
+Signed-in accounts also let the assistant **book meetings**: "call with Ana tomorrow at 3, for work"
 creates the event in that area's account, with a Meet link for calls. Accounts connected before this
 existed show *read only* in Settings until you click *Reconnect*. Calendar links stay read-only.
 

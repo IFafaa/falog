@@ -37,7 +37,7 @@ Decisions (2026-10-06, with the user):
 
 ## Acceptance criteria
 
-- [x] "Add a task for Globex to review the payments PR by friday" (typed or spoken) creates the task and
+- [x] "Add a work task to review the payments PR by friday" (typed or spoken) creates the task and
       the board shows it within a second of the reply
 - [x] Tool calls appear in the thread; a created/updated task can be opened from its card
 - [x] Push-to-talk records, transcribes Portuguese and English correctly, and sends

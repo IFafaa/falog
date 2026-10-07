@@ -5,15 +5,15 @@
 
 ## Goal
 
-Know which meetings belong to which area (Acme, Globex, Personal...), and let the assistant read
+Know which meetings belong to which area (Work, Personal, Health...), and let the assistant read
 and create calendar events by voice: "what meetings do I have today?", "book a call with Ana tomorrow
-at 3 pm on Acme".
+at 3 pm for work".
 
 ## Context
 
 The calendar (0010, 0014) shows several Google accounts and calendar links, but nothing ties a
-calendar to an area, and only the desktop app reads events. The user connects one Google account per
-employer plus a personal one, so an area maps to one or more emails, and each email belongs to exactly one area.
+calendar to an area, and only the desktop app reads events. The user connects several Google accounts (work
+and personal), so an area maps to one or more emails, and each email belongs to exactly one area.
 The area is chosen per email, not per calendar.
 
 Writing needs a wider OAuth scope: `calendar.events` (read and write events) plus
@@ -53,7 +53,7 @@ read-only by nature.
 
 ## Outcome
 
-In progress. `list_events` was run against the user's three real accounts (Acme, Globex, Gmail) and
+In progress. `list_events` was run against the user's real accounts and
 returned the day's meetings with join links. `create_event` is covered by payload and account-choice
 tests but not run for real yet: the accounts were connected read-only and must be reconnected once to
 grant `calendar.events`.

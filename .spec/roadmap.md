@@ -13,7 +13,7 @@ starts; move it to `tasks/done` when shipped.
 | 0006 | [Assistant panel with voice](tasks/done/0006-assistant-panel.md) | Talk to Falog itself instead of a separate Claude window |
 | 0007 | [Assistant threads](tasks/done/0007-assistant-threads.md) | Several conversations with their own context |
 | 0008 | [Live transcription](tasks/done/0008-live-transcription.md) | See the words while dictating |
-| 0009 | [Areas instead of companies](tasks/done/0009-areas.md) | Personal tasks and appointments next to work |
+| 0009 | [Areas for every part of life](tasks/done/0009-areas.md) | Personal tasks and appointments next to work |
 | 0010 | [Calendar view with Google Calendar](tasks/doing/0010-google-calendar.md) | Meetings from several Google accounts next to the tasks |
 | 0011 | [Assistant agents](tasks/done/0011-assistant-agents.md) | Claude Code, Gemini, Codex or any ACP agent; model, effort, mode, context and slash commands per thread |
 | 0012 | [macOS and Linux](tasks/done/0012-macos-and-linux.md) | The same board on the Mac and the Linux machine |

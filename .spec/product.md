@@ -2,15 +2,14 @@
 
 ## Problem
 
-A developer working for several companies receives requests from many channels (calls, chat, meetings),
-while their personal life adds its own errands and appointments.
-Writing each one down is friction, so some are lost; people end up chasing them, and every Monday starts
-with a long effort to remember what is pending, for whom, and by when.
+Things to do arrive from many channels (calls, messages, meetings, a thought on the way home), for work
+and personal life alike: tasks, errands, appointments. Writing each one down is friction, so some are
+lost, and the week starts with a long effort to remember what is pending and by when.
 
 ## Users
 
-One person: the developer. Falog is single-user and local. Their areas are few (typically 2–5 employers or
-clients plus a couple of personal ones) and their open tasks number in the tens, rarely hundreds.
+One person organizing their own life. Falog is single-user and local. Their areas are few (typically
+Work, Personal, Health, Home, Studies) and their open tasks number in the tens, rarely hundreds.
 
 ## Goals
 
@@ -33,7 +32,7 @@ clients plus a couple of personal ones) and their open tasks number in the tens,
 | Term | Meaning |
 |---|---|
 | Task | A unit of work requested by someone. |
-| Area | A sphere of the user's life: an employer, a client, "Personal", "Health"... Every task may belong to one. |
+| Area | A part of the user's life: "Work", "Personal", "Health", "Home"... Every task may belong to one. |
 | Requester | The person who asked for the task. |
 | Note | Timestamped entry in a task's activity log. |
 | Agenda | Open tasks grouped by urgency, shown in the Focus view (see [domain.md](domain.md#agenda-buckets)). |

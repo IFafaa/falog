@@ -22,6 +22,6 @@ two seconds. Parsing should reuse `falog-core` (`date::parse_due`, `Store::find_
 ## Acceptance criteria
 
 - [ ] The hotkey works while Falog is in the background (or in the tray, see 0001)
-- [ ] "Fix login @acme !urgent due friday" creates the expected task
+- [ ] "Fix login @work !urgent due friday" creates the expected task
 - [ ] Parsing lives in `falog-core` with tests
 - [ ] Hotkey configurable in Settings

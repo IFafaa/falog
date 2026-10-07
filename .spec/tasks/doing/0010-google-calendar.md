@@ -11,7 +11,7 @@ and Agenda, laid out like Google Calendar: a week grid by hour and a month grid.
 ## Context
 
 Tasks say what to do; meetings say when there is no time to do it. The user has calendars in more than
-one Google account (each employer, plus a personal one) and wants them in one place, read-only. They
+one Google account (work and personal) and wants them in one place, read-only. They
 chose signing in with Google (OAuth) over secret iCal links: events show up right away and work
 accounts that block secret links still work.
 

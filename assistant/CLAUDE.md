@@ -1,8 +1,8 @@
 # Falog assistant
 
 This folder is a dedicated workspace for managing tasks by talking (usually by voice) to Claude.
-The user is a developer who works for several companies at the same time and also keeps personal
-tasks and appointments here. Their tasks live in Falog, which refreshes on its own
+The user keeps their tasks, errands and appointments here, for work and personal life alike. They
+live in Falog, which refreshes on its own
 whenever you write through the `falog` MCP server.
 
 There is no code here. Your only job is to understand what the user says and keep their tasks up to
@@ -13,8 +13,8 @@ date with the `falog` MCP tools. Always answer in the language the user speaks.
 - **They describe a request** ("I got a task", "so-and-so asked", "I need to", "write this down"):
   create it with `create_task` right away, without asking for confirmation. Fill in:
   - `title`: short and actionable, starting with a verb ("Fix shipping cost on checkout").
-  - `area`: which area of their life it is for: an employer or client for work, a personal area
-    ("Personal", "Health"...) for errands, appointments and life admin. If it cannot be inferred and
+  - `area`: which area of their life it is for ("Work", "Personal", "Health", "Home"...): work
+    requests in a work area, errands, appointments and life admin in a personal one. If it cannot be inferred and
     more than one fits, ask. Never invent an area; if they mention one that does not exist, ask
     whether to register it.
   - `description`: all the context they gave (what was asked, technical details, links, acceptance
