@@ -15,7 +15,7 @@ starts; move it to `tasks/done` when shipped.
 | 0008 | [Live transcription](tasks/done/0008-live-transcription.md) | See the words while dictating |
 | 0009 | [Areas instead of companies](tasks/done/0009-areas.md) | Personal tasks and appointments next to work |
 | 0010 | [Calendar view with Google Calendar](tasks/doing/0010-google-calendar.md) | Meetings from several Google accounts next to the tasks |
-| 0011 | [Assistant agents](tasks/doing/0011-assistant-agents.md) | Claude Code, Gemini, Codex or any ACP agent; model, effort, mode, context and slash commands per thread |
+| 0011 | [Assistant agents](tasks/done/0011-assistant-agents.md) | Claude Code, Gemini, Codex or any ACP agent; model, effort, mode, context and slash commands per thread |
 
 Later, unordered: tags/labels, manual ordering within a column, weekly report export (Markdown),
 undo for destructive actions, macOS/Linux packaging.

@@ -1,6 +1,6 @@
 # 0011: Assistant agents (Claude Code, ACP), models, effort and slash commands
 
-**Status:** doing
+**Status:** done
 **Area:** desktop
 
 ## Goal
@@ -103,11 +103,12 @@ assistant (Zed's panel zoom).
       settings; `fmt`, `clippy -D warnings`, `test` green with `--no-default-features`, default and
       `--features falog-desktop/gpu`
 
-- [ ] The footer shows a context ring once the agent reports usage; hovering it shows used / window
-- [ ] A mode picker switches Claude Code's permission mode (restart with `--resume`) and ACP modes
+- [x] The footer shows a context ring once the agent reports usage; hovering it shows used / window
+- [x] A mode picker switches Claude Code's permission mode (restart with `--resume`) and ACP modes
       live; falog tools work in every mode
-- [ ] Fast mode and Ultracode work headless, or show disabled with the reason
-- [ ] Zoom from the header button, `Shift+Esc` and the command palette; zoomed state survives a restart
+- [x] Fast mode and Ultracode work headless, or show disabled with the reason (fast mode works;
+      Ultracode is shown disabled)
+- [x] Zoom from the header button, `Shift+Esc` and the command palette; zoomed state survives a restart
 
 ## Plan
 
@@ -162,6 +163,21 @@ are slow on first run (download).
   dev hook and the menu keys (arrows, Tab, Enter, Esc) were not exercised by hand.
 - Also fixed on the way: dialogs taller than the window scroll (Settings no longer runs off small
   windows); Send and Stop are icon buttons so the pickers fit the default dock width.
+- Second round:
+  - Context ring from Claude Code's `result` (last call in `usage.iterations`, window from
+    `modelUsage[model].contextWindow`; local commands such as `/context` report no usage and leave
+    the ring alone) and ACP's `usage_update`; saved with the thread.
+  - Mode picker: Claude Code `--permission-mode` (Default keeps `dontAsk`; Accept edits, Plan, Auto,
+    Bypass permissions), ACP `category: "mode"` options or the older `modes` + `session/set_mode`.
+    Live: falog tools still ran in `acceptEdits` through both Claude agents.
+  - Fast mode: `--settings {"fastMode":true}` for Claude Code (verified: the session starts with fast
+    mode on, then Claude Code turns it off with `extra_usage_disabled` on this account, which Falog
+    reports in the thread); Claude's ACP adapter has its own `fast` option. Opus only.
+  - Ultracode is a per-prompt keyword that has Claude run multi-agent workflows with its built-in
+    tools; the assistant runs without them, so it is shown disabled with that reason.
+  - Zoom: header button, `Shift+Esc` (Zed's toggle zoom), "assistant: toggle zoom" command,
+    `Prefs::assistant_zoomed`; the conversation keeps to an 820 px column. Checked with window
+    captures, like the footer (ring at 76 % in amber, lit flame, greyed Ultracode).
 - Follow-ups:
   - Gemini CLI and Codex were not run (not installed / not signed in here); their presets follow
     the documented commands (`gemini --acp`, `npx -y @agentclientprotocol/codex-acp`).
@@ -173,5 +189,6 @@ are slow on first run (download).
     web search) are not blocked; only tools that ask are.
   - `segmented` gives two controls in the same Settings layout the same widget id (debug builds
     show "First/Second use of widget ID"); it predates this task.
+  - Fast mode could not be seen working end to end here: this account has extra usage disabled.
   - Merge with the macOS/Linux branch: route `find_claude` and `registry::find_executable` through
     `platform::paths::find_executable`.
