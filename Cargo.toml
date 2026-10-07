@@ -8,6 +8,8 @@ edition = "2024"
 rust-version = "1.85"
 license = "MIT"
 authors = ["Fabricio Lima"]
+# Falog ships as an app, not as crates on crates.io.
+publish = false
 
 [workspace.dependencies]
 falog-calendar = { path = "crates/falog-calendar" }
