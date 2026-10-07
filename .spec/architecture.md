@@ -17,7 +17,7 @@ point. `falog-core` holds every rule so both binaries behave identically.
 |---|---|---|---|
 | `falog-core` | lib | rusqlite, chrono | Domain types, validation, date parsing, agenda rules, persistence |
 | `falog-mcp` | bin `falog-mcp` | core, serde_json | MCP protocol, tool schemas, argument parsing, text output |
-| `falog-calendar` | lib | ureq, chrono, sha2 | Google OAuth (loopback + PKCE), Calendar API, event model and layout rules, files |
+| `falog-calendar` | lib | ureq, chrono, chrono-tz, rrule, sha2 | iCal feeds, Google OAuth (loopback + PKCE), Calendar API, event model and layout rules, files |
 | `falog-desktop` | bin `falog` | core, calendar, eframe/egui | UI, theming, OS integration |
 
 Dependencies point inward only: the binaries depend on `falog-core`, never on each other, and
@@ -64,7 +64,7 @@ src/
   app.rs         FalogApp: state, per-frame layout, action handling, persistence of prefs
   action.rs      Action enum: user intents emitted by widgets
   assistant/     assistant dock: agents (Claude Code, ACP), threads + history, voice capture + Whisper, panel UI
-  calendar.rs    Google Calendar state: accounts, cached events, background sign-in and refresh
+  calendar.rs    Google Calendar state: links, accounts, cached events, background sign-in and refresh
   prefs.rs       persisted UI preferences
   theme.rs       Zed color tokens -> egui visuals
   fonts.rs, icons.rs
@@ -169,17 +169,33 @@ OpenMP and flash attention made no measurable difference.
 
 ### Calendar
 
-`falog-calendar` has no UI: `oauth` signs in the way Google wants installed apps to (a one-shot
-listener on `127.0.0.1`, PKCE, `access_type=offline`), `google` reads the calendar list and events
-(`singleEvents=true`, paged; cancelled, declined and working-location entries dropped), `model` turns
-them into `Event`s in local time, and `layout` places overlapping events in columns. The user brings
-their own OAuth client (Desktop app type), saved with the accounts in `calendar/google.json`.
+A calendar comes from one of two sources, both saved in `calendar/google.json`:
 
-`falog-desktop/src/calendar.rs` owns that state. Sign-in and fetching run on short-lived threads that
-report over a channel drained each frame; access tokens stay in memory. The view asks for its visible
-range and the state fetches a month-aligned window around it when it is not cached or older than five
-minutes, only for visible calendars. A rejected refresh token marks the account "needs to sign in"
-instead of dropping its cached events.
+- **Links** (the usual way): a calendar's secret iCal address. `ics` downloads the whole feed (capped
+  at 64 MB; long-lived Google calendars are several MB), parses VEVENTs (folding, escapes, `TZID` with
+  `chrono-tz`, UTC, floating and all-day times, `DURATION`), drops cancelled events and invitations the
+  owner declined (the owner is the calendar id in Google's address; shared `group.calendar.google.com`
+  calendars never count as declining), and expands `RRULE` with the `rrule` crate only inside the asked
+  range, minus `EXDATE`s and the occurrences a `RECURRENCE-ID` override replaces. `UNTIL` is applied by
+  hand because `rrule` rejects Google's date-only rules. A rule `rrule` cannot read falls back to its
+  first occurrence. Link events have an empty `account` and the link's `link-…` id as `calendar_id`.
+  The address is a credential: errors never contain it, `Debug` and the UI show
+  `ics::masked` (`calendar.google.com/…/basic.ics`).
+- **Accounts** (advanced): `oauth` signs in the way Google wants installed apps to (a one-shot listener
+  on `127.0.0.1`, PKCE, `access_type=offline`), `google` reads the calendar list and events
+  (`singleEvents=true`, paged; cancelled, declined and working-location entries dropped). The user brings
+  their own OAuth client (Desktop app type).
+
+`model` holds the `Event`s in local time, and `layout` places overlapping events in columns.
+
+`falog-desktop/src/calendar.rs` owns that state. Checking a pasted link, sign-in and fetching run on
+short-lived threads that report over a channel drained each frame; access tokens stay in memory. A link
+is saved only after one successful fetch, and its events for the cached range show right away. The view
+asks for its visible range and the state fetches a month-aligned window around it, links and accounts in
+the same thread, when it is not cached or older than five minutes, only for visible calendars. A link or
+account that fails keeps its cached events and puts its error in the header; a rejected refresh token
+marks the account "needs to sign in". When a meeting comes through both a link and an account, the
+link's copy is kept (deduplicated by iCal UID and start).
 
 ### OS integration
 
@@ -220,7 +236,7 @@ model and the window preferences stay in `<data dir>` for every database.
 | Tasks (override with `FALOG_DB`) | `<data dir>/falog.db` |
 | Assistant threads (`threads.json`), agents (`agents.json`), MCP config, agents' working directory | `<data dir>/assistant/` |
 | Whisper model | `<data dir>/models/` |
-| Google OAuth client, accounts with refresh tokens, calendar choices | `<data dir>/calendar/google.json` |
+| Calendar links (secret iCal addresses), Google OAuth client, accounts with refresh tokens, calendar choices | `<data dir>/calendar/google.json` |
 | Last fetched events, shown at startup and offline | `<data dir>/calendar/events.json` |
 | Window and UI preferences (eframe `persistence_path`) | `<data dir>/app.ron` |
 

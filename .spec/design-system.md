@@ -106,9 +106,11 @@ and a Week/Month `segmented`. Week: 52 px hour gutter, 48 px per hour, day names
 tasks due that day, timed events as blocks tinted with the calendar color and a 3 px bar in full
 color (past events fainter), overlapping events side by side, and an `error` line for now. Month: whole
 weeks, timed events as dot + time + title, all-day events as filled bars, "+N more" opens the week.
-An event opens a popover (`elevated_surface`) with time, calendar, location, description, Join and
-Open in Google Calendar. The sidebar adds a Calendars section with one checkbox per calendar, in its
-Google color, grouped by account.
+An event opens a popover (`elevated_surface`) with time, calendar (and account, for signed-in ones),
+location, description, Join and Open in Google Calendar. The sidebar adds a Calendars section with one
+checkbox per calendar in its color: calendar links first, then calendars grouped under their account's
+email; its `+` opens Settings › Calendar. With no calendar yet, the view shows a banner whose
+"Add a calendar link" (accent) opens the same page.
 
 ## App icon
 
@@ -139,7 +141,15 @@ A 780 × 520 modal with a 184 px `panel` column of pages on the left (General, A
 Voice, Calendar, Data; icon + label rows of 30 px, `ghost_selected` for the open page) and the page on
 the right: its title in SemiBold 16, then rows of title, description in `text_muted` and the control on
 the right. Each page is one function in `overlays/settings/` (Calendar in its own file).
-`Action::OpenSettingsTab` opens a given page, as the calendar's "Set up" does.
+`Action::OpenSettingsTab` opens a given page, as the calendar's "Add a calendar link" does.
+
+The Calendar page puts the easy path first: an "Add a calendar link" section with a four-step how-to in
+plain words, label/field rows (96 px labels; the address field is masked), an accent Add that turns into
+a spinner and "Checking the link…" while the link is read once, and the refusal in `warning`. Linked
+calendars follow, one per row: an inline name field (renames on focus loss), Google's twelve calendar
+colors as 14 px swatches (the current one ringed in `text`) and a Danger Remove, with the masked
+address under it in monospace `text_placeholder`. Signing in with an OAuth client sits under a
+disclosure row (chevron, `ghost_hover` on hover), folded unless a client or account already exists.
 
 ## Rules
 

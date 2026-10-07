@@ -15,6 +15,10 @@ one Google account (each employer, plus a personal one) and wants them in one pl
 chose signing in with Google (OAuth) over secret iCal links: events show up right away and work
 accounts that block secret links still work.
 
+Update (task [0014](../done/0014-ical-links.md)): creating an OAuth client turned out to be too much
+setup, so secret iCal links became the main way to add a calendar; what follows still describes the
+OAuth path, now under "Sign in with Google instead (advanced)".
+
 Google only lets an app sign users in with its own OAuth client, and an unverified client cannot be
 shipped in an open source repo. Each user creates a **Desktop app** OAuth client in Google Cloud once
 and pastes its id and secret into Settings (the "secret" of a desktop client is not confidential;
@@ -30,8 +34,8 @@ read-only scope; Google shows an "unverified app" warning once).
   today, previous/next, the current-time line; event details (time, calendar, location, description,
   join link, open in Google Calendar); tasks due on a day shown as all-day items; background refresh
   every 5 minutes and on demand; events cached on disk so the view opens instantly and offline.
-- Out: creating or editing events, other providers (Outlook, iCal), reminders, meetings in the
-  assistant's agenda (follow-up), day view.
+- Out: creating or editing events, other providers (Outlook), reminders, meetings in the assistant's
+  agenda (follow-up), day view. iCal links came later, in 0014.
 
 ## Acceptance criteria
 
@@ -74,3 +78,8 @@ all-day rules, deduplication and the column layout.
 Not verified yet: a real sign-in and fetch against Google, which needs the user's own OAuth client.
 The first criterion stays open until then. The popover was not exercised by hand (no clicks while
 the user was at the machine).
+
+Update after 0014: the Settings › Calendar page leads with calendar links; this task's OAuth setup is
+folded under "Sign in with Google instead (advanced)", and the calendar banner and the sidebar's `+` open
+that page instead of starting a sign-in. A real fetch from Google now works through links (verified
+with public Google feeds); the OAuth sign-in itself is still unverified.
