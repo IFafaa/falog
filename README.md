@@ -18,7 +18,8 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
 - **Board, List and Focus views.** Drag cards between *To do*, *In progress*, *Waiting* and *Done*.
   Focus groups open work into *Overdue*, *Due today*, *Due this week*, and so on.
 - **Your meetings too.** A Calendar tab shows Google Calendar from as many accounts as you like (work
-  and personal), by week or month, next to the tasks due each day.
+  and personal), by week or month, next to the tasks due each day. Paste each calendar's private link;
+  no sign-in needed.
 - **An assistant you talk to, built in.** Open the assistant dock (`Ctrl+Shift+A`), press `Ctrl+Space`
   and say what changed: Claude creates, updates and summarizes tasks while the board updates live.
   Speech is transcribed locally with Whisper, and Claude runs on your own Claude Code login.
@@ -51,7 +52,7 @@ The workspace has four crates:
 |---|---|
 | `falog-core` | Domain model, natural-language due dates, agenda rules and the SQLite store |
 | `falog-mcp` | MCP server over stdio (`falog-mcp`) |
-| `falog-calendar` | Read-only Google Calendar: OAuth sign-in, calendars, events, local cache |
+| `falog-calendar` | Read-only Google Calendar: iCal links, OAuth sign-in, calendars, events, local cache |
 | `falog-desktop` | The egui desktop app (`falog`) |
 
 Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
@@ -147,8 +148,27 @@ Any MCP client works; point it at `falog-mcp`.
 
 ![Calendar week view](docs/screenshots/calendar-week.png)
 
-Falog reads your meetings (read-only) with **your own** Google OAuth client, because Google does not
-let an open source app ship a shared one. Set it up once, in about five minutes:
+Falog shows your meetings (read-only) next to your tasks. The simplest way is each calendar's **secret
+address in iCal format**, a private link Google gives you; no sign-in and nothing to set up:
+
+1. Open [Google Calendar settings](https://calendar.google.com/calendar/r/settings) (the gear, then
+   *Settings*).
+2. On the left, under *Settings for my calendars*, click the calendar.
+3. In *Integrate calendar*, copy the **Secret address in iCal format**.
+4. In Falog, open Settings (`Ctrl+,`) → *Calendar*, paste it, and click **Add**. Repeat for each
+   calendar and account (work, personal...).
+
+The address works like a password: anyone who has it can read that calendar. Falog keeps it in
+`calendar/google.json` next to the database and never shows it whole; if it leaks, *Reset* it in the same
+Google page and add the new one. Falog reads the links every five minutes while the Calendar tab is open
+(and on *Refresh*); Google may take a little while to publish a change in the feed. Feeds carry no color,
+so Falog picks one; change it in Settings.
+
+### Sign in with Google instead (advanced)
+
+Some work accounts hide the secret address (their admin turned it off). For those, Falog can sign in with
+Google, which also shows new events right away, but it needs **your own** Google OAuth client, because
+Google does not let an open source app ship a shared one. Set it up once, in about five minutes:
 
 1. In the [Google Cloud console](https://console.cloud.google.com), create a project and enable the
    [Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com).
@@ -158,12 +178,14 @@ let an open source app ship a shared one. Set it up once, in about five minutes:
    *Advanced → Go to …* (it is your own client).
 3. In [Credentials](https://console.cloud.google.com/apis/credentials), create an *OAuth client ID*
    of type **Desktop app**.
-4. In Falog, open Settings (`Ctrl+,`) → *Google Calendar*, paste the client ID and secret, save, and
-   click **Connect Google account**. Repeat for each account (work, personal...).
+4. In Falog, open Settings (`Ctrl+,`) → *Calendar* → *Sign in with Google instead*, paste the client ID
+   and secret, save, and click **Connect Google account**. Repeat for each account.
 
-The sidebar of the Calendar tab lists each account's calendars to show or hide. Tokens and the event
-cache live in `calendar/` next to the database; removing an account in Settings revokes its token.
-Work accounts whose admins block third-party apps cannot connect.
+Work accounts whose admins block third-party apps cannot connect this way either.
+
+The sidebar of the Calendar tab lists every calendar, by link and by account, to show or hide. Tokens,
+links and the event cache live in `calendar/` next to the database; removing an account in Settings
+revokes its token.
 
 ## Keyboard shortcuts
 
