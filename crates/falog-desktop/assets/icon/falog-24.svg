@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- falog.svg redrawn on the 24 px grid (Windows taskbar at 100 % scaling): 3 px strokes, 1 px gaps. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#31363f"/>
+      <stop offset="1" stop-color="#22262c"/>
+    </linearGradient>
+    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="4" x2="0" y2="20">
+      <stop offset="0" stop-color="#8cbcf0"/>
+      <stop offset="1" stop-color="#5f9fe2"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="22" height="22" rx="5" fill="url(#tile)"/>
+  <g fill="url(#ink)">
+    <rect x="4" y="4" width="15" height="3" rx="1"/>
+    <rect x="4" y="4" width="3" height="16" rx="1"/>
+    <rect x="8" y="8" width="3" height="9" rx="1"/>
+    <rect x="12" y="10" width="3" height="5" rx="1"/>
+    <rect x="16" y="11" width="3" height="3" rx="1"/>
+  </g>
+</svg>
