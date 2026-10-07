@@ -142,7 +142,7 @@ impl SettingsDialog {
         ui.label(
             RichText::new(
                 "The address works like a password: whoever has it can read the calendar. Falog keeps it \
-                 on this computer only. Google updates these links every few hours.",
+                 on this computer only. Falog reads the calendars again every five minutes.",
             )
             .size(12.0)
             .color(theme.text_placeholder),
