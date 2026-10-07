@@ -1,0 +1,67 @@
+# Dependency policy (https://embarkstudios.github.io/cargo-deny), run by CI and scripts/check.*:
+# `cargo deny check`. See the CI section of .spec/conventions.md for how to fix a failure.
+
+[graph]
+# Every platform Falog ships on, with every feature (voice and GPU), so no dependency escapes.
+targets = [
+  "x86_64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+]
+all-features = true
+
+[advisories]
+# Vulnerabilities and yanked versions always fail. Unmaintained crates fail when Falog depends on
+# them directly; deep in the UI or audio stacks they are only fixed by upgrading those.
+unmaintained = "workspace"
+yanked = "deny"
+# Advisories accepted on purpose, each with the reason: { id = "RUSTSEC-...", reason = "..." }.
+ignore = [
+  # quick-xml 0.30 reaches Falog only on Linux, through eframe 0.29's accessibility stack (accesskit,
+  # atspi, zbus_xml), where it reads the D-Bus interface descriptions bundled with atspi rather than
+  # untrusted input. It goes away with an eframe upgrade.
+  { id = "RUSTSEC-2026-0194", reason = "quick-xml via atspi reads only bundled D-Bus interface XML" },
+  { id = "RUSTSEC-2026-0195", reason = "quick-xml via atspi reads only bundled D-Bus interface XML" },
+]
+
+[licenses]
+# Permissive licenses that allow shipping Falog's binaries under MIT. Copyleft licenses beyond
+# MPL-2.0's file-level terms are not allowed.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "ISC",
+  "Zlib",
+  "0BSD",
+  "Unicode-3.0",
+  "MPL-2.0",
+  # whisper-rs (voice input): public domain dedication.
+  "Unlicense",
+  # webpki-roots (the CA certificates of ureq's TLS): a permissive data license.
+  "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+# egui's default fonts ship under the fonts' own licenses (SIL Open Font License, Ubuntu Font
+# License), which allow bundling them in any app; they are allowed for that crate only.
+[[licenses.exceptions]]
+crate = "epaint_default_fonts"
+allow = ["OFL-1.1", "LicenseRef-UFL-1.0"]
+
+[bans]
+# Several versions of one crate are common in the UI stack; reported, not failed.
+multiple-versions = "warn"
+wildcards = "deny"
+# The workspace crates depend on each other by path.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
