@@ -118,7 +118,8 @@ Commands are looked up on `PATH` with `PATHEXT` on Windows (`npx.cmd`); Claude C
   options with category `model` and `thought_level`, switched live with
   `session/set_config_option`. Stop sends `session/cancel` and drops what still streams for that
   turn. Instructions go in `_meta.systemPrompt` (read by Claude's adapter, which also gets
-  `_meta.claudeCode.options` with no built-in tools and no user settings); other agents get them in
+  `_meta.claudeCode.options` with no built-in tools, no user settings and `strictMcpConfig`, so the
+  user's own MCP servers stay out); other agents get them in
   front of the first prompt of a new session. Dropping a session closes the agent's stdin before
   killing it, because `npx` agents run under `cmd.exe` on Windows and the Node process would
   otherwise linger.

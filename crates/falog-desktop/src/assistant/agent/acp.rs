@@ -503,10 +503,12 @@ impl Connection {
             "cwd": setup.cwd,
             "mcpServers": [{ "name": "falog", "command": setup.mcp_server, "args": [], "env": env }],
             // Read by Claude's adapter: Falog's instructions, no built-in tools, no user settings
-            // (hooks, CLAUDE.md). Other agents ignore it.
+            // (hooks, CLAUDE.md) and no MCP servers but falog's. Other agents ignore it.
             "_meta": {
                 "systemPrompt": { "append": setup.system_prompt },
-                "claudeCode": { "options": { "tools": [], "settingSources": [] } },
+                "claudeCode": {
+                    "options": { "tools": [], "settingSources": [], "strictMcpConfig": true },
+                },
             },
         });
         if let Some(id) = session_id {
@@ -1097,10 +1099,9 @@ mod tests {
         );
         let resume = agent.expect("session/resume");
         assert_eq!(resume["params"]["sessionId"], "s1");
-        assert_eq!(
-            resume["params"]["_meta"]["claudeCode"]["options"]["tools"],
-            json!([])
-        );
+        let options = &resume["params"]["_meta"]["claudeCode"]["options"];
+        assert_eq!(options["tools"], json!([]));
+        assert_eq!(options["strictMcpConfig"], true);
         agent.reply(&resume, json!({ "configOptions": config_options() }));
 
         let set = agent.expect("session/set_config_option");
