@@ -1,25 +1,28 @@
-//! The assistant dock: a conversation with Claude that manages tasks, typed or dictated.
+//! The assistant dock: conversations with Claude that manage tasks, typed or dictated.
 //!
-//! [`claude`] drives Claude Code, [`voice`] records and transcribes speech, [`panel`] draws the
-//! dock. [`Assistant`] owns the conversation state and ties them together.
+//! [`claude`] drives Claude Code, [`thread`] holds one conversation, [`history`] saves them,
+//! [`voice`] records and transcribes speech and [`panel`] draws the dock. [`Assistant`] owns the
+//! threads and the dictation state and ties them together.
 
 pub mod claude;
+pub mod history;
 pub mod panel;
+pub mod thread;
 pub mod voice;
 
-use claude::{ClaudeEvent, ClaudeSession, SessionConfig};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use thread::Launcher;
+pub use thread::{Item, Thread, ThreadId, ToolCall};
 use voice::{Download, Recorder, Transcriber, VoiceLanguage};
 
-const SYSTEM_PROMPT: &str = include_str!("../../assets/assistant-prompt.md");
-const TOOL_PREFIX: &str = "mcp__falog__";
 /// How often the live preview is refreshed while dictating, and when the first one starts.
 const PARTIAL_EVERY: Duration = Duration::from_millis(1000);
 const FIRST_PARTIAL_AFTER: Duration = Duration::from_millis(1500);
+/// Pending thread changes are written at most this often.
+const SAVE_EVERY: Duration = Duration::from_secs(2);
 
 /// Which Claude model the assistant asks Claude Code for.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,30 +67,6 @@ pub struct AssistantOptions {
     pub voice_gpu: bool,
 }
 
-#[derive(Debug)]
-pub enum Item {
-    User(String),
-    Reply(String),
-    Tool(ToolCall),
-    Error(String),
-    Notice(String),
-}
-
-#[derive(Debug)]
-pub struct ToolCall {
-    pub id: String,
-    /// Tool name without the MCP prefix (`create_task`).
-    pub name: String,
-    pub input: Value,
-    pub result: Option<ToolOutcome>,
-}
-
-#[derive(Debug)]
-pub struct ToolOutcome {
-    pub text: String,
-    pub is_error: bool,
-}
-
 #[derive(Debug, Default)]
 pub enum VoiceState {
     #[default]
@@ -101,43 +80,139 @@ pub enum VoiceState {
 
 #[derive(Debug)]
 pub struct Assistant {
-    pub items: Vec<Item>,
-    /// Text of the reply being streamed.
-    pub streaming: String,
-    pub draft: String,
-    pub busy: bool,
-    pub model_name: Option<String>,
+    threads: Vec<Thread>,
+    active: ThreadId,
+    next_id: u64,
+    /// The dock shows the thread list instead of the active thread.
+    pub show_history: bool,
     pub voice: VoiceState,
     /// Latest partial transcript while dictating, shown greyed out in the composer.
     pub live_text: String,
     pub focus_composer: bool,
     partial_pending: bool,
     last_partial: Instant,
-    session: Option<ClaudeSession>,
-    session_id: Option<String>,
-    database: Option<PathBuf>,
+    launcher: Launcher,
+    history_path: PathBuf,
     transcriber: Option<Transcriber>,
+    unsaved: bool,
+    last_save: Instant,
 }
 
 impl Assistant {
+    /// Loads the saved threads and opens a fresh one, as Zed does.
     pub fn new(database: Option<&Path>) -> Self {
-        Self {
-            items: Vec::new(),
-            streaming: String::new(),
-            draft: String::new(),
-            busy: false,
-            model_name: None,
+        let launcher = Launcher {
+            database: database.map(Path::to_path_buf),
+        };
+        let history_path = launcher.workdir().join("threads.json");
+        Self::with_history(launcher, history_path)
+    }
+
+    fn with_history(launcher: Launcher, history_path: PathBuf) -> Self {
+        let threads: Vec<Thread> = history::load(&history_path)
+            .into_iter()
+            .map(Thread::from_record)
+            .collect();
+        let next_id = threads.iter().map(|t| t.id.0 + 1).max().unwrap_or(1);
+        let mut assistant = Self {
+            threads,
+            active: ThreadId(0),
+            next_id,
+            show_history: false,
             voice: VoiceState::Idle,
             live_text: String::new(),
             focus_composer: false,
             partial_pending: false,
             last_partial: Instant::now(),
-            session: None,
-            session_id: None,
-            database: database.map(Path::to_path_buf),
+            launcher,
+            history_path,
             transcriber: None,
+            unsaved: false,
+            last_save: Instant::now(),
+        };
+        assistant.start_new_thread();
+        assistant
+    }
+
+    // ---- threads ---------------------------------------------------------------------------
+
+    pub fn active(&self) -> &Thread {
+        self.threads
+            .iter()
+            .find(|t| t.id == self.active)
+            .unwrap_or_else(|| &self.threads[0])
+    }
+
+    pub fn active_mut(&mut self) -> &mut Thread {
+        let index = self.threads.iter().position(|t| t.id == self.active).unwrap_or(0);
+        &mut self.threads[index]
+    }
+
+    /// Threads with messages, most recently active first.
+    pub fn recent_threads(&self) -> Vec<&Thread> {
+        let mut threads: Vec<&Thread> = self.threads.iter().filter(|t| t.has_messages()).collect();
+        threads.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
+        threads
+    }
+
+    /// Opens an empty thread, unless the current one is still empty.
+    pub fn new_thread(&mut self) {
+        self.show_history = false;
+        self.focus_composer = true;
+        if !self.active().has_messages() {
+            return;
+        }
+        self.start_new_thread();
+    }
+
+    fn start_new_thread(&mut self) {
+        let id = ThreadId(self.next_id);
+        self.next_id += 1;
+        self.threads.push(Thread::new(id));
+        self.switch_to(id);
+    }
+
+    pub fn open_thread(&mut self, id: ThreadId) {
+        if self.threads.iter().any(|t| t.id == id) {
+            self.switch_to(id);
+            self.show_history = false;
+            self.focus_composer = true;
         }
     }
+
+    /// Makes `id` active, forgets other empty threads and ends idle background sessions.
+    fn switch_to(&mut self, id: ThreadId) {
+        self.active = id;
+        self.threads.retain(|t| t.id == id || t.has_messages() || t.busy);
+        for thread in self.threads.iter_mut().filter(|t| t.id != id) {
+            thread.release_session();
+        }
+    }
+
+    pub fn delete_thread(&mut self, id: ThreadId) {
+        self.threads.retain(|t| t.id != id);
+        if self.active == id || self.threads.is_empty() {
+            self.start_new_thread();
+        }
+        self.unsaved = true;
+        self.save();
+    }
+
+    pub fn save(&mut self) {
+        let mut records: Vec<_> = self
+            .threads
+            .iter()
+            .filter(|t| t.has_messages())
+            .map(Thread::to_record)
+            .collect();
+        match history::save(&self.history_path, &mut records) {
+            Ok(()) => self.unsaved = false,
+            Err(err) => eprintln!("falog: could not save assistant threads: {err}"),
+        }
+        self.last_save = Instant::now();
+    }
+
+    // ---- conversation ----------------------------------------------------------------------
 
     pub fn is_recording(&self) -> bool {
         matches!(self.voice, VoiceState::Recording(_))
@@ -145,65 +220,40 @@ impl Assistant {
 
     /// Whether the UI should keep animating (spinners, level meter).
     pub fn is_active(&self) -> bool {
-        self.busy || !matches!(self.voice, VoiceState::Idle | VoiceState::NeedsModel)
+        self.threads.iter().any(|t| t.busy)
+            || !matches!(self.voice, VoiceState::Idle | VoiceState::NeedsModel)
     }
 
     pub fn send(&mut self, ctx: &egui::Context, text: String, options: AssistantOptions) {
-        let text = text.trim().to_owned();
-        if text.is_empty() || self.busy {
-            return;
-        }
-        self.items.push(Item::User(text.clone()));
-        if self.session.is_none() {
-            match self.start_session(ctx, options) {
-                Ok(session) => self.session = Some(session),
-                Err(message) => {
-                    self.items.push(Item::Error(message));
-                    return;
-                }
-            }
-        }
-        let sent = self.session.as_mut().map(|session| session.send(&text));
-        match sent {
-            Some(Ok(())) => {
-                self.busy = true;
-                self.streaming.clear();
-            }
-            Some(Err(err)) => {
-                self.session = None;
-                self.items
-                    .push(Item::Error(format!("Could not reach Claude Code: {err}")));
-            }
-            None => {}
+        let launcher = self.launcher.clone();
+        if self
+            .active_mut()
+            .send(ctx, text, &launcher, options.model.alias())
+        {
+            self.unsaved = true;
         }
     }
 
-    fn start_session(&self, ctx: &egui::Context, options: AssistantOptions) -> Result<ClaudeSession, String> {
-        let claude = claude::find_claude().ok_or(
-            "Claude Code was not found. Install it from claude.com/claude-code, then run `claude` once in a \
-             terminal to sign in.",
-        )?;
-        let mcp_server = claude::find_mcp_server()
-            .ok_or("falog-mcp was not found next to the app. Reinstall Falog to restore it.")?;
-        let config = SessionConfig {
-            claude,
-            mcp_server,
-            database: self.database.clone(),
-            model: options.model.alias().map(str::to_owned),
-            workdir: claude::default_workdir(self.database.as_deref()),
-            system_prompt: SYSTEM_PROMPT.to_owned(),
-            resume: self.session_id.clone(),
-        };
-        ClaudeSession::start(&config, ctx.clone())
-            .map_err(|err| format!("Could not start Claude Code: {err}"))
+    /// Interrupts the active thread's turn. The next message resumes the same conversation.
+    pub fn stop(&mut self) {
+        self.active_mut().stop();
+        self.unsaved = true;
+    }
+
+    /// Restarts Claude Code on the next message (e.g. after a model change), keeping the context.
+    pub fn restart_session(&mut self) {
+        for thread in &mut self.threads {
+            thread.release_session();
+        }
     }
 
     /// Processes pending events. Returns `true` when a tool finished, so tasks may have changed.
     pub fn poll(&mut self, ctx: &egui::Context, options: AssistantOptions) -> bool {
         let mut tasks_changed = false;
-        while let Some(event) = self.session.as_ref().and_then(ClaudeSession::try_recv) {
-            tasks_changed |= matches!(event, ClaudeEvent::ToolResult { .. });
-            self.apply(event);
+        for thread in &mut self.threads {
+            let activity = thread.poll();
+            tasks_changed |= activity.tasks_changed;
+            self.unsaved |= activity.changed;
         }
 
         self.schedule_partial(options);
@@ -223,15 +273,20 @@ impl Assistant {
             && let Some(result) = download.try_finish()
         {
             self.voice = VoiceState::Idle;
-            match result {
-                Ok(()) => self.items.push(Item::Notice(
-                    "Voice model ready. Press Ctrl+Space to talk.".into(),
-                )),
-                Err(message) => self.items.push(Item::Error(message)),
-            }
+            let item = match result {
+                Ok(()) => Item::Notice("Voice model ready. Press Ctrl+Space to talk.".into()),
+                Err(message) => Item::Error(message),
+            };
+            self.active_mut().items.push(item);
+        }
+
+        if self.unsaved && self.last_save.elapsed() >= SAVE_EVERY {
+            self.save();
         }
         tasks_changed
     }
+
+    // ---- dictation -------------------------------------------------------------------------
 
     /// While recording, re-transcribes the clip so far for the live preview, one job at a time.
     fn schedule_partial(&mut self, options: AssistantOptions) {
@@ -258,106 +313,18 @@ impl Assistant {
         self.voice = VoiceState::Idle;
         self.live_text.clear();
         match result {
-            Ok(text) if text.trim().is_empty() => self.items.push(Item::Notice("Didn't catch that.".into())),
+            Ok(text) if text.trim().is_empty() => {
+                self.active_mut()
+                    .items
+                    .push(Item::Notice("Didn't catch that.".into()));
+            }
             Ok(text) if options.send_after_dictation => self.send(ctx, text, options),
             Ok(text) => {
-                self.draft = text;
+                self.active_mut().draft = text;
                 self.focus_composer = true;
             }
-            Err(message) => self.items.push(Item::Error(message)),
+            Err(message) => self.active_mut().items.push(Item::Error(message)),
         }
-    }
-
-    fn apply(&mut self, event: ClaudeEvent) {
-        match event {
-            ClaudeEvent::Ready {
-                session_id,
-                model,
-                tools_connected,
-            } => {
-                self.session_id = Some(session_id);
-                self.model_name = Some(model);
-                if !tools_connected {
-                    self.items.push(Item::Error(
-                        "Falog's task tools did not connect, so the assistant cannot change tasks.".into(),
-                    ));
-                }
-            }
-            ClaudeEvent::TextDelta(text) => self.streaming.push_str(&text),
-            ClaudeEvent::Text(text) => {
-                self.streaming.clear();
-                if !text.trim().is_empty() {
-                    self.items.push(Item::Reply(text));
-                }
-            }
-            ClaudeEvent::ToolUse { id, name, input } => {
-                let name = name.strip_prefix(TOOL_PREFIX).unwrap_or(&name).to_owned();
-                self.items.push(Item::Tool(ToolCall {
-                    id,
-                    name,
-                    input,
-                    result: None,
-                }));
-            }
-            ClaudeEvent::ToolResult { id, text, is_error } => {
-                let call = self.items.iter_mut().rev().find_map(|item| match item {
-                    Item::Tool(call) if call.id == id => Some(call),
-                    _ => None,
-                });
-                if let Some(call) = call {
-                    call.result = Some(ToolOutcome { text, is_error });
-                }
-            }
-            ClaudeEvent::TurnFinished { is_error, message } => {
-                self.busy = false;
-                self.flush_streaming();
-                if is_error {
-                    let message = message.unwrap_or_else(|| "The assistant stopped with an error.".into());
-                    self.items.push(Item::Error(message));
-                }
-            }
-            ClaudeEvent::Exited { stderr } => {
-                self.session = None;
-                if self.busy {
-                    self.busy = false;
-                    self.flush_streaming();
-                    self.items.push(Item::Error(explain_exit(&stderr)));
-                }
-            }
-        }
-    }
-
-    fn flush_streaming(&mut self) {
-        let text = std::mem::take(&mut self.streaming);
-        if !text.trim().is_empty() {
-            self.items.push(Item::Reply(text));
-        }
-    }
-
-    /// Interrupts the current turn. The next message resumes the same conversation.
-    pub fn stop(&mut self) {
-        if self.busy {
-            self.session = None;
-            self.busy = false;
-            self.flush_streaming();
-            self.items.push(Item::Notice("Stopped.".into()));
-        }
-    }
-
-    /// Restarts Claude Code on the next message (e.g. after a model change), keeping the context.
-    pub fn restart_session(&mut self) {
-        if !self.busy {
-            self.session = None;
-        }
-    }
-
-    pub fn new_thread(&mut self) {
-        self.session = None;
-        self.session_id = None;
-        self.items.clear();
-        self.streaming.clear();
-        self.busy = false;
-        self.focus_composer = true;
     }
 
     /// Push-to-talk: starts recording, or stops and transcribes.
@@ -369,27 +336,28 @@ impl Assistant {
             VoiceState::Idle | VoiceState::NeedsModel => match Recorder::start(ctx.clone()) {
                 Ok(recorder) => {
                     // Create the worker now so the model loads while the user is still speaking.
-                    self.transcriber.get_or_insert_with(|| {
-                        Transcriber::new(voice::model_path(), options.voice_gpu, ctx.clone())
-                    });
+                    self.transcriber(ctx, options);
                     self.live_text.clear();
                     self.last_partial = Instant::now();
                     self.voice = VoiceState::Recording(recorder);
                 }
-                Err(message) => self.items.push(Item::Error(message)),
+                Err(message) => self.active_mut().items.push(Item::Error(message)),
             },
             VoiceState::Recording(recorder) => match recorder.finish() {
                 Some(audio) => {
-                    let transcriber = self.transcriber.get_or_insert_with(|| {
-                        Transcriber::new(voice::model_path(), options.voice_gpu, ctx.clone())
-                    });
-                    transcriber.submit(audio, options.language, true);
+                    self.transcriber(ctx, options)
+                        .submit(audio, options.language, true);
                     self.voice = VoiceState::Transcribing;
                 }
                 None => self.voice = VoiceState::Idle,
             },
             busy @ (VoiceState::Transcribing | VoiceState::Downloading(_)) => self.voice = busy,
         }
+    }
+
+    fn transcriber(&mut self, ctx: &egui::Context, options: AssistantOptions) -> &Transcriber {
+        self.transcriber
+            .get_or_insert_with(|| Transcriber::new(voice::model_path(), options.voice_gpu, ctx.clone()))
     }
 
     pub fn cancel_dictation(&mut self) {
@@ -411,91 +379,70 @@ impl Assistant {
     }
 }
 
-fn explain_exit(stderr: &str) -> String {
-    let lower = stderr.to_lowercase();
-    if lower.contains("login") || lower.contains("logged in") || lower.contains("authenticat") {
-        return "Claude Code is not signed in. Run `claude` once in a terminal to sign in, then try again."
-            .into();
-    }
-    match claude::summarize_stderr(stderr) {
-        detail if detail.is_empty() => "Claude Code exited unexpectedly.".into(),
-        detail => format!("Claude Code exited unexpectedly: {detail}"),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
-    fn assistant() -> Assistant {
-        Assistant::new(None)
+    fn assistant(name: &str) -> (Assistant, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("falog-assistant-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("threads.json");
+        (
+            Assistant::with_history(Launcher { database: None }, path.clone()),
+            path,
+        )
+    }
+
+    fn say(assistant: &mut Assistant, text: &str) {
+        assistant.active_mut().items.push(Item::User(text.into()));
     }
 
     #[test]
-    fn builds_the_thread_from_events() {
-        let mut a = assistant();
-        a.busy = true;
-        a.apply(ClaudeEvent::Ready {
-            session_id: "s1".into(),
-            model: "m".into(),
-            tools_connected: true,
-        });
-        a.apply(ClaudeEvent::ToolUse {
-            id: "t1".into(),
-            name: "mcp__falog__create_task".into(),
-            input: json!({}),
-        });
-        a.apply(ClaudeEvent::ToolResult {
-            id: "t1".into(),
-            text: "Created #7".into(),
-            is_error: false,
-        });
-        a.apply(ClaudeEvent::TextDelta("Do".into()));
-        a.apply(ClaudeEvent::TextDelta("ne".into()));
-        assert_eq!(a.streaming, "Done");
-        a.apply(ClaudeEvent::Text("Done.".into()));
-        a.apply(ClaudeEvent::TurnFinished {
-            is_error: false,
-            message: None,
-        });
-
-        assert!(!a.busy);
-        assert_eq!(a.session_id.as_deref(), Some("s1"));
-        assert!(
-            matches!(&a.items[0], Item::Tool(call) if call.name == "create_task"
-            && call.result.as_ref().is_some_and(|r| r.text == "Created #7"))
-        );
-        assert!(matches!(&a.items[1], Item::Reply(text) if text == "Done."));
-    }
-
-    #[test]
-    fn reports_missing_tools_and_crashes() {
-        let mut a = assistant();
-        a.apply(ClaudeEvent::Ready {
-            session_id: "s".into(),
-            model: "m".into(),
-            tools_connected: false,
-        });
-        assert!(matches!(a.items.last(), Some(Item::Error(_))));
-
-        a.busy = true;
-        a.apply(ClaudeEvent::TextDelta("partial".into()));
-        a.apply(ClaudeEvent::Exited {
-            stderr: "Invalid API key · Please run /login".into(),
-        });
-        assert!(!a.busy);
-        assert!(matches!(&a.items[a.items.len() - 2], Item::Reply(text) if text == "partial"));
-        assert!(matches!(a.items.last(), Some(Item::Error(text)) if text.contains("not signed in")));
-    }
-
-    #[test]
-    fn new_thread_forgets_the_conversation() {
-        let mut a = assistant();
-        a.session_id = Some("s".into());
-        a.items.push(Item::User("hi".into()));
+    fn starts_on_an_empty_thread_and_reuses_it() {
+        let (mut a, _) = assistant("empty");
+        let first = a.active().id;
         a.new_thread();
-        assert!(a.items.is_empty());
-        assert!(a.session_id.is_none());
+        assert_eq!(a.active().id, first, "an empty thread is reused");
+        say(&mut a, "hi");
+        a.new_thread();
+        assert_ne!(a.active().id, first);
+        assert_eq!(a.recent_threads().len(), 1);
+    }
+
+    #[test]
+    fn switching_forgets_empty_threads() {
+        let (mut a, _) = assistant("switch");
+        say(&mut a, "one");
+        let one = a.active().id;
+        a.new_thread();
+        let empty = a.active().id;
+        a.open_thread(one);
+        assert_eq!(a.active().id, one);
+        assert!(a.threads.iter().all(|t| t.id != empty));
+    }
+
+    #[test]
+    fn threads_survive_a_restart() {
+        let (mut a, path) = assistant("restart");
+        say(&mut a, "remember me");
+        let id = a.active().id;
+        a.save();
+        let restored = Assistant::with_history(Launcher { database: None }, path.clone());
+        assert_eq!(restored.recent_threads().len(), 1);
+        assert_eq!(restored.recent_threads()[0].id, id);
+        assert_ne!(restored.active().id, id, "a fresh thread is opened on start");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn deleting_the_active_thread_opens_a_new_one() {
+        let (mut a, path) = assistant("delete");
+        say(&mut a, "bye");
+        let id = a.active().id;
+        a.delete_thread(id);
+        assert_ne!(a.active().id, id);
+        assert!(a.recent_threads().is_empty());
+        assert!(history::load(&path).is_empty());
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 }

@@ -61,7 +61,7 @@ src/
   main.rs        single instance, window options, run loop
   app.rs         FalogApp: state, per-frame layout, action handling, persistence of prefs
   action.rs      Action enum: user intents emitted by widgets
-  assistant/     assistant dock: Claude Code session, voice capture + Whisper, panel UI
+  assistant/     assistant dock: Claude Code sessions, threads + history, voice capture + Whisper, panel UI
   prefs.rs       persisted UI preferences
   theme.rs       Zed color tokens -> egui visuals
   fonts.rs, icons.rs
@@ -92,6 +92,14 @@ those of a `falog-mcp` child with `FALOG_DB` set to the app's database (`--stric
 `CLAUDE.md` leaks in. A reader thread maps stream-json lines to `ClaudeEvent`s (text deltas, tool use and
 results, turn end, exit). Stopping kills the process; the next message resumes the conversation with
 `--resume <session>`. When a tool result arrives the app syncs immediately instead of waiting for the poll.
+
+Threads (`assistant/thread.rs`): each conversation is a `Thread` owning its items, draft and Claude
+Code process; `Assistant` keeps a list of them plus the active one and polls them all, so a turn keeps
+running while another thread is open. Switching threads ends the idle processes of the others; the
+next message resumes them with `--resume`. Threads with messages are saved to
+`<data dir>/assistant/threads.json` (`assistant/history.rs`: newest first, at most 100, written
+through a temporary file; an unreadable file is kept as `threads.json.bak`) a couple of seconds after
+they change and when eframe saves its state. Falog opens on a fresh thread, as Zed does.
 
 Voice (`assistant/voice.rs`): `cpal` records the default microphone, mixes to mono and resamples to
 16 kHz; a worker thread runs whisper.cpp (`whisper-rs`, model `ggml-large-v3-turbo-q5_0.bin` in

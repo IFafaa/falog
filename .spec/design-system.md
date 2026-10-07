@@ -67,8 +67,12 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Company colors 
 
 ### Assistant dock
 
-Modeled on Zed's agent panel. Header (32 px, `tab_bar`) with ✦ title, model name, new thread and
-close. The thread lists user messages (bordered `element` boxes), plain replies (streamed with a ▍
+Modeled on Zed's agent panel. Header (32 px, `tab_bar`) with ✦ and the thread title (its first
+message; hover shows the model), then new thread (+), history (clock, toggled) and close. The history
+view replaces the thread and composer with rows of 44 px: title, then `N messages · 2h ago` in
+`text_muted`; the open thread is `element_selected`, hover is `ghost_hover` with a trash button, and a
+running thread shows a spinner instead. The empty state lists the three most recent threads under the
+examples, with "View all" when there are more. The thread lists user messages (bordered `element` boxes), plain replies (streamed with a ▍
 caret), tool calls as compact bordered cards (spinner → check / warning, action label, first line of
 the result; click opens the task, hover shows the arguments) and errors in `error`. The composer is an
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar

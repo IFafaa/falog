@@ -1,5 +1,7 @@
-//! The assistant dock, modeled on Zed's agent panel: thread on top, composer at the bottom.
+//! The assistant dock, modeled on Zed's agent panel: thread on top, composer at the bottom, and a
+//! history view listing past threads.
 
+use super::thread::{self, Thread};
 use super::voice;
 use super::{Assistant, AssistantOptions, Item, ToolCall, VoiceState};
 use crate::action::{Action, Actions};
@@ -37,17 +39,25 @@ pub fn show(
         .frame(Frame::none().fill(theme.panel))
         .show(ctx, |ui| {
             header(ui, theme, assistant, actions);
+            if assistant.show_history {
+                CentralPanel::default()
+                    .frame(Frame::none().inner_margin(Margin::same(8.0)))
+                    .show_inside(ui, |ui| history(ui, theme, assistant));
+                return;
+            }
             TopBottomPanel::bottom("assistant_composer_panel")
                 .show_separator_line(false)
                 .frame(Frame::none().inner_margin(Margin::same(10.0)))
                 .show_inside(ui, |ui| composer(ui, theme, assistant, options));
             CentralPanel::default()
                 .frame(Frame::none().inner_margin(Margin::symmetric(14.0, 8.0)))
-                .show_inside(ui, |ui| thread(ui, theme, assistant, options, actions));
+                .show_inside(ui, |ui| thread_view(ui, theme, assistant, options, actions));
         });
 }
 
+/// Zed's agent panel header: the thread title on the left, thread actions on the right.
 fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &mut Actions) {
+    const BUTTONS_WIDTH: f32 = 96.0;
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), BAR_HEIGHT), Sense::hover());
     ui.painter().rect_filled(rect, 0.0, theme.tab_bar);
     ui.painter().hline(
@@ -56,24 +66,32 @@ fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &mut A
         Stroke::new(1.0_f32, theme.border),
     );
     let icon_rect = Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), vec2(14.0, 14.0));
-    Icon::Sparkle.paint(ui, icon_rect, 14.0, theme.text_accent);
-    ui.painter().text(
-        pos2(icon_rect.right() + 8.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        "Assistant",
+    let (icon, title) = if assistant.show_history {
+        (Icon::Clock, "History".to_owned())
+    } else {
+        (Icon::Sparkle, assistant.active().title())
+    };
+    icon.paint(ui, icon_rect, 14.0, theme.text_accent);
+    let title_left = icon_rect.right() + 8.0;
+    let galley = single_line(
+        ui,
+        &title,
         fonts::semibold(13.5),
         theme.text,
+        rect.right() - BUTTONS_WIDTH - title_left,
+        false,
     );
-    if let Some(model) = &assistant.model_name {
-        ui.painter().text(
-            pos2(icon_rect.right() + 80.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            model,
-            FontId::proportional(11.5),
-            theme.text_placeholder,
-        );
+    let title_rect = Rect::from_min_size(
+        pos2(title_left, rect.center().y - galley.size().y / 2.0),
+        galley.size(),
+    );
+    ui.painter().galley(title_rect.min, galley, theme.text);
+    if let (false, Some(model)) = (assistant.show_history, &assistant.active().model_name) {
+        ui.interact(title_rect, Id::new("assistant-title"), Sense::hover())
+            .on_hover_text(format!("{title}\n{model}"));
     }
-    let buttons = Rect::from_min_max(pos2(rect.right() - 64.0, rect.top()), rect.max);
+
+    let buttons = Rect::from_min_max(pos2(rect.right() - BUTTONS_WIDTH, rect.top()), rect.max);
     ui.allocate_new_ui(
         egui::UiBuilder::new()
             .max_rect(buttons)
@@ -84,6 +102,9 @@ fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &mut A
             if icon_button(ui, Icon::Close, "Close (Ctrl+Shift+A)").clicked() {
                 actions.push(Action::ToggleAssistant);
             }
+            if icon_toggle(ui, Icon::Clock, assistant.show_history, "History").clicked() {
+                assistant.show_history = !assistant.show_history;
+            }
             if icon_button(ui, Icon::Plus, "New thread").clicked() {
                 assistant.new_thread();
             }
@@ -91,16 +112,116 @@ fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &mut A
     );
 }
 
+// ---- history ---------------------------------------------------------------------------------
+
+fn history(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
+    if assistant.recent_threads().is_empty() {
+        ui.add_space(24.0);
+        ui.vertical_centered(|ui| {
+            ui.label(RichText::new("No threads yet").size(13.0).color(theme.text_muted));
+        });
+        return;
+    }
+    ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| thread_list(ui, theme, assistant, usize::MAX));
+}
+
+/// Rows for the most recent threads; clicking one opens it.
+fn thread_list(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, limit: usize) {
+    let now = thread::now();
+    let active = assistant.active().id;
+    let (mut open, mut delete) = (None, None);
+    ui.spacing_mut().item_spacing.y = 2.0;
+    for thread in assistant.recent_threads().into_iter().take(limit) {
+        match thread_row(ui, theme, thread, thread.id == active, now) {
+            RowAction::Open => open = Some(thread.id),
+            RowAction::Delete => delete = Some(thread.id),
+            RowAction::None => {}
+        }
+    }
+    if let Some(id) = delete {
+        assistant.delete_thread(id);
+    } else if let Some(id) = open {
+        assistant.open_thread(id);
+    }
+}
+
+enum RowAction {
+    None,
+    Open,
+    Delete,
+}
+
+/// One past thread: title, then "N messages · 2h ago"; a delete button shows on hover.
+fn thread_row(ui: &mut Ui, theme: &Theme, thread: &Thread, active: bool, now: i64) -> RowAction {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::click());
+    let hovered = ui.rect_contains_pointer(rect);
+    let fill = if active {
+        theme.element_selected
+    } else if hovered {
+        theme.ghost_hover
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, 6.0, fill);
+
+    let left = rect.left() + 10.0;
+    let text_width = rect.width() - 48.0;
+    let title = single_line(
+        ui,
+        &thread.title(),
+        FontId::proportional(13.5),
+        theme.text,
+        text_width,
+        false,
+    );
+    ui.painter()
+        .galley(pos2(left, rect.top() + 6.0), title, theme.text);
+    let count = thread.message_count();
+    let detail = format!(
+        "{count} message{} · {}",
+        if count == 1 { "" } else { "s" },
+        thread::relative_time(thread.updated_at, now)
+    );
+    let detail = single_line(
+        ui,
+        &detail,
+        FontId::proportional(12.0),
+        theme.text_muted,
+        text_width,
+        false,
+    );
+    ui.painter()
+        .galley(pos2(left, rect.top() + 25.0), detail, theme.text_muted);
+
+    let side = Rect::from_center_size(pos2(rect.right() - 20.0, rect.center().y), vec2(24.0, 24.0));
+    if thread.busy {
+        ui.put(side, Spinner::new().size(12.0).color(theme.text_muted));
+    } else if hovered {
+        let delete = ui.put(side, |ui: &mut Ui| icon_button(ui, Icon::Trash, "Delete thread"));
+        if delete.clicked() {
+            return RowAction::Delete;
+        }
+    }
+    if response.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+        RowAction::Open
+    } else {
+        RowAction::None
+    }
+}
+
 // ---- thread ----------------------------------------------------------------------------------
 
-fn thread(
+fn thread_view(
     ui: &mut Ui,
     theme: &Theme,
     assistant: &mut Assistant,
     options: AssistantOptions,
     actions: &mut Actions,
 ) {
-    if assistant.items.is_empty() && !assistant.busy {
+    let thread = assistant.active();
+    if thread.items.is_empty() && !thread.busy {
         empty_state(ui, theme, assistant, options);
         return;
     }
@@ -109,7 +230,7 @@ fn thread(
         .auto_shrink([false, false])
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
-            for item in &assistant.items {
+            for item in &thread.items {
                 match item {
                     Item::User(text) => user_message(ui, theme, text),
                     Item::Reply(text) => reply(ui, theme, text),
@@ -125,9 +246,9 @@ fn thread(
                     }
                 }
             }
-            if !assistant.streaming.is_empty() {
-                reply(ui, theme, &format!("{}▍", assistant.streaming));
-            } else if assistant.busy && !has_pending_tool(assistant) {
+            if !thread.streaming.is_empty() {
+                reply(ui, theme, &format!("{}▍", thread.streaming));
+            } else if thread.busy && !has_pending_tool(thread) {
                 ui.horizontal(|ui| {
                     ui.add(Spinner::new().size(12.0).color(theme.text_muted));
                     ui.label(RichText::new("Thinking…").size(13.0).color(theme.text_muted));
@@ -137,8 +258,8 @@ fn thread(
         });
 }
 
-fn has_pending_tool(assistant: &Assistant) -> bool {
-    matches!(assistant.items.last(), Some(Item::Tool(call)) if call.result.is_none())
+fn has_pending_tool(thread: &Thread) -> bool {
+    matches!(thread.items.last(), Some(Item::Tool(call)) if call.result.is_none())
 }
 
 fn empty_state(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: AssistantOptions) {
@@ -174,6 +295,27 @@ fn empty_state(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: A
         }
         ui.add_space(4.0);
     }
+    recent(ui, theme, assistant);
+}
+
+/// The last few threads under the examples, like Zed's empty agent panel.
+fn recent(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
+    const SHOWN: usize = 3;
+    let total = assistant.recent_threads().len();
+    if total == 0 {
+        return;
+    }
+    ui.add_space(16.0);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Recent").size(12.0).color(theme.text_muted));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if total > SHOWN && button(ui, ButtonStyle::Ghost, None, &format!("View all ({total})")).clicked()
+            {
+                assistant.show_history = true;
+            }
+        });
+    });
+    thread_list(ui, theme, assistant, SHOWN);
 }
 
 fn user_message(ui: &mut Ui, theme: &Theme, text: &str) {
@@ -362,7 +504,7 @@ fn text_input(
     // Enter sends, Shift+Enter breaks the line; consume Enter before the text field sees it.
     let enter = focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
     let response = ui.add(
-        TextEdit::multiline(&mut assistant.draft)
+        TextEdit::multiline(&mut assistant.active_mut().draft)
             .id(id)
             .frame(false)
             .desired_rows(2)
@@ -378,17 +520,17 @@ fn text_input(
             assistant.toggle_dictation(ui.ctx(), options);
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if assistant.busy {
+            if assistant.active().busy {
                 if button(ui, ButtonStyle::Filled, Some(Icon::Stop), "Stop").clicked() {
                     assistant.stop();
                 }
             } else {
-                let ready = !assistant.draft.trim().is_empty();
+                let ready = !assistant.active().draft.trim().is_empty();
                 let send = ui.add_enabled_ui(ready, |ui| {
                     button(ui, ButtonStyle::Accent, Some(Icon::Send), "Send")
                 });
                 if (send.inner.on_hover_text("Enter").clicked() || enter) && ready {
-                    let text = std::mem::take(&mut assistant.draft);
+                    let text = std::mem::take(&mut assistant.active_mut().draft);
                     assistant.send(ui.ctx(), text, options);
                     response.request_focus();
                 }
