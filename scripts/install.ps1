@@ -4,7 +4,10 @@
 #   - the MCP server registered in Claude Code (user scope), if the `claude` CLI is available
 #   - the assistant workspace copied to -AssistantDir
 #
-#   powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+#   powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 [-SkipBuild]
+#
+# Run from a shell inside a packaged app (the Claude desktop app, for one), it builds there and
+# finishes the install in a window outside the package, so Falog does not land in its sandbox.
 param(
     [string]$AssistantDir = (Join-Path $HOME 'falog-assistant'),
     # Install the binaries already in target\release instead of building.
@@ -59,12 +62,13 @@ if ($SkipBuild) {
 # AppData and HKCU: an install from there lands in the package's sandbox, which the Start menu,
 # sign-in and the real data folder never see. Build here, then hand the install to Explorer, which
 # runs outside the package.
-Add-Type -Namespace Falog -Name Package -MemberDefinition @'
-[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-public static extern int GetCurrentPackageFullName(ref int length, System.Text.StringBuilder name);
-'@
-$length = 0
-if ([Falog.Package]::GetCurrentPackageFullName([ref]$length, $null) -ne 15700) {  # 15700: no package
+# Shells spawned by such apps may lack package identity yet still be redirected, so probe for it:
+# a redirected write shows up under Packages\<app>\LocalCache.
+$probe = "falog-install-probe-$([guid]::NewGuid())"
+New-Item -ItemType Directory (Join-Path $env:LOCALAPPDATA $probe) | Out-Null
+$sandboxed = Get-Item (Join-Path $env:LOCALAPPDATA "Packages\*\LocalCache\Local\$probe") -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $env:LOCALAPPDATA $probe) -ErrorAction SilentlyContinue
+if ($sandboxed) {
     $launcher = Join-Path $root 'target\install-outside.cmd'
     Set-Content -Encoding ascii $launcher @(
         '@echo off',
