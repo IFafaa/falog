@@ -354,7 +354,8 @@ impl FalogApp {
             Action::ManageAreas => self.areas_dialog = Some(AreasDialog::new(self.areas.len())),
             Action::OpenSettings => {
                 let path = self.store.as_ref().ok().and_then(Store::path);
-                self.settings = Some(SettingsDialog::new(autostart::is_enabled(), path));
+                let agents = self.assistant.custom_agents().to_vec();
+                self.settings = Some(SettingsDialog::new(autostart::is_enabled(), path, agents));
             }
             Action::SetTheme(mode) => {
                 self.prefs.theme = mode;
@@ -496,6 +497,7 @@ impl FalogApp {
             },
             SettingsEvent::SetTheme(mode) => theme::set_mode(ctx, mode),
             SettingsEvent::VoiceEngineChanged => self.assistant.reset_voice_engine(),
+            SettingsEvent::AgentsChanged(agents) => self.assistant.set_custom_agents(agents),
             SettingsEvent::Copied => self.notify("Copied to clipboard", ToastKind::Success),
         }
     }

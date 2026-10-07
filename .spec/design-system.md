@@ -80,7 +80,10 @@ the result; click opens the task, hover shows the arguments) and errors in `erro
 Under the text, the footer has the mic, then the thread's agent, model and effort pickers (Zed's selectors:
 `text_muted` label and a chevron, `ghost_hover` on hover, a menu above with a check on the current
 value; the effort picker only shows when the agent has one, and the agent becomes a plain label
-once the thread has messages), and Send or Stop on the right. Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
+once the thread has messages), and Send or Stop on the right. Settings › Agents lists the agents one per line (name, command line in monospace `text_muted`,
+`Installed` in `success` or `Not found` in `text_placeholder` with the setup hint on hover, a trash
+button for custom ones); "Add agent" opens a bordered form (name, command, environment).
+Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
 30 px): `/name` in monospace, the argument hint in `text_placeholder`, the description in
 `text_muted`; the selected row is `ghost_selected`. Arrows move, Tab or Enter completes `/name `,
 Enter on a complete name sends it, Esc closes.

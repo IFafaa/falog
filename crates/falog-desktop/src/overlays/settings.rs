@@ -1,3 +1,5 @@
+use crate::assistant::agent::registry::AgentConfig;
+use crate::assistant::agent_settings::{self, AgentsForm};
 use crate::assistant::voice::{self, VoiceLanguage};
 use crate::components::{
     ButtonStyle, Placement, button, icon_button, modal, modal_header, segmented, switch,
@@ -14,6 +16,7 @@ pub enum SettingsEvent {
     SetAutostart(bool),
     SetTheme(ThemeMode),
     VoiceEngineChanged,
+    AgentsChanged(Vec<AgentConfig>),
     Copied,
 }
 
@@ -22,10 +25,11 @@ pub struct SettingsDialog {
     pub autostart: bool,
     db_path: Option<PathBuf>,
     mcp_command: String,
+    agents: AgentsForm,
 }
 
 impl SettingsDialog {
-    pub fn new(autostart: bool, db_path: Option<&Path>) -> Self {
+    pub fn new(autostart: bool, db_path: Option<&Path>, custom_agents: Vec<AgentConfig>) -> Self {
         let mcp_exe = std::env::current_exe()
             .ok()
             .and_then(|exe| {
@@ -38,6 +42,7 @@ impl SettingsDialog {
             autostart,
             db_path: db_path.map(Path::to_path_buf),
             mcp_command: format!("claude mcp add --scope user falog -- \"{mcp_exe}\""),
+            agents: AgentsForm::new(custom_agents),
         }
     }
 
@@ -118,6 +123,11 @@ impl SettingsDialog {
                         )
                     };
                     ui.label(RichText::new(model_status).size(12.5).color(theme.text_placeholder));
+
+                    section(ui, theme, "Agents");
+                    if agent_settings::show(ui, theme, &mut self.agents) {
+                        events.push(SettingsEvent::AgentsChanged(self.agents.custom.clone()));
+                    }
 
                     section(ui, theme, "Data");
                     let path = self

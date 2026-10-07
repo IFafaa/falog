@@ -86,7 +86,8 @@ impl Agent {
         }
     }
 
-    fn custom(config: AgentConfig) -> Self {
+    /// A user-defined agent; custom agents always speak ACP.
+    pub fn from_custom(config: AgentConfig) -> Self {
         let hint = format!("Check the command of {} in Settings.", config.name);
         Self {
             config,
@@ -130,6 +131,11 @@ impl Agent {
             }
         };
         started.map_err(|err| format!("Could not start {name}: {err}"))
+    }
+
+    /// Whether its command can be found.
+    pub fn is_installed(&self) -> bool {
+        self.program().is_some()
     }
 
     fn program(&self) -> Option<PathBuf> {
@@ -188,7 +194,7 @@ pub fn all(custom: &[AgentConfig]) -> Vec<Agent> {
             .iter()
             .filter(|config| !agents_contain(&presets(), &config.id))
             .cloned()
-            .map(Agent::custom),
+            .map(Agent::from_custom),
     );
     agents
 }
@@ -199,6 +205,31 @@ pub fn find(custom: &[AgentConfig], id: &AgentId) -> Option<Agent> {
 
 fn agents_contain(agents: &[Agent], id: &AgentId) -> bool {
     agents.iter().any(|agent| agent.id() == id)
+}
+
+/// A fresh id for a custom agent named `name` (`custom-my-agent`, `custom-my-agent-2`...).
+pub fn custom_id(name: &str, taken: &[AgentConfig]) -> AgentId {
+    let slug: String = name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    let base = format!("custom-{}", if slug.is_empty() { "agent" } else { &slug });
+    let free = |id: &str| !taken.iter().any(|config| config.id.0 == id);
+    (1..)
+        .map(|n| {
+            if n == 1 {
+                base.clone()
+            } else {
+                format!("{base}-{n}")
+            }
+        })
+        .find(|id| free(id))
+        .map_or_else(AgentId::default, AgentId)
 }
 
 /// Resolves a command like a shell would: a path as is, otherwise each `PATH` directory, trying
@@ -261,6 +292,20 @@ mod tests {
         assert!(!agents.last().unwrap().builtin);
         assert!(find(&custom, &AgentId("custom-goose".into())).is_some());
         assert!(find(&custom, &AgentId("missing".into())).is_none());
+    }
+
+    #[test]
+    fn makes_unique_ids_for_custom_agents() {
+        let taken = vec![AgentConfig {
+            id: AgentId("custom-my-agent".into()),
+            name: "My agent".into(),
+            command: "x".into(),
+            args: Vec::new(),
+            env: BTreeMap::new(),
+        }];
+        assert_eq!(custom_id("Goose  ACP!", &taken).0, "custom-goose-acp");
+        assert_eq!(custom_id("My Agent", &taken).0, "custom-my-agent-2");
+        assert_eq!(custom_id("???", &taken).0, "custom-agent");
     }
 
     #[test]

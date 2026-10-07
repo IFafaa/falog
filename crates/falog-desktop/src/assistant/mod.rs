@@ -5,6 +5,7 @@
 //! draws the dock. [`Assistant`] owns the threads and the dictation state and ties them together.
 
 pub mod agent;
+pub mod agent_settings;
 pub mod agents;
 pub mod history;
 pub mod panel;
@@ -12,7 +13,7 @@ pub mod slash;
 pub mod thread;
 pub mod voice;
 
-use agent::registry::{self, Agent, AgentId, Protocol};
+use agent::registry::{self, Agent, AgentConfig, AgentId, Protocol};
 use agent::{OptionKind, claude_code};
 use agents::SavedAgents;
 use eframe::egui;
@@ -133,6 +134,23 @@ impl Assistant {
     /// Every agent a thread can talk to: the presets, then the user's own.
     pub fn agents(&self) -> Vec<Agent> {
         registry::all(&self.saved_agents.custom)
+    }
+
+    pub fn custom_agents(&self) -> &[AgentConfig] {
+        &self.saved_agents.custom
+    }
+
+    /// Replaces the custom agents (from Settings). Threads keep their agent id; a thread whose
+    /// agent was removed says so when it next sends.
+    pub fn set_custom_agents(&mut self, custom: Vec<AgentConfig>) {
+        self.saved_agents.custom = custom;
+        let mut threads = std::mem::take(&mut self.threads);
+        for thread in threads.iter_mut().filter(|t| !t.busy) {
+            self.prepare(thread);
+        }
+        self.threads = threads;
+        self.agents_unsaved = true;
+        self.save();
     }
 
     fn agent(&self, id: &AgentId) -> Option<Agent> {

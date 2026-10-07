@@ -58,7 +58,10 @@ Design notes, conventions and the roadmap live in [`.spec/`](.spec/CLAUDE.md).
 Requires [Rust](https://rustup.rs) and the MSVC build tools (with CMake). Voice input also needs
 [LLVM](https://llvm.org) at build time (`winget install LLVM.LLVM`); without it the installer builds
 Falog without voice. The assistant dock uses [Claude Code](https://claude.com/claude-code), signed in
-with `claude` once.
+with `claude` once. It can also talk to any agent that speaks the
+[Agent Client Protocol](https://agentclientprotocol.com): Claude through its ACP adapter (Node.js 22+),
+[Gemini CLI](https://github.com/google-gemini/gemini-cli) and Codex are built in, and Settings › Agents
+adds your own (`name`, command, environment). Each one runs on your own login or subscription.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
