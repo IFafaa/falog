@@ -6,10 +6,12 @@
 //! pure rules the week view uses to place events. Nothing here knows about the UI.
 
 
+pub mod config;
 mod error;
 pub mod layout;
 pub mod model;
 mod url;
 
+pub use config::{Account, CalendarConfig, Client, EventCache, Files};
 pub use error::{Error, Result};
 pub use model::{Calendar, Event, EventTime};
