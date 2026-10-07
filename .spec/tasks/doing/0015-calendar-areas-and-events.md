@@ -36,10 +36,10 @@ read-only by nature.
 
 - [x] Each email gets one area from a select next to it; an area can have several emails
 - [x] Filtering by an area in the sidebar shows only that area's meetings in the calendar view
-- [ ] `list_events` returns the meetings of a day or range, optionally for one area
+- [x] `list_events` returns the meetings of a day or range, optionally for one area
 - [ ] `create_event` puts the event in the area's calendar and the desktop shows it within seconds
-- [ ] An account connected with the old read-only scope gets a clear "reconnect" message on write
-- [ ] Specs and README updated; tests cover the area links, the tools' arguments and the API payloads
+- [x] An account connected with the old read-only scope gets a clear "reconnect" message on write
+- [x] Specs and README updated; tests cover the area links, the tools' arguments and the API payloads
 
 ## Plan
 
@@ -53,4 +53,7 @@ read-only by nature.
 
 ## Outcome
 
-Filled when done.
+In progress. `list_events` was run against the user's three real accounts (Acme, Globex, Gmail) and
+returned the day's meetings with join links. `create_event` is covered by payload and account-choice
+tests but not run for real yet: the accounts were connected read-only and must be reconnected once to
+grant `calendar.events`.
