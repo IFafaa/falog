@@ -45,6 +45,11 @@ impl ThemeMode {
 pub struct Theme {
     pub dark: bool,
 
+    /// Native title bar color; only Windows lets the app paint it (see `platform::title_bar`).
+    #[cfg_attr(
+        not(windows),
+        expect(dead_code, reason = "macOS and Linux keep the native title bar")
+    )]
     pub title_bar: Color32,
     pub status_bar: Color32,
     pub tab_bar: Color32,
