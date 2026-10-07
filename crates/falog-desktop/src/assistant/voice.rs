@@ -451,7 +451,9 @@ mod engine {
 mod engine {
     use std::path::Path;
 
-    pub type Model = ();
+    /// Never constructed: [`load`] always fails without the `whisper` feature.
+    #[derive(Clone)]
+    pub struct Model;
 
     pub fn init() {}
 
