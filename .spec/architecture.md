@@ -72,7 +72,7 @@ src/
   views/         board, list, focus, calendar (+ ViewCx, SortOrder)
   overlays/      command palette, areas, settings, confirm
   platform/      autostart (registry, LaunchAgent, XDG autostart), single instance (loopback port),
-                 title bar colors (DWM)
+                 title bar colors (DWM), regional format, reveal in Explorer/Finder/Files
 ```
 
 ### Frame flow

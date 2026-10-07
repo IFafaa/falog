@@ -6,6 +6,7 @@ use crate::components::{
 };
 use crate::fonts;
 use crate::icons::Icon;
+use crate::platform::reveal;
 use crate::prefs::Prefs;
 use crate::theme::{Theme, ThemeMode};
 use eframe::egui::{self, Align, Frame, Layout, Margin, RichText, TextEdit, Ui};
@@ -152,11 +153,9 @@ impl SettingsDialog {
                         .map_or("in memory".into(), |p| p.display().to_string());
                     copy_row(ui, theme, Icon::Database, &path, &mut events);
                     if let Some(path) = &self.db_path
-                        && button(ui, ButtonStyle::Ghost, None, "Show in Explorer").clicked()
+                        && button(ui, ButtonStyle::Ghost, None, reveal::LABEL).clicked()
                     {
-                        let _ = std::process::Command::new("explorer")
-                            .arg(format!("/select,{}", path.display()))
-                            .spawn();
+                        let _ = reveal::reveal(path);
                     }
 
                     section(ui, theme, "Other assistants (MCP)");
