@@ -17,6 +17,8 @@ pub struct AreasDialog {
     edits: HashMap<AreaId, (String, [u8; 3])>,
     new_name: String,
     new_color: [u8; 3],
+    /// Put the cursor in the new area field on the first frame.
+    focus_new: bool,
 }
 
 impl AreasDialog {
@@ -25,6 +27,7 @@ impl AreasDialog {
             edits: HashMap::new(),
             new_name: String::new(),
             new_color: PALETTE[existing % PALETTE.len()].0,
+            focus_new: true,
         }
     }
 
@@ -106,6 +109,9 @@ impl AreasDialog {
                     .hint_text("New area")
                     .desired_width(220.0),
             );
+            if std::mem::take(&mut self.focus_new) {
+                response.request_focus();
+            }
             let enter = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
             let add = button(ui, ButtonStyle::Accent, Some(Icon::Plus), "Add").clicked();
             if (add || enter) && !self.new_name.trim().is_empty() {

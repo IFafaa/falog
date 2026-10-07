@@ -100,7 +100,7 @@ fn header(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
             .layout(Layout::right_to_left(Align::Center)),
         |ui| {
             ui.add_space(6.0);
-            if icon_button(ui, Icon::Settings, "Manage areas").clicked() {
+            if icon_button(ui, Icon::Plus, "Add area").clicked() {
                 actions.push(Action::ManageAreas);
             }
         },
