@@ -16,6 +16,7 @@ starts; move it to `tasks/done` when shipped.
 | 0009 | [Areas instead of companies](tasks/done/0009-areas.md) | Personal tasks and appointments next to work |
 | 0010 | [Calendar view with Google Calendar](tasks/doing/0010-google-calendar.md) | Meetings from several Google accounts next to the tasks |
 | 0012 | [macOS and Linux](tasks/done/0012-macos-and-linux.md) | The same board on the Mac and the Linux machine |
+| 0013 | [Data folder outside AppData](tasks/doing/0013-data-outside-appdata.md) | Claude desktop's sandbox must not hide tasks from Falog |
 
 Later, unordered: tags/labels, manual ordering within a column, weekly report export (Markdown),
 undo for destructive actions, signed macOS builds and Linux packages (Flatpak, `.deb`).
