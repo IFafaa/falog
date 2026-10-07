@@ -259,14 +259,16 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           # Only `commits` may be skipped (it runs on pull requests only).
-          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"' | {
-            failed=0
-            while read -r job result; do
-              echo "$job: $result"
-              case "$job:$result" in
-                *:success | commits:skipped) ;;
-                *) failed=1 ;;
-              esac
-            done
-            exit "$failed"
-          }
+          results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
+          test -n "$results"
+          failed=0
+          while read -r job result; do
+            echo "$job: $result"
+            case "$job:$result" in
+              *:success | commits:skipped) ;;
+              *) failed=1 ;;
+            esac
+          done <<EOF
+          $results
+          EOF
+          exit "$failed"
