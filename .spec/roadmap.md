@@ -13,6 +13,7 @@ starts; move it to `tasks/done` when shipped.
 | 0006 | [Assistant panel with voice](tasks/done/0006-assistant-panel.md) | Talk to Falog itself instead of a separate Claude window |
 | 0007 | [Assistant threads](tasks/done/0007-assistant-threads.md) | Several conversations with their own context, like Zed |
 | 0008 | [Live transcription](tasks/done/0008-live-transcription.md) | See the words while dictating |
+| 0009 | [Areas instead of companies](tasks/doing/0009-areas.md) | Personal tasks and appointments next to work |
 
 Later, unordered: tags/labels, manual ordering within a column, weekly report export (Markdown),
 undo for destructive actions, macOS/Linux packaging.
