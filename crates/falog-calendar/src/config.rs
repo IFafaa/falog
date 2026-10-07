@@ -1,6 +1,6 @@
 //! What Falog remembers about Google Calendar, under `<data dir>/calendar/`:
-//! `google.json` (OAuth client, accounts with their refresh tokens and calendar choices) and
-//! `events.json` (the last events fetched, so the view opens instantly and offline).
+//! `google.json` (calendar links, the OAuth client, accounts with their refresh tokens and calendar
+//! choices) and `events.json` (the last events fetched, so the view opens instantly and offline).
 
 use crate::model::{Calendar, Event};
 use crate::{Error, Result};
@@ -39,7 +39,36 @@ pub struct Account {
 pub struct CalendarConfig {
     pub client: Client,
     pub accounts: Vec<Account>,
+    /// Calendars read through their secret iCal address. Missing in files written before links.
+    pub links: Vec<Link>,
 }
+
+/// A calendar read through its secret iCal address instead of a signed-in account. Its events have
+/// an empty `account` and the link's id as `calendar_id`.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Link {
+    /// The id is Falog's own (`link-…`); name, color and visibility are the user's.
+    #[serde(flatten)]
+    pub calendar: Calendar,
+    /// The secret address. Whoever has it reads the calendar: never log it or show it whole (see
+    /// [`crate::ics::masked`]).
+    pub url: String,
+}
+
+impl std::fmt::Debug for Link {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Link")
+            .field("calendar", &self.calendar)
+            .field("url", &crate::ics::masked(&self.url))
+            .finish()
+    }
+}
+
+/// Google Calendar's calendar colors, offered for links (feeds carry no color).
+pub const LINK_COLORS: [&str; 12] = [
+    "#039be5", "#33b679", "#8e24aa", "#e67c73", "#f6bf26", "#f4511e", "#7986cb", "#0b8043", "#3f51b5",
+    "#ad1457", "#616161", "#d50000",
+];
 
 impl CalendarConfig {
     /// Adds an account, or replaces the one with the same email keeping its calendar choices.
@@ -61,7 +90,57 @@ impl CalendarConfig {
         Some(self.accounts.remove(index))
     }
 
+    /// Adds a calendar link with a new id and the first color no calendar uses yet.
+    pub fn add_link(&mut self, name: &str, url: &str, color: Option<String>) -> Result<&Link> {
+        let mut random = [0u8; 6];
+        getrandom::fill(&mut random).map_err(|err| Error::Io(std::io::Error::other(err.to_string())))?;
+        let id: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+        let color = color.unwrap_or_else(|| self.unused_color().to_owned());
+        self.links.push(Link {
+            calendar: Calendar {
+                id: format!("link-{id}"),
+                name: name.trim().to_owned(),
+                color,
+                primary: false,
+                visible: true,
+            },
+            url: url.trim().to_owned(),
+        });
+        Ok(&self.links[self.links.len() - 1])
+    }
+
+    pub fn has_link(&self, url: &str) -> bool {
+        self.links.iter().any(|link| link.url == url.trim())
+    }
+
+    pub fn link_mut(&mut self, id: &str) -> Option<&mut Link> {
+        self.links.iter_mut().find(|link| link.calendar.id == id)
+    }
+
+    pub fn remove_link(&mut self, id: &str) -> Option<Link> {
+        let index = self.links.iter().position(|link| link.calendar.id == id)?;
+        Some(self.links.remove(index))
+    }
+
+    fn unused_color(&self) -> &'static str {
+        let used: Vec<&str> = self
+            .accounts
+            .iter()
+            .flat_map(|a| &a.calendars)
+            .chain(self.links.iter().map(|l| &l.calendar))
+            .map(|c| c.color.as_str())
+            .collect();
+        LINK_COLORS
+            .iter()
+            .find(|color| !used.iter().any(|used| used.eq_ignore_ascii_case(color)))
+            .unwrap_or(&LINK_COLORS[self.links.len() % LINK_COLORS.len()])
+    }
+
+    /// The calendar of an account, or the link `id` when `account` is empty.
     pub fn calendar(&self, account: &str, id: &str) -> Option<&Calendar> {
+        if account.is_empty() {
+            return self.links.iter().map(|link| &link.calendar).find(|c| c.id == id);
+        }
         self.accounts
             .iter()
             .find(|a| a.email == account)?
@@ -211,6 +290,66 @@ mod tests {
         assert_eq!(files.load_config(), CalendarConfig::default());
         assert!(dir.join("google.json.bak").exists());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn files_without_links_still_load() {
+        let old = r##"{ "client": { "id": "id", "secret": "s" }, "accounts": [ { "email": "me@acme.com",
+            "refresh_token": "t", "calendars": [ { "id": "me@acme.com", "name": "Acme",
+            "color": "#9fe1e7", "primary": true, "visible": true } ] } ] }"##;
+        let config: CalendarConfig = serde_json::from_str(old).unwrap();
+        assert_eq!(config.accounts.len(), 1);
+        assert!(config.links.is_empty());
+    }
+
+    #[test]
+    fn links_get_ids_and_unused_colors_and_round_trip() {
+        let mut config = CalendarConfig::default();
+        config.upsert(account("me@acme.com", vec![calendar("work", true)]));
+        let url = "https://calendar.google.com/calendar/ical/me%40gmail.com/private-s3cr3t/basic.ics";
+        let link = config.add_link(" Personal ", url, None).unwrap().clone();
+        assert!(link.calendar.id.starts_with("link-"));
+        assert_eq!(link.calendar.name, "Personal");
+        // #4285f4 is taken by the account's calendar in these tests; the palette's first is free.
+        assert_eq!(link.calendar.color, LINK_COLORS[0]);
+        assert!(config.has_link(url));
+        let second = config
+            .add_link("Work", "https://example.com/b.ics", None)
+            .unwrap();
+        assert_eq!(second.calendar.color, LINK_COLORS[1]);
+        assert_ne!(second.calendar.id, link.calendar.id);
+
+        assert_eq!(config.calendar("", &link.calendar.id), Some(&link.calendar));
+        assert_eq!(config.calendar("me@acme.com", &link.calendar.id), None);
+        assert!(!format!("{link:?}").contains("s3cr3t"));
+
+        let json = serde_json::to_string(&config).unwrap();
+        let back: CalendarConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, config);
+
+        config.link_mut(&link.calendar.id).unwrap().calendar.visible = false;
+        let day = NaiveDate::from_ymd_opt(2026, 10, 7).unwrap();
+        let mut event_of_link = Event {
+            account: String::new(),
+            calendar_id: link.calendar.id.clone(),
+            id: "e".into(),
+            ical_uid: String::new(),
+            title: "Dentist".into(),
+            start: crate::EventTime::Date(day),
+            end: crate::EventTime::Date(day),
+            location: String::new(),
+            description: String::new(),
+            join_link: None,
+            html_link: None,
+        };
+        assert!(!config.is_visible(&event_of_link));
+        event_of_link.calendar_id = "gone".into();
+        assert!(!config.is_visible(&event_of_link));
+        assert_eq!(
+            config.remove_link(&link.calendar.id).map(|l| l.url),
+            Some(url.to_owned())
+        );
+        assert_eq!(config.links.len(), 1);
     }
 
     #[test]
