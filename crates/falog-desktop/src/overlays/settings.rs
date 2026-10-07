@@ -72,7 +72,7 @@ impl SettingsDialog {
                         ui,
                         theme,
                         "Launch at startup",
-                        "Open Falog when you sign in to Windows.",
+                        "Open Falog when you sign in to this computer.",
                         |ui| {
                             if switch(ui, &mut self.autostart).changed() {
                                 events.push(SettingsEvent::SetAutostart(self.autostart));

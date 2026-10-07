@@ -71,7 +71,8 @@ src/
   workspace/     window chrome: sidebar, tab bar, toolbar, status bar, task panel
   views/         board, list, focus, calendar (+ ViewCx, SortOrder)
   overlays/      command palette, areas, settings, confirm
-  platform/      autostart (registry), single instance (loopback port), title bar colors (DWM)
+  platform/      autostart (registry, LaunchAgent, XDG autostart), single instance (loopback port),
+                 title bar colors (DWM)
 ```
 
 ### Frame flow
@@ -135,7 +136,10 @@ instead of dropping its cached events.
 ### OS integration
 
 - **Single instance:** binding `127.0.0.1:47613`; a second launch sends `show` and exits.
-- **Launch at sign-in:** `HKCU\...\Run\Falog`, toggled in Settings and set by the installer.
+- **Launch at sign-in:** toggled in Settings and set by the installers. Windows: the
+  `HKCU\...\Run\Falog` registry value; macOS: a LaunchAgent,
+  `~/Library/LaunchAgents/app.falog.Falog.plist`; Linux: an XDG autostart entry,
+  `~/.config/autostart/falog.desktop`. Each starts the executable that wrote it.
 - **Title bar:** DWM caption/text/border colors follow the theme (Windows 11).
 
 ## Concurrency and consistency
