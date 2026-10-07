@@ -12,10 +12,14 @@ use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 use voice::{Download, Recorder, Transcriber, VoiceLanguage};
 
 const SYSTEM_PROMPT: &str = include_str!("../../assets/assistant-prompt.md");
 const TOOL_PREFIX: &str = "mcp__falog__";
+/// How often the live preview is refreshed while dictating, and when the first one starts.
+const PARTIAL_EVERY: Duration = Duration::from_millis(1000);
+const FIRST_PARTIAL_AFTER: Duration = Duration::from_millis(1500);
 
 /// Which Claude model the assistant asks Claude Code for.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,7 +106,11 @@ pub struct Assistant {
     pub busy: bool,
     pub model_name: Option<String>,
     pub voice: VoiceState,
+    /// Latest partial transcript while dictating, shown greyed out in the composer.
+    pub live_text: String,
     pub focus_composer: bool,
+    partial_pending: bool,
+    last_partial: Instant,
     session: Option<ClaudeSession>,
     session_id: Option<String>,
     database: Option<PathBuf>,
@@ -118,7 +126,10 @@ impl Assistant {
             busy: false,
             model_name: None,
             voice: VoiceState::Idle,
+            live_text: String::new(),
             focus_composer: false,
+            partial_pending: false,
+            last_partial: Instant::now(),
             session: None,
             session_id: None,
             database: database.map(Path::to_path_buf),
@@ -193,20 +204,16 @@ impl Assistant {
             self.apply(event);
         }
 
-        if matches!(self.voice, VoiceState::Transcribing)
-            && let Some(result) = self.transcriber.as_ref().and_then(Transcriber::try_recv)
-        {
-            self.voice = VoiceState::Idle;
-            match result {
-                Ok(text) if text.trim().is_empty() => {
-                    self.items.push(Item::Notice("Didn't catch that.".into()))
+        self.schedule_partial(options);
+        while let Some(done) = self.transcriber.as_ref().and_then(Transcriber::try_recv) {
+            if done.is_final {
+                self.finish_dictation(ctx, done.result, options);
+            } else {
+                self.partial_pending = false;
+                let dictating = matches!(self.voice, VoiceState::Recording(_) | VoiceState::Transcribing);
+                if let (true, Ok(text)) = (dictating, done.result) {
+                    self.live_text = text;
                 }
-                Ok(text) if options.send_after_dictation => self.send(ctx, text, options),
-                Ok(text) => {
-                    self.draft = text;
-                    self.focus_composer = true;
-                }
-                Err(message) => self.items.push(Item::Error(message)),
             }
         }
 
@@ -222,6 +229,41 @@ impl Assistant {
             }
         }
         tasks_changed
+    }
+
+    /// While recording, re-transcribes the clip so far for the live preview, one job at a time.
+    fn schedule_partial(&mut self, options: AssistantOptions) {
+        let (VoiceState::Recording(recorder), Some(transcriber)) = (&self.voice, &self.transcriber) else {
+            return;
+        };
+        if self.partial_pending
+            || recorder.elapsed() < FIRST_PARTIAL_AFTER
+            || self.last_partial.elapsed() < PARTIAL_EVERY
+        {
+            return;
+        }
+        transcriber.submit(recorder.snapshot(), options.language, false);
+        self.partial_pending = true;
+        self.last_partial = Instant::now();
+    }
+
+    fn finish_dictation(
+        &mut self,
+        ctx: &egui::Context,
+        result: Result<String, String>,
+        options: AssistantOptions,
+    ) {
+        self.voice = VoiceState::Idle;
+        self.live_text.clear();
+        match result {
+            Ok(text) if text.trim().is_empty() => self.items.push(Item::Notice("Didn't catch that.".into())),
+            Ok(text) if options.send_after_dictation => self.send(ctx, text, options),
+            Ok(text) => {
+                self.draft = text;
+                self.focus_composer = true;
+            }
+            Err(message) => self.items.push(Item::Error(message)),
+        }
     }
 
     fn apply(&mut self, event: ClaudeEvent) {
@@ -323,7 +365,14 @@ impl Assistant {
                 self.voice = VoiceState::NeedsModel;
             }
             VoiceState::Idle | VoiceState::NeedsModel => match Recorder::start(ctx.clone()) {
-                Ok(recorder) => self.voice = VoiceState::Recording(recorder),
+                Ok(recorder) => {
+                    // Create the worker now so the model loads while the user is still speaking.
+                    self.transcriber
+                        .get_or_insert_with(|| Transcriber::new(voice::model_path(), ctx.clone()));
+                    self.live_text.clear();
+                    self.last_partial = Instant::now();
+                    self.voice = VoiceState::Recording(recorder);
+                }
                 Err(message) => self.items.push(Item::Error(message)),
             },
             VoiceState::Recording(recorder) => match recorder.finish() {
@@ -331,7 +380,7 @@ impl Assistant {
                     let transcriber = self
                         .transcriber
                         .get_or_insert_with(|| Transcriber::new(voice::model_path(), ctx.clone()));
-                    transcriber.submit(audio, options.language);
+                    transcriber.submit(audio, options.language, true);
                     self.voice = VoiceState::Transcribing;
                 }
                 None => self.voice = VoiceState::Idle,
@@ -343,6 +392,7 @@ impl Assistant {
     pub fn cancel_dictation(&mut self) {
         if matches!(self.voice, VoiceState::Recording(_) | VoiceState::NeedsModel) {
             self.voice = VoiceState::Idle;
+            self.live_text.clear();
         }
     }
 

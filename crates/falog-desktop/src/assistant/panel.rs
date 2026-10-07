@@ -333,9 +333,13 @@ fn composer(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: Assi
             match &assistant.voice {
                 VoiceState::Recording(recorder) => {
                     let (level, elapsed) = (recorder.level(), recorder.elapsed());
+                    live_preview(ui, theme, &assistant.live_text, "Listening…");
                     recording(ui, theme, assistant, level, elapsed, options);
                 }
-                VoiceState::Transcribing => status_line(ui, theme, "Transcribing…"),
+                VoiceState::Transcribing => {
+                    live_preview(ui, theme, &assistant.live_text, "");
+                    status_line(ui, theme, "Finishing the transcript…");
+                }
                 VoiceState::NeedsModel => model_prompt(ui, theme, assistant),
                 VoiceState::Downloading(download) => {
                     let text = format!("Downloading the voice model… {} MB", download.received_mb());
@@ -439,6 +443,28 @@ fn recording(
             }
         });
     });
+}
+
+/// The words recognized so far, greyed out like a placeholder until the final transcript lands.
+fn live_preview(ui: &mut Ui, theme: &Theme, text: &str, empty: &str) {
+    let text = if text.trim().is_empty() {
+        empty
+    } else {
+        text.trim()
+    };
+    if text.is_empty() {
+        return;
+    }
+    ui.add(
+        egui::Label::new(
+            RichText::new(text)
+                .size(14.0)
+                .italics()
+                .color(theme.text_placeholder),
+        )
+        .wrap(),
+    );
+    ui.add_space(6.0);
 }
 
 fn status_line(ui: &mut Ui, theme: &Theme, text: &str) {

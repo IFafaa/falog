@@ -8,7 +8,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -130,6 +130,12 @@ impl Recorder {
         self.started.elapsed()
     }
 
+    /// The audio recorded so far at 16 kHz, without stopping (for live previews).
+    pub fn snapshot(&self) -> Vec<f32> {
+        let samples = self.samples.lock().map(|s| s.clone()).unwrap_or_default();
+        resample(&samples, self.sample_rate, SAMPLE_RATE)
+    }
+
     /// Stops recording and returns 16 kHz audio, or `None` if the clip was too short.
     pub fn finish(self) -> Option<Vec<f32>> {
         if self.elapsed() < MIN_SPEECH {
@@ -193,51 +199,184 @@ pub fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
 
 // ---- transcription ---------------------------------------------------------------------------
 
+/// Silence appended to every clip: without it, short clips with a small `audio_ctx` make Whisper
+/// repeat itself ("Review the PR. Review the PR.").
+const TRAILING_SILENCE: usize = SAMPLE_RATE as usize;
+
 struct Job {
     audio: Vec<f32>,
     language: VoiceLanguage,
+    /// Partial jobs feed the live preview while recording; the final one is the transcript.
+    is_final: bool,
 }
 
-/// Runs Whisper on a worker thread, loading the model on first use.
+/// The outcome of one transcription job.
+#[derive(Debug)]
+pub struct Transcription {
+    pub is_final: bool,
+    pub result: Result<String, String>,
+}
+
+/// Runs Whisper off the UI thread on two lanes sharing one loaded model: partial jobs (live
+/// preview, stale ones dropped) and final jobs, which start right away instead of waiting for the
+/// preview in progress.
 #[derive(Debug)]
 pub struct Transcriber {
-    jobs: Sender<Job>,
-    results: Receiver<Result<String, String>>,
+    partial_jobs: Sender<Job>,
+    final_jobs: Sender<Job>,
+    results: Receiver<Transcription>,
 }
 
 impl Transcriber {
     pub fn new(model: PathBuf, ctx: egui::Context) -> Self {
-        let (jobs, job_rx) = mpsc::channel::<Job>();
-        let (result_tx, results) = mpsc::channel();
-        thread::spawn(move || {
-            engine::init();
-            let mut model_cache: Option<engine::Model> = None;
-            loop {
-                let job = match job_rx.recv_timeout(UNLOAD_AFTER) {
-                    Ok(job) => job,
-                    Err(RecvTimeoutError::Timeout) => {
-                        model_cache = None;
-                        continue;
-                    }
-                    Err(RecvTimeoutError::Disconnected) => break,
-                };
-                let result = engine::transcribe(&model, &mut model_cache, &job.audio, job.language.code());
-                if result_tx.send(result).is_err() {
-                    break;
-                }
-                ctx.request_repaint();
-            }
-        });
-        Self { jobs, results }
+        let cache = Arc::new(ModelCache::new(model));
+        let final_running = Arc::new(AtomicBool::new(false));
+        let (results_tx, results) = mpsc::channel();
+        let cores = thread::available_parallelism().map_or(4, |n| n.get());
+        let spawn_lane = |is_final: bool, threads: usize| {
+            let (tx, rx) = mpsc::channel::<Job>();
+            let lane = Lane {
+                jobs: rx,
+                cache: Arc::clone(&cache),
+                results: results_tx.clone(),
+                final_running: Arc::clone(&final_running),
+                threads,
+                is_final,
+                ctx: ctx.clone(),
+            };
+            thread::spawn(move || lane.run());
+            tx
+        };
+        let partial_jobs = spawn_lane(false, (cores / 2).clamp(1, 4));
+        let final_jobs = spawn_lane(true, cores.min(8));
+        Self {
+            partial_jobs,
+            final_jobs,
+            results,
+        }
     }
 
-    pub fn submit(&self, audio: Vec<f32>, language: VoiceLanguage) {
-        let _ = self.jobs.send(Job { audio, language });
+    pub fn submit(&self, audio: Vec<f32>, language: VoiceLanguage, is_final: bool) {
+        let job = Job {
+            audio,
+            language,
+            is_final,
+        };
+        let lane = if is_final {
+            &self.final_jobs
+        } else {
+            &self.partial_jobs
+        };
+        let _ = lane.send(job);
     }
 
-    pub fn try_recv(&self) -> Option<Result<String, String>> {
+    pub fn try_recv(&self) -> Option<Transcription> {
         self.results.try_recv().ok()
     }
+}
+
+/// The loaded model, shared by both lanes and released after [`UNLOAD_AFTER`] without use.
+struct ModelCache {
+    path: PathBuf,
+    state: Mutex<(Option<engine::Model>, Instant)>,
+}
+
+impl ModelCache {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            state: Mutex::new((None, Instant::now())),
+        }
+    }
+
+    fn get(&self) -> Result<engine::Model, String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "Whisper model lock poisoned".to_string())?;
+        if state.0.is_none() {
+            state.0 = Some(engine::load(&self.path)?);
+        }
+        state.1 = Instant::now();
+        state
+            .0
+            .clone()
+            .ok_or_else(|| "Whisper model not loaded".to_string())
+    }
+
+    fn unload_if_idle(&self) {
+        if let Ok(mut state) = self.state.lock()
+            && state.1.elapsed() >= UNLOAD_AFTER
+        {
+            state.0 = None;
+        }
+    }
+}
+
+struct Lane {
+    jobs: Receiver<Job>,
+    cache: Arc<ModelCache>,
+    results: Sender<Transcription>,
+    /// Set while a final job runs, so no new preview competes with it for the CPU.
+    final_running: Arc<AtomicBool>,
+    threads: usize,
+    is_final: bool,
+    ctx: egui::Context,
+}
+
+impl Lane {
+    fn run(self) {
+        engine::init();
+        loop {
+            let job = match self.jobs.recv_timeout(UNLOAD_AFTER) {
+                Ok(job) if self.is_final => job,
+                Ok(job) => newest(job, self.jobs.try_iter()),
+                Err(RecvTimeoutError::Timeout) => {
+                    self.cache.unload_if_idle();
+                    continue;
+                }
+                Err(RecvTimeoutError::Disconnected) => break,
+            };
+            if !self.is_final && self.final_running.load(Ordering::Relaxed) {
+                continue;
+            }
+            if self.is_final {
+                self.final_running.store(true, Ordering::Relaxed);
+            }
+            let mut audio = job.audio;
+            audio.resize(audio.len() + TRAILING_SILENCE, 0.0);
+            let result = self
+                .cache
+                .get()
+                .and_then(|model| engine::transcribe(&model, &audio, job.language.code(), self.threads));
+            if self.is_final {
+                self.final_running.store(false, Ordering::Relaxed);
+            }
+            if self
+                .results
+                .send(Transcription {
+                    is_final: job.is_final,
+                    result,
+                })
+                .is_err()
+            {
+                break;
+            }
+            self.ctx.request_repaint();
+        }
+    }
+}
+
+/// Picks the job worth running among those waiting: the newest one, except that a final job is
+/// never dropped for a partial one. Stale previews are skipped so they never pile up.
+fn newest(first: Job, pending: impl Iterator<Item = Job>) -> Job {
+    pending.fold(first, |kept, next| {
+        if kept.is_final && !next.is_final {
+            kept
+        } else {
+            next
+        }
+    })
 }
 
 /// Encoder frames for a clip: 50 per second, 50% headroom, never above the 30 s window.
@@ -252,36 +391,32 @@ fn audio_context(samples: usize) -> i32 {
 mod engine {
     use super::audio_context;
     use std::path::Path;
-    use std::thread;
+    use std::sync::Arc;
     use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-    pub type Model = WhisperContext;
+    pub type Model = Arc<WhisperContext>;
 
     pub fn init() {
         whisper_rs::install_logging_hooks();
     }
 
+    pub fn load(path: &Path) -> Result<Model, String> {
+        WhisperContext::new_with_params(path, WhisperContextParameters::default())
+            .map(Arc::new)
+            .map_err(|e| format!("Could not load the Whisper model: {e}"))
+    }
+
     pub fn transcribe(
-        model: &Path,
-        context: &mut Option<Model>,
+        model: &Model,
         audio: &[f32],
         language: &str,
+        threads: usize,
     ) -> Result<String, String> {
-        if context.is_none() {
-            let loaded = WhisperContext::new_with_params(model, WhisperContextParameters::default())
-                .map_err(|e| format!("Could not load the Whisper model: {e}"))?;
-            *context = Some(loaded);
-        }
-        let Some(whisper) = context.as_ref() else {
-            return Err("Whisper model not loaded".into());
-        };
-        let mut state = whisper
+        let mut state = model
             .create_state()
             .map_err(|e| format!("Whisper failed to start: {e}"))?;
-
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some(language));
-        let threads = thread::available_parallelism().map_or(4, |n| n.get()).min(8);
         params.set_n_threads(threads as i32);
         // The encoder always works on a 30 s window (1500 frames). Shrinking it to the clip length
         // (plus headroom) is the biggest speedup for short dictations.
@@ -315,8 +450,12 @@ mod engine {
 
     pub fn init() {}
 
-    pub fn transcribe(_: &Path, _: &mut Option<Model>, _: &[f32], _: &str) -> Result<String, String> {
+    pub fn load(_: &Path) -> Result<Model, String> {
         Err("This build of Falog has no speech recognition (compiled without the `whisper` feature).".into())
+    }
+
+    pub fn transcribe(_: &Model, _: &[f32], _: &str, _: usize) -> Result<String, String> {
+        Err("This build of Falog has no speech recognition.".into())
     }
 }
 
@@ -430,6 +569,26 @@ mod tests {
     fn audio_context_follows_clip_length() {
         assert_eq!(audio_context(5 * SAMPLE_RATE as usize), 503);
         assert_eq!(audio_context(60 * SAMPLE_RATE as usize), 1500);
+    }
+
+    fn job(id: f32, is_final: bool) -> Job {
+        Job {
+            audio: vec![id],
+            language: VoiceLanguage::English,
+            is_final,
+        }
+    }
+
+    #[test]
+    fn keeps_only_the_newest_pending_job() {
+        let picked = newest(job(1.0, false), [job(2.0, false), job(3.0, false)].into_iter());
+        assert_eq!(picked.audio, vec![3.0]);
+    }
+
+    #[test]
+    fn never_drops_a_final_job_for_a_partial_one() {
+        let picked = newest(job(1.0, false), [job(2.0, true), job(3.0, false)].into_iter());
+        assert_eq!((picked.audio, picked.is_final), (vec![2.0], true));
     }
 
     #[test]
