@@ -35,6 +35,8 @@ const SAVE_EVERY: Duration = Duration::from_secs(2);
 pub struct AssistantOptions {
     pub language: VoiceLanguage,
     pub send_after_dictation: bool,
+    /// The dock fills the window.
+    pub zoomed: bool,
     /// Run speech recognition on the GPU (builds with the `gpu` feature).
     pub voice_gpu: bool,
 }

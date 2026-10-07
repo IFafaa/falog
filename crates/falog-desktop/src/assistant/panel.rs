@@ -19,6 +19,8 @@ use eframe::egui::{
 use falog_core::domain::TaskId;
 
 const COMPOSER_ID: &str = "assistant-composer";
+/// Width of the conversation column when the assistant fills the window.
+const ZOOMED_WIDTH: f32 = 820.0;
 
 const EXAMPLES: [&str; 3] = [
     "What's on my plate today?",
@@ -33,32 +35,43 @@ pub fn show(
     options: AssistantOptions,
     actions: &mut Actions,
 ) {
-    SidePanel::right("assistant_panel")
-        .resizable(true)
-        .default_width(380.0)
-        .width_range(320.0..=640.0)
-        .frame(Frame::none().fill(theme.panel))
-        .show(ctx, |ui| {
-            header(ui, theme, assistant, actions);
-            if assistant.show_history {
-                CentralPanel::default()
-                    .frame(Frame::none().inner_margin(Margin::same(8.0)))
-                    .show_inside(ui, |ui| history(ui, theme, assistant));
-                return;
-            }
-            TopBottomPanel::bottom("assistant_composer_panel")
-                .show_separator_line(false)
-                .frame(Frame::none().inner_margin(Margin::same(10.0)))
-                .show_inside(ui, |ui| composer(ui, theme, assistant, options));
+    // Zoomed, the dock takes the whole width and keeps the conversation to a readable column.
+    let panel = if options.zoomed {
+        SidePanel::right("assistant_panel_zoomed")
+            .resizable(false)
+            .exact_width(ctx.available_rect().width())
+    } else {
+        SidePanel::right("assistant_panel")
+            .resizable(true)
+            .default_width(380.0)
+            .width_range(320.0..=640.0)
+    };
+    panel.frame(Frame::none().fill(theme.panel)).show(ctx, |ui| {
+        header(ui, theme, assistant, options.zoomed, actions);
+        let side = if options.zoomed {
+            ((ui.available_width() - ZOOMED_WIDTH) / 2.0).max(0.0)
+        } else {
+            0.0
+        };
+        if assistant.show_history {
             CentralPanel::default()
-                .frame(Frame::none().inner_margin(Margin::symmetric(14.0, 8.0)))
-                .show_inside(ui, |ui| thread_view(ui, theme, assistant, actions));
-        });
+                .frame(Frame::none().inner_margin(Margin::symmetric(8.0 + side, 8.0)))
+                .show_inside(ui, |ui| history(ui, theme, assistant));
+            return;
+        }
+        TopBottomPanel::bottom("assistant_composer_panel")
+            .show_separator_line(false)
+            .frame(Frame::none().inner_margin(Margin::symmetric(10.0 + side, 10.0)))
+            .show_inside(ui, |ui| composer(ui, theme, assistant, options));
+        CentralPanel::default()
+            .frame(Frame::none().inner_margin(Margin::symmetric(14.0 + side, 8.0)))
+            .show_inside(ui, |ui| thread_view(ui, theme, assistant, actions));
+    });
 }
 
 /// Zed's agent panel header: the thread title on the left, thread actions on the right.
-fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &mut Actions) {
-    const BUTTONS_WIDTH: f32 = 96.0;
+fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, zoomed: bool, actions: &mut Actions) {
+    const BUTTONS_WIDTH: f32 = 122.0;
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), BAR_HEIGHT), Sense::hover());
     ui.painter().rect_filled(rect, 0.0, theme.tab_bar);
     ui.painter().hline(
@@ -102,6 +115,14 @@ fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &mut A
             ui.spacing_mut().item_spacing.x = 2.0;
             if icon_button(ui, Icon::Close, "Close (Ctrl+Shift+A)").clicked() {
                 actions.push(Action::ToggleAssistant);
+            }
+            let (icon, tip) = if zoomed {
+                (Icon::Minimize, "Zoom out (Shift+Esc)")
+            } else {
+                (Icon::Maximize, "Zoom in (Shift+Esc)")
+            };
+            if icon_button(ui, icon, tip).clicked() {
+                actions.push(Action::ToggleAssistantZoom);
             }
             if icon_toggle(ui, Icon::Clock, assistant.show_history, "History").clicked() {
                 assistant.show_history = !assistant.show_history;

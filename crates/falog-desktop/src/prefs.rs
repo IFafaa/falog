@@ -21,6 +21,8 @@ pub struct Prefs {
     /// Board view: keep showing tasks completed more than a week ago.
     pub show_old_completed: bool,
     pub assistant_open: bool,
+    /// The assistant fills the window (Zed's zoom).
+    pub assistant_zoomed: bool,
     pub voice_language: VoiceLanguage,
     /// Send dictated text right away instead of leaving it in the composer.
     pub send_after_dictation: bool,
@@ -33,6 +35,7 @@ impl Prefs {
         AssistantOptions {
             language: self.voice_language,
             send_after_dictation: self.send_after_dictation,
+            zoomed: self.assistant_zoomed && self.assistant_open,
             voice_gpu: self.voice_gpu,
         }
     }
@@ -49,6 +52,7 @@ impl Default for Prefs {
             show_completed: false,
             show_old_completed: false,
             assistant_open: false,
+            assistant_zoomed: false,
             voice_language: VoiceLanguage::default(),
             send_after_dictation: true,
             voice_gpu: true,

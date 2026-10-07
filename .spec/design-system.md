@@ -68,7 +68,10 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 ### Assistant dock
 
 Modeled on Zed's agent panel. Header (32 px, `tab_bar`) with ✦ and the thread title (its first
-message; hover shows the model), then new thread (+), history (clock, toggled) and close. The history
+message; hover shows the model), then new thread (+), history (clock, toggled), zoom (maximize / minimize, `Shift+Esc`) and close.
+Zoomed, the dock fills the window like Zed's zoomed panels: sidebar, tabs, toolbar, views and task
+panel are hidden, the status bar stays, and the thread, history and composer keep to a centered
+820 px column. The history
 view replaces the thread and composer with rows of 44 px: title, then `Agent · N messages · 2h ago` in
 `text_muted`; the open thread is `element_selected`, hover is `ghost_hover` with a trash button, and a
 running thread shows a spinner instead. The empty state lists the three most recent threads under the

@@ -103,6 +103,7 @@ Any MCP client works; point it at `falog-mcp.exe`.
 | `Ctrl+F` | Search |
 | `Ctrl+B` | Toggle sidebar |
 | `Ctrl+Shift+A` | Toggle the assistant |
+| `Shift+Esc` | Zoom the assistant to fill the window, and back |
 | `Ctrl+Space` | Start / finish dictating to the assistant |
 | `Ctrl+S` | Save the task being edited |
 | `Ctrl+,` | Settings |

@@ -299,6 +299,9 @@ impl FalogApp {
             if input.consume_key(ctrl_shift, Key::A) {
                 actions.push(Action::ToggleAssistant);
             }
+            if input.consume_key(Modifiers::SHIFT, Key::Escape) {
+                actions.push(Action::ToggleAssistantZoom);
+            }
             if input.consume_key(ctrl, Key::Space) {
                 actions.push(Action::ToggleDictation);
             }
@@ -377,6 +380,10 @@ impl FalogApp {
             Action::NewAssistantThread => {
                 self.prefs.assistant_open = true;
                 self.assistant.new_thread();
+            }
+            Action::ToggleAssistantZoom => {
+                self.prefs.assistant_zoomed = !self.prefs.assistant_zoomed || !self.prefs.assistant_open;
+                self.prefs.assistant_open = true;
             }
             Action::ShowAssistantHistory => {
                 self.prefs.assistant_open = true;
@@ -582,7 +589,9 @@ impl eframe::App for FalogApp {
             toast: self.toast.as_ref(),
         };
         status_bar::show(ctx, theme, bar, &mut actions);
-        if self.prefs.sidebar_open {
+        // Zoomed, the assistant takes the whole window and the workspace is not drawn.
+        let zoomed = self.prefs.assistant_options().zoomed;
+        if self.prefs.sidebar_open && !zoomed {
             sidebar::show(
                 ctx,
                 theme,
@@ -597,8 +606,8 @@ impl eframe::App for FalogApp {
             assistant::panel::show(ctx, theme, &mut self.assistant, options, &mut actions);
         }
         let mut panel_events = match &mut self.task_panel {
-            Some(panel) => task_panel::show(ctx, theme, panel, &self.areas, self.today),
-            None => Vec::new(),
+            Some(panel) if !zoomed => task_panel::show(ctx, theme, panel, &self.areas, self.today),
+            _ => Vec::new(),
         };
         if save {
             panel_events.push(PanelEvent::Save);
@@ -606,9 +615,11 @@ impl eframe::App for FalogApp {
         if escape && self.task_panel.is_some() {
             panel_events.push(PanelEvent::Close);
         }
-        tab_bar::show(ctx, theme, self.prefs.view, &mut actions);
-        let scope = self.scope_label();
-        toolbar::show(ctx, theme, &mut self.prefs, &mut self.search, &scope);
+        if !zoomed {
+            tab_bar::show(ctx, theme, self.prefs.view, &mut actions);
+            let scope = self.scope_label();
+            toolbar::show(ctx, theme, &mut self.prefs, &mut self.search, &scope);
+        }
 
         let visible = self.visible_tasks();
         let margin = Margin {
@@ -620,6 +631,9 @@ impl eframe::App for FalogApp {
         egui::CentralPanel::default()
             .frame(Frame::none().fill(theme.editor).inner_margin(margin))
             .show(ctx, |ui| {
+                if zoomed {
+                    return;
+                }
                 let cx = ViewCx {
                     theme,
                     today: self.today,

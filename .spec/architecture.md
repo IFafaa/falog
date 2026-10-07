@@ -76,7 +76,9 @@ src/
 
 1. `poll()` checks `PRAGMA data_version` every 800 ms and reloads when another process wrote.
 2. Panels are laid out in a fixed order: status bar, sidebar (left dock), assistant (outer right
-   dock), task panel (right dock), tab bar, toolbar, central view, then overlays.
+   dock), task panel (right dock), tab bar, toolbar, central view, then overlays. When the assistant
+   is zoomed (`Prefs::assistant_zoomed`), it is laid out at the full width and the workspace panels
+   and views are skipped.
 3. Widgets never mutate app data. They push `Action`s (or return events such as `PanelEvent`); the app
    applies them after drawing. This keeps rendering free of borrow conflicts and side effects.
 4. Every write goes through `FalogApp::write`, which reloads data on success and shows a toast on error.
