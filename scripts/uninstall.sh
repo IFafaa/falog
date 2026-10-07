@@ -24,7 +24,7 @@ case "$(uname -s)" in
         share="${XDG_DATA_HOME:-$HOME/.local/share}"
         config="${XDG_CONFIG_HOME:-$HOME/.config}"
         rm -f "$config/autostart/falog.desktop" "$share/applications/falog.desktop"
-        rm -f "$share/icons/hicolor/scalable/apps/falog.svg" "$share/icons/hicolor/512x512/apps/falog.png"
+        rm -f "$share"/icons/hicolor/*/apps/falog.svg "$share"/icons/hicolor/*/apps/falog.png
         rm -f "$bin/falog" "$bin/falog-mcp"
         data="$share/Falog"
         ;;
