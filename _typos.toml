@@ -1,0 +1,30 @@
+# Spell checking (https://github.com/crate-ci/typos), run by CI and scripts/check.ps1 / check.sh.
+# A word listed as `word = "word"` is accepted as written. Add one here only when it is right on
+# purpose, with the reason next to its group.
+
+[files]
+extend-exclude = ["Cargo.lock", "tools/icon/Cargo.lock"]
+
+[default.extend-words]
+# Dictated input may be Portuguese (conventions.md, "Language"): due dates, weekdays, statuses and
+# priorities in the parsing tables of falog-core and their tests.
+amanha = "amanha"
+"amanhã" = "amanhã"
+hoje = "hoje"
+segunda = "segunda"
+terca = "terca"
+quarta = "quarta"
+sabado = "sabado"
+domingo = "domingo"
+semana = "semana"
+progresso = "progresso"
+importante = "importante"
+# Prefixes matched on purpose: an area key typed short ("hom" for Home) and the start of
+# "authenticate"/"authentication" in agent error output.
+hom = "hom"
+authenticat = "authenticat"
+# macOS Big Sur.
+sur = "sur"
+
+[default.extend-identifiers]
+PNGs = "PNGs"
