@@ -23,6 +23,8 @@ const GUTTER: f32 = 52.0;
 const LANE_HEIGHT: f32 = 20.0;
 /// Short events are drawn at least this long, so their title stays readable.
 const MIN_MINUTES: u32 = 20;
+/// Weeks start on Sunday, as in Google Calendar's default and printed calendars.
+const WEEK_START: Weekday = Weekday::Sun;
 
 pub fn show(
     ui: &mut Ui,
@@ -70,14 +72,14 @@ pub fn show(
 fn range(mode: CalendarMode, anchor: NaiveDate) -> (NaiveDate, NaiveDate) {
     match mode {
         CalendarMode::Week => {
-            let monday = anchor.week(Weekday::Mon).first_day();
-            (monday, monday + Days::new(7))
+            let start = anchor.week(WEEK_START).first_day();
+            (start, start + Days::new(7))
         }
         CalendarMode::Month => {
             let first = anchor.with_day(1).unwrap_or(anchor);
             let last = first + Months::new(1) - Days::new(1);
-            let start = first.week(Weekday::Mon).first_day();
-            let end = last.week(Weekday::Mon).last_day() + Days::new(1);
+            let start = first.week(WEEK_START).first_day();
+            let end = last.week(WEEK_START).last_day() + Days::new(1);
             (start, end)
         }
     }
@@ -289,12 +291,12 @@ fn week(
     cal: &mut CalendarState,
     events: &[Event],
     tasks: &[&Task],
-    monday: NaiveDate,
+    first_day: NaiveDate,
     clicked: &mut bool,
     actions: &mut Actions,
 ) {
     let theme = cx.theme;
-    let days: Vec<NaiveDate> = (0..7).map(|i| monday + Days::new(i)).collect();
+    let days: Vec<NaiveDate> = (0..7).map(|i| first_day + Days::new(i)).collect();
     let width = ui.available_width();
     let column = (width - GUTTER) / 7.0;
     let x_of = |index: usize, left: f32| left + GUTTER + column * index as f32;
@@ -998,14 +1000,18 @@ mod tests {
     }
 
     #[test]
-    fn weeks_start_on_monday() {
+    fn weeks_start_on_sunday() {
         assert_eq!(
             range(CalendarMode::Week, day(2026, 10, 7)),
-            (day(2026, 10, 5), day(2026, 10, 12))
+            (day(2026, 10, 4), day(2026, 10, 11))
+        );
+        assert_eq!(
+            range(CalendarMode::Week, day(2026, 10, 10)),
+            (day(2026, 10, 4), day(2026, 10, 11))
         );
         assert_eq!(
             range(CalendarMode::Week, day(2026, 10, 11)),
-            (day(2026, 10, 5), day(2026, 10, 12))
+            (day(2026, 10, 11), day(2026, 10, 18))
         );
     }
 
@@ -1014,20 +1020,20 @@ mod tests {
         // October 2026 starts on a Thursday and ends on a Saturday.
         assert_eq!(
             range(CalendarMode::Month, day(2026, 10, 7)),
-            (day(2026, 9, 28), day(2026, 11, 2))
+            (day(2026, 9, 27), day(2026, 11, 1))
         );
     }
 
     #[test]
     fn titles_read_like_google_calendar() {
-        assert_eq!(title(CalendarMode::Week, day(2026, 10, 7)), "Oct 5 – 11, 2026");
+        assert_eq!(title(CalendarMode::Week, day(2026, 10, 7)), "Oct 4 – 10, 2026");
         assert_eq!(
             title(CalendarMode::Week, day(2026, 9, 30)),
-            "Sep 28 – Oct 4, 2026"
+            "Sep 27 – Oct 3, 2026"
         );
         assert_eq!(
             title(CalendarMode::Week, day(2026, 12, 30)),
-            "Dec 28, 2026 – Jan 3, 2027"
+            "Dec 27, 2026 – Jan 2, 2027"
         );
         assert_eq!(title(CalendarMode::Month, day(2026, 10, 7)), "October 2026");
     }

@@ -101,7 +101,7 @@ Enter on a complete name sends it, Esc closes.
 
 Modeled on Google Calendar, painted with Zed tokens. Header: `Today` (filled), previous/next, the
 range title (SemiBold 16), then the refresh button, status ("Updated 10:32" or the error in `warning`)
-and a Week/Month `segmented`. Week: 52 px hour gutter, 48 px per hour, day names over the day number
+and a Week/Month `segmented`. Weeks start on Sunday. Week: 52 px hour gutter, 48 px per hour, day names over the day number
 (today in a `text_accent` circle), an all-day row with lanes for all-day and multi-day events and for
 tasks due that day, timed events as blocks tinted with the calendar color and a 3 px bar in full
 color (past events fainter), overlapping events side by side, and an `error` line for now. Month: whole
