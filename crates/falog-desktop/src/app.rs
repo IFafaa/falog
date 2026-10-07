@@ -495,7 +495,6 @@ impl FalogApp {
                 }
             },
             SettingsEvent::SetTheme(mode) => theme::set_mode(ctx, mode),
-            SettingsEvent::AssistantModelChanged => self.assistant.restart_session(),
             SettingsEvent::VoiceEngineChanged => self.assistant.reset_voice_engine(),
             SettingsEvent::Copied => self.notify("Copied to clipboard", ToastKind::Success),
         }

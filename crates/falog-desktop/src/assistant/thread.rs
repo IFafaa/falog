@@ -1,7 +1,9 @@
 //! One assistant conversation: what the user sees, plus the agent session behind it.
 
 use super::agent::claude_code::{self, ClaudeSession};
-use super::agent::{self, AgentEvent, Environment, Session, SlashCommand, StartOptions};
+use super::agent::{
+    self, AgentEvent, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
+};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -73,6 +75,27 @@ impl Launcher {
     }
 }
 
+/// What a thread asks its agent for. `None` leaves the choice to the agent.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Settings {
+    /// A `Choice::value` of the agent's model option.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// A `Choice::value` of the agent's effort option.
+    #[serde(default)]
+    pub effort: Option<String>,
+}
+
+impl Settings {
+    fn get(&self, kind: OptionKind) -> Option<&str> {
+        match kind {
+            OptionKind::Model => self.model.as_deref(),
+            OptionKind::Effort => self.effort.as_deref(),
+            OptionKind::Other => None,
+        }
+    }
+}
+
 /// What is saved to disk for each thread.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThreadRecord {
@@ -84,6 +107,8 @@ pub struct ThreadRecord {
     pub items: Vec<Item>,
     #[serde(default)]
     pub draft: String,
+    #[serde(default)]
+    pub settings: Settings,
 }
 
 /// What a poll observed.
@@ -106,6 +131,11 @@ pub struct Thread {
     pub model_name: Option<String>,
     /// What the agent accepts as `/name` messages, as last reported.
     pub commands: Vec<SlashCommand>,
+    pub settings: Settings,
+    /// The settings the agent offers (model, effort...).
+    pub options: Vec<ConfigOption>,
+    /// A setting changed during a turn; the session restarts once it ends to apply it.
+    restart_pending: bool,
     pub created_at: i64,
     pub updated_at: i64,
     session: Option<Box<dyn Session>>,
@@ -123,6 +153,9 @@ impl Thread {
             busy: false,
             model_name: None,
             commands: Vec::new(),
+            settings: Settings::default(),
+            options: claude_code::options(),
+            restart_pending: false,
             created_at: now,
             updated_at: now,
             session: None,
@@ -137,6 +170,7 @@ impl Thread {
             created_at: record.created_at,
             updated_at: record.updated_at,
             session_id: record.session_id,
+            settings: record.settings,
             ..Self::new(record.id)
         }
     }
@@ -149,6 +183,7 @@ impl Thread {
             session_id: self.session_id.clone(),
             items: self.items.clone(),
             draft: self.draft.clone(),
+            settings: self.settings.clone(),
         }
     }
 
@@ -181,13 +216,7 @@ impl Thread {
     }
 
     /// Sends a message, starting (or resuming) the agent if needed. Returns whether it was sent.
-    pub fn send(
-        &mut self,
-        ctx: &egui::Context,
-        text: String,
-        launcher: &Launcher,
-        model: Option<&str>,
-    ) -> bool {
+    pub fn send(&mut self, ctx: &egui::Context, text: String, launcher: &Launcher) -> bool {
         let text = text.trim().to_owned();
         if text.is_empty() || self.busy {
             return false;
@@ -197,8 +226,8 @@ impl Thread {
         if self.session.is_none() {
             let options = StartOptions {
                 resume: self.session_id.clone(),
-                model: model.map(str::to_owned),
-                ..StartOptions::default()
+                model: self.settings.model.clone(),
+                effort: self.settings.effort.clone(),
             };
             match launcher.start(ctx, &options) {
                 Ok(session) => self.session = Some(session),
@@ -277,6 +306,9 @@ impl Thread {
             }
             AgentEvent::TurnFinished { is_error, message } => {
                 self.busy = false;
+                if std::mem::take(&mut self.restart_pending) {
+                    self.session = None;
+                }
                 self.flush_streaming();
                 if is_error {
                     let message = message.unwrap_or_else(|| "The assistant stopped with an error.".into());
@@ -312,6 +344,41 @@ impl Thread {
             self.busy = false;
             self.flush_streaming();
             self.items.push(Item::Notice("Stopped.".into()));
+        }
+    }
+
+    /// The option of `kind` the agent offers, and the value in effect for this thread.
+    pub fn option(&self, kind: OptionKind) -> Option<(&ConfigOption, &str)> {
+        let option = self.options.iter().find(|o| o.kind == kind)?;
+        let value = self
+            .settings
+            .get(kind)
+            .or(option.current.as_deref())
+            .or_else(|| option.choices.first().map(|c| c.value.as_str()))?;
+        Some((option, value))
+    }
+
+    /// Picks a model or effort for the rest of the conversation. Agents that cannot switch live are
+    /// restarted (resuming the conversation) before the next message.
+    pub fn choose(&mut self, kind: OptionKind, value: String) {
+        let Some(id) = self.options.iter().find(|o| o.kind == kind).map(|o| o.id.clone()) else {
+            return;
+        };
+        match kind {
+            OptionKind::Model => self.settings.model = Some(value.clone()),
+            OptionKind::Effort => self.settings.effort = Some(value.clone()),
+            OptionKind::Other => return,
+        }
+        let applied = self
+            .session
+            .as_mut()
+            .is_some_and(|session| session.set_option(&id, &value));
+        if !applied && self.session.is_some() {
+            if self.busy {
+                self.restart_pending = true;
+            } else {
+                self.session = None;
+            }
         }
     }
 
@@ -438,11 +505,90 @@ mod tests {
         thread.session_id = Some("abc".into());
         thread.items.push(Item::User("hi".into()));
         thread.draft = "unsent".into();
+        thread.settings.effort = Some("high".into());
         let restored = Thread::from_record(thread.to_record());
+        assert_eq!(restored.settings.effort.as_deref(), Some("high"));
         assert_eq!(restored.id, ThreadId(4));
         assert_eq!(restored.session_id.as_deref(), Some("abc"));
         assert_eq!(restored.draft, "unsent");
         assert_eq!(restored.message_count(), 1);
+    }
+
+    #[test]
+    fn records_without_settings_still_load() {
+        let json = r#"{"id":3,"created_at":1,"updated_at":2,"session_id":null,"items":[]}"#;
+        let record: ThreadRecord = serde_json::from_str(json).unwrap();
+        assert_eq!(record.settings, Settings::default());
+    }
+
+    #[test]
+    fn picks_model_and_effort() {
+        let mut thread = Thread::new(ThreadId(1));
+        let (_, model) = thread.option(OptionKind::Model).unwrap();
+        assert_eq!(model, "default");
+        thread.choose(OptionKind::Model, "opus".into());
+        thread.choose(OptionKind::Effort, "max".into());
+        let (option, model) = thread.option(OptionKind::Model).unwrap();
+        assert_eq!(option.label(model), "Opus");
+        assert_eq!(thread.settings.effort.as_deref(), Some("max"));
+    }
+
+    /// A session that records what it is asked to do.
+    #[derive(Debug, Default)]
+    struct FakeSession {
+        sent: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+        live_options: bool,
+    }
+
+    impl Session for FakeSession {
+        fn send(&mut self, text: &str) -> std::io::Result<()> {
+            self.sent.borrow_mut().push(text.to_owned());
+            Ok(())
+        }
+        fn try_recv(&mut self) -> Option<AgentEvent> {
+            None
+        }
+        fn cancel(&mut self) -> bool {
+            self.live_options
+        }
+        fn set_option(&mut self, id: &str, value: &str) -> bool {
+            self.sent.borrow_mut().push(format!("{id}={value}"));
+            self.live_options
+        }
+    }
+
+    #[test]
+    fn restarts_agents_that_cannot_switch_live_after_the_turn() {
+        let mut thread = Thread::new(ThreadId(1));
+        thread.session = Some(Box::new(FakeSession::default()));
+        thread.busy = true;
+        thread.choose(OptionKind::Model, "haiku".into());
+        assert!(thread.session.is_some(), "the running turn is not cut short");
+        thread.apply(AgentEvent::TurnFinished {
+            is_error: false,
+            message: None,
+        });
+        assert!(
+            thread.session.is_none(),
+            "restarted with --resume on the next message"
+        );
+
+        thread.session = Some(Box::new(FakeSession::default()));
+        thread.choose(OptionKind::Effort, "low".into());
+        assert!(thread.session.is_none(), "idle sessions restart right away");
+    }
+
+    #[test]
+    fn switches_live_when_the_agent_can() {
+        let sent = std::rc::Rc::default();
+        let mut thread = Thread::new(ThreadId(1));
+        thread.session = Some(Box::new(FakeSession {
+            sent: std::rc::Rc::clone(&sent),
+            live_options: true,
+        }));
+        thread.choose(OptionKind::Model, "opus".into());
+        assert!(thread.session.is_some());
+        assert_eq!(*sent.borrow(), vec!["model=opus".to_owned()]);
     }
 
     #[test]

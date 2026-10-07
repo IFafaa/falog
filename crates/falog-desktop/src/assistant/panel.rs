@@ -1,6 +1,7 @@
 //! The assistant dock, modeled on Zed's agent panel: thread on top, composer at the bottom, and a
 //! history view listing past threads.
 
+use super::agent::OptionKind;
 use super::thread::{self, Thread};
 use super::{Assistant, AssistantOptions, Item, ToolCall, VoiceState};
 use super::{slash, voice};
@@ -51,7 +52,7 @@ pub fn show(
                 .show_inside(ui, |ui| composer(ui, theme, assistant, options));
             CentralPanel::default()
                 .frame(Frame::none().inner_margin(Margin::symmetric(14.0, 8.0)))
-                .show_inside(ui, |ui| thread_view(ui, theme, assistant, options, actions));
+                .show_inside(ui, |ui| thread_view(ui, theme, assistant, actions));
         });
 }
 
@@ -213,16 +214,10 @@ fn thread_row(ui: &mut Ui, theme: &Theme, thread: &Thread, active: bool, now: i6
 
 // ---- thread ----------------------------------------------------------------------------------
 
-fn thread_view(
-    ui: &mut Ui,
-    theme: &Theme,
-    assistant: &mut Assistant,
-    options: AssistantOptions,
-    actions: &mut Actions,
-) {
+fn thread_view(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &mut Actions) {
     let thread = assistant.active();
     if thread.items.is_empty() && !thread.busy {
-        empty_state(ui, theme, assistant, options);
+        empty_state(ui, theme, assistant);
         return;
     }
     ScrollArea::vertical()
@@ -262,7 +257,7 @@ fn has_pending_tool(thread: &Thread) -> bool {
     matches!(thread.items.last(), Some(Item::Tool(call)) if call.result.is_none())
 }
 
-fn empty_state(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: AssistantOptions) {
+fn empty_state(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     ui.add_space(24.0);
     ui.vertical_centered(|ui| {
         ui.add(Icon::Sparkle.image(28.0, theme.text_accent));
@@ -291,7 +286,7 @@ fn empty_state(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: A
                 .rect_stroke(response.rect, 6.0, Stroke::new(1.0_f32, theme.border));
         }
         if response.on_hover_cursor(CursorIcon::PointingHand).clicked() {
-            assistant.send(ui.ctx(), example.to_owned(), options);
+            assistant.send(ui.ctx(), example.to_owned());
         }
         ui.add_space(4.0);
     }
@@ -553,6 +548,8 @@ fn text_input(
         if icon_toggle(ui, Icon::Mic, false, "Talk (Ctrl+Space)").clicked() {
             assistant.toggle_dictation(ui.ctx(), options);
         }
+        option_picker(ui, theme, assistant, OptionKind::Model);
+        option_picker(ui, theme, assistant, OptionKind::Effort);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if assistant.active().busy {
                 if button(ui, ButtonStyle::Filled, Some(Icon::Stop), "Stop").clicked() {
@@ -565,12 +562,101 @@ fn text_input(
                 });
                 if (send.inner.on_hover_text("Enter").clicked() || enter) && ready {
                     let text = std::mem::take(&mut assistant.active_mut().draft);
-                    assistant.send(ui.ctx(), text, options);
+                    assistant.send(ui.ctx(), text);
                     response.request_focus();
                 }
             }
         });
     });
+}
+
+/// Zed's composer selectors: muted text with a chevron that opens a menu above it.
+fn option_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, kind: OptionKind) {
+    let Some((option, value)) = assistant.active().option(kind) else {
+        return;
+    };
+    let current = value.to_owned();
+    let label = match (kind, option.label(value)) {
+        (OptionKind::Model, "Default") => "Default model".to_owned(),
+        (OptionKind::Effort, name) => format!("{name} effort"),
+        (_, name) => name.to_owned(),
+    };
+    let (title, choices) = (option.name.clone(), option.choices.clone());
+    let popup = Id::new(("assistant-option", kind as u8));
+    let response = picker_button(ui, theme, &label);
+    let response = if ui.memory(|m| m.is_popup_open(popup)) {
+        response
+    } else {
+        response.on_hover_text(&title)
+    };
+    if response.clicked() {
+        ui.memory_mut(|m| m.toggle_popup(popup));
+    }
+    let mut picked = None;
+    egui::popup::popup_above_or_below_widget(
+        ui,
+        popup,
+        &response,
+        egui::AboveOrBelow::Above,
+        egui::PopupCloseBehavior::CloseOnClick,
+        |ui| {
+            ui.set_min_width(180.0);
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.label(RichText::new(&title).size(12.0).color(theme.text_muted));
+            ui.add_space(4.0);
+            for choice in &choices {
+                if menu_row(ui, theme, &choice.name, choice.value == current).clicked() {
+                    picked = Some(choice.value.clone());
+                }
+            }
+        },
+    );
+    if let Some(value) = picked.filter(|value| *value != current) {
+        assistant.choose(kind, value);
+    }
+}
+
+fn picker_button(ui: &mut Ui, theme: &Theme, label: &str) -> egui::Response {
+    let font = FontId::proportional(12.5);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), font, theme.text_muted);
+    let size = vec2(galley.size().x + 26.0, 24.0);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(rect, 4.0, theme.ghost_hover);
+    }
+    let text = if response.hovered() {
+        theme.text
+    } else {
+        theme.text_muted
+    };
+    let y = rect.center().y;
+    ui.painter()
+        .galley(pos2(rect.left() + 6.0, y - galley.size().y / 2.0), galley, text);
+    let chevron = Rect::from_center_size(pos2(rect.right() - 10.0, y), vec2(10.0, 10.0));
+    Icon::ChevronDown.paint(ui, chevron, 10.0, theme.icon_muted);
+    response.on_hover_cursor(CursorIcon::PointingHand)
+}
+
+/// A menu entry with a check on the selected one.
+fn menu_row(ui: &mut Ui, theme: &Theme, label: &str, selected: bool) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(rect, 4.0, theme.ghost_hover);
+    }
+    ui.painter().text(
+        pos2(rect.left() + 8.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(13.0),
+        theme.text,
+    );
+    if selected {
+        let check = Rect::from_center_size(pos2(rect.right() - 14.0, rect.center().y), vec2(12.0, 12.0));
+        Icon::Check.paint(ui, check, 12.0, theme.text_accent);
+    }
+    response.on_hover_cursor(CursorIcon::PointingHand)
 }
 
 fn recording(

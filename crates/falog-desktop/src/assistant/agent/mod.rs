@@ -61,6 +61,50 @@ pub struct SlashCommand {
     pub hint: String,
 }
 
+/// What a session setting controls; the composer has a picker for models and effort.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OptionKind {
+    Model,
+    Effort,
+    Other,
+}
+
+/// A session setting with a closed set of values (ACP's select config options).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConfigOption {
+    pub id: String,
+    pub name: String,
+    pub kind: OptionKind,
+    /// The value in effect, when the agent says.
+    pub current: Option<String>,
+    pub choices: Vec<Choice>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Choice {
+    pub value: String,
+    pub name: String,
+}
+
+impl Choice {
+    fn new(value: &str, name: &str) -> Self {
+        Self {
+            value: value.into(),
+            name: name.into(),
+        }
+    }
+}
+
+impl ConfigOption {
+    /// The display name of `value`, or the value itself when it is not one of the choices.
+    pub fn label<'a>(&'a self, value: &'a str) -> &'a str {
+        self.choices
+            .iter()
+            .find(|choice| choice.value == value)
+            .map_or(value, |choice| choice.name.as_str())
+    }
+}
+
 /// A running conversation with an agent.
 pub trait Session: std::fmt::Debug {
     /// Sends a user message (or a slash command) to the agent.
@@ -70,6 +114,11 @@ pub trait Session: std::fmt::Debug {
     /// Stops the current turn. Returns whether the session is still usable afterwards; when it is
     /// not, the caller drops it and resumes the conversation in a new one.
     fn cancel(&mut self) -> bool;
+    /// Changes a setting (`ConfigOption::id`) for the rest of the conversation. Returns whether
+    /// it applied right away; when it did not, the caller restarts the session to apply it.
+    fn set_option(&mut self, _id: &str, _value: &str) -> bool {
+        false
+    }
 }
 
 /// What every agent session gets, whichever the agent.

@@ -1,4 +1,3 @@
-use crate::assistant::AssistantModel;
 use crate::assistant::voice::{self, VoiceLanguage};
 use crate::components::{
     ButtonStyle, Placement, button, icon_button, modal, modal_header, segmented, switch,
@@ -14,7 +13,6 @@ use std::path::{Path, PathBuf};
 pub enum SettingsEvent {
     SetAutostart(bool),
     SetTheme(ThemeMode),
-    AssistantModelChanged,
     VoiceEngineChanged,
     Copied,
 }
@@ -84,13 +82,6 @@ impl SettingsDialog {
                     );
 
                     section(ui, theme, "Assistant");
-                    setting(ui, theme, "Model", "Claude model used in the assistant panel.", |ui| {
-                        let options: Vec<(AssistantModel, &str)> =
-                            AssistantModel::ALL.iter().map(|m| (*m, m.label())).collect();
-                        if segmented(ui, &mut prefs.assistant_model, &options) {
-                            events.push(SettingsEvent::AssistantModelChanged);
-                        }
-                    });
                     setting(ui, theme, "Voice language", "Language you dictate in.", |ui| {
                         let options: Vec<(VoiceLanguage, &str)> =
                             VoiceLanguage::ALL.iter().map(|l| (*l, l.label())).collect();

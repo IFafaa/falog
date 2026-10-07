@@ -77,7 +77,9 @@ caret), tool calls as compact bordered cards (spinner → check / warning, actio
 the result; click opens the task, hover shows the arguments) and errors in `error`. The composer is an
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
 (pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
-Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
+Under the text, the footer has the mic, then the thread's model and effort pickers (Zed's selectors:
+`text_muted` label and a chevron, `ghost_hover` on hover, a menu above with a check on the current
+value), and Send or Stop on the right. Typing `/` opens the command menu above the composer (`elevated_surface`, popover shadow, rows of
 30 px): `/name` in monospace, the argument hint in `text_placeholder`, the description in
 `text_muted`; the selected row is `ghost_selected`. Arrows move, Tab or Enter completes `/name `,
 Enter on a complete name sends it, Esc closes.

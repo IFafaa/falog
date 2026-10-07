@@ -92,7 +92,10 @@ those of a `falog-mcp` child with `FALOG_DB` set to the app's database (`--stric
 `assets/assistant-prompt.md`; the working directory is `<data dir>/assistant`, so no project
 `CLAUDE.md` leaks in. A reader thread maps stream-json lines to `AgentEvent`s (text deltas, tool use and
 results, turn end, slash commands from `init` and `system/commands_changed`, exit). A slash command
-is sent as a plain user message. Stopping kills the process; the next message resumes the conversation with
+is sent as a plain user message. Each thread has its own model and effort (`thread::Settings`, saved
+with the thread), passed as `--model` and `--effort`; an agent that cannot switch them live (Claude
+Code headless) is restarted with `--resume` once the current turn ends. New threads start from the
+last choice. Stopping kills the process; the next message resumes the conversation with
 `--resume <session>`. When a tool result arrives the app syncs immediately instead of waiting for the poll.
 
 Threads (`assistant/thread.rs`): each conversation is a `Thread` owning its items, draft and Claude

@@ -11,12 +11,13 @@ pub mod slash;
 pub mod thread;
 pub mod voice;
 
+use agent::OptionKind;
 use eframe::egui;
-use serde::{Deserialize, Serialize};
+
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use thread::Launcher;
-pub use thread::{Item, Thread, ThreadId, ToolCall};
+pub use thread::{Item, Settings, Thread, ThreadId, ToolCall};
 use voice::{Download, Recorder, Transcriber, VoiceLanguage};
 
 /// How often the live preview is refreshed while dictating, and when the first one starts.
@@ -25,43 +26,9 @@ const FIRST_PARTIAL_AFTER: Duration = Duration::from_millis(1500);
 /// Pending thread changes are written at most this often.
 const SAVE_EVERY: Duration = Duration::from_secs(2);
 
-/// Which Claude model the assistant asks Claude Code for.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AssistantModel {
-    /// Whatever Claude Code is configured to use.
-    #[default]
-    Default,
-    Haiku,
-    Sonnet,
-    Opus,
-}
-
-impl AssistantModel {
-    pub const ALL: [Self; 4] = [Self::Default, Self::Haiku, Self::Sonnet, Self::Opus];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Default => "Default",
-            Self::Haiku => "Haiku",
-            Self::Sonnet => "Sonnet",
-            Self::Opus => "Opus",
-        }
-    }
-
-    const fn alias(self) -> Option<&'static str> {
-        match self {
-            Self::Default => None,
-            Self::Haiku => Some("haiku"),
-            Self::Sonnet => Some("sonnet"),
-            Self::Opus => Some("opus"),
-        }
-    }
-}
-
 /// User-facing assistant options (stored in the app preferences).
 #[derive(Clone, Copy, Debug)]
 pub struct AssistantOptions {
-    pub model: AssistantModel,
     pub language: VoiceLanguage,
     pub send_after_dictation: bool,
     /// Run speech recognition on the GPU (builds with the `gpu` feature).
@@ -93,6 +60,8 @@ pub struct Assistant {
     partial_pending: bool,
     last_partial: Instant,
     launcher: Launcher,
+    /// Settings for new threads: the last choice made in any thread.
+    defaults: Settings,
     history_path: PathBuf,
     transcriber: Option<Transcriber>,
     unsaved: bool,
@@ -115,6 +84,11 @@ impl Assistant {
             .map(Thread::from_record)
             .collect();
         let next_id = threads.iter().map(|t| t.id.0 + 1).max().unwrap_or(1);
+        let defaults = threads
+            .iter()
+            .max_by_key(|t| t.updated_at)
+            .map(|t| t.settings.clone())
+            .unwrap_or_default();
         let mut assistant = Self {
             threads,
             active: ThreadId(0),
@@ -126,6 +100,7 @@ impl Assistant {
             partial_pending: false,
             last_partial: Instant::now(),
             launcher,
+            defaults,
             history_path,
             transcriber: None,
             unsaved: false,
@@ -169,7 +144,9 @@ impl Assistant {
     fn start_new_thread(&mut self) {
         let id = ThreadId(self.next_id);
         self.next_id += 1;
-        self.threads.push(Thread::new(id));
+        let mut thread = Thread::new(id);
+        thread.settings = self.defaults.clone();
+        self.threads.push(thread);
         self.switch_to(id);
     }
 
@@ -225,12 +202,9 @@ impl Assistant {
             || !matches!(self.voice, VoiceState::Idle | VoiceState::NeedsModel)
     }
 
-    pub fn send(&mut self, ctx: &egui::Context, text: String, options: AssistantOptions) {
+    pub fn send(&mut self, ctx: &egui::Context, text: String) {
         let launcher = self.launcher.clone();
-        if self
-            .active_mut()
-            .send(ctx, text, &launcher, options.model.alias())
-        {
+        if self.active_mut().send(ctx, text, &launcher) {
             self.unsaved = true;
         }
     }
@@ -241,11 +215,12 @@ impl Assistant {
         self.unsaved = true;
     }
 
-    /// Restarts Claude Code on the next message (e.g. after a model change), keeping the context.
-    pub fn restart_session(&mut self) {
-        for thread in &mut self.threads {
-            thread.release_session();
-        }
+    /// Picks the model or effort of the active thread; new threads start from it too.
+    pub fn choose(&mut self, kind: OptionKind, value: String) {
+        let thread = self.active_mut();
+        thread.choose(kind, value);
+        self.defaults = thread.settings.clone();
+        self.unsaved = true;
     }
 
     /// Processes pending events. Returns `true` when a tool finished, so tasks may have changed.
@@ -319,7 +294,7 @@ impl Assistant {
                     .items
                     .push(Item::Notice("Didn't catch that.".into()));
             }
-            Ok(text) if options.send_after_dictation => self.send(ctx, text, options),
+            Ok(text) if options.send_after_dictation => self.send(ctx, text),
             Ok(text) => {
                 self.active_mut().draft = text;
                 self.focus_composer = true;

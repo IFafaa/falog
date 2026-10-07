@@ -6,7 +6,8 @@
 //! tasks and nothing else. It runs on the user's own Claude Code login.
 
 use super::{
-    AgentEvent, Environment, Session, SlashCommand, StartOptions, StderrLog, hide_console, home_dir, missing,
+    AgentEvent, Choice, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
+    StderrLog, hide_console, home_dir, missing,
 };
 use eframe::egui;
 use serde_json::{Value, json};
@@ -18,6 +19,40 @@ use std::thread;
 
 /// The choice that leaves a setting to Claude Code (no flag is passed).
 const DEFAULT: &str = "default";
+
+/// Models and effort levels `claude --model/--effort` accept. Aliases always mean the latest model
+/// of each family, so the list does not go stale.
+pub fn options() -> Vec<ConfigOption> {
+    vec![
+        ConfigOption {
+            id: "model".into(),
+            name: "Model".into(),
+            kind: OptionKind::Model,
+            current: Some(DEFAULT.into()),
+            choices: vec![
+                Choice::new(DEFAULT, "Default"),
+                Choice::new("fable", "Fable"),
+                Choice::new("opus", "Opus"),
+                Choice::new("sonnet", "Sonnet"),
+                Choice::new("haiku", "Haiku"),
+            ],
+        },
+        ConfigOption {
+            id: "effort".into(),
+            name: "Effort".into(),
+            kind: OptionKind::Effort,
+            current: Some(DEFAULT.into()),
+            choices: vec![
+                Choice::new(DEFAULT, "Default"),
+                Choice::new("low", "Low"),
+                Choice::new("medium", "Medium"),
+                Choice::new("high", "High"),
+                Choice::new("xhigh", "Extra high"),
+                Choice::new("max", "Max"),
+            ],
+        },
+    ]
+}
 
 #[derive(Debug)]
 pub struct ClaudeSession {
@@ -317,6 +352,16 @@ mod tests {
                 hint: "[what to design]".into(),
             }])]
         );
+    }
+
+    #[test]
+    fn offers_models_and_effort_levels() {
+        let options = options();
+        let model = options.iter().find(|o| o.kind == OptionKind::Model).unwrap();
+        assert!(model.choices.iter().any(|c| c.value == "opus"));
+        assert_eq!(model.label("haiku"), "Haiku");
+        let effort = options.iter().find(|o| o.kind == OptionKind::Effort).unwrap();
+        assert_eq!(effort.label("xhigh"), "Extra high");
     }
 
     #[test]
