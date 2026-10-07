@@ -140,6 +140,8 @@ your user.
 - *"Got two things from Globex: review Carlos's payments PR today, and upgrade the API to Node 22 by Friday."*
 - *"I'm blocked on the navbar until Lia signs off on the design."*
 - *"Dentist on Thursday at 3, put it in Personal."*
+- *"Book a call with Ana tomorrow at 3 on Acme, with a Meet link."*
+- *"What meetings do I have today?"*
 - *"Good morning, what's on my plate this week?"*
 
 Any MCP client works; point it at `falog-mcp`.
@@ -181,7 +183,18 @@ Google does not let an open source app ship a shared one. Set it up once, in abo
 4. In Falog, open Settings (`Ctrl+,`) → *Calendar* → *Sign in with Google instead*, paste the client ID
    and secret, save, and click **Connect Google account**. Repeat for each account.
 
-Work accounts whose admins block third-party apps cannot connect this way either.
+Work accounts whose admins block third-party apps cannot connect this way either. While the app is in
+*Testing*, add each email you connect under *Audience › Test users*, or Google answers "Access blocked".
+
+Signed-in accounts also let the assistant **book meetings**: "call with Ana tomorrow at 3 on Acme"
+creates the event in that area's account, with a Meet link for calls. Accounts connected before this
+existed show *read only* in Settings until you click *Reconnect*. Calendar links stay read-only.
+
+### Areas
+
+Each email (account or calendar link) belongs to one area, and an area can have several emails: pick it
+in Settings › Calendar › *Area of each account*. Filtering by an area in the sidebar then shows only its
+meetings, and the assistant books an area's meetings in its account.
 
 The sidebar of the Calendar tab lists every calendar, by link and by account, to show or hide. Tokens,
 links and the event cache live in `calendar/` next to the database; removing an account in Settings

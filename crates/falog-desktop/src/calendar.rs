@@ -84,6 +84,9 @@ pub struct CalendarState {
     /// Why the last pasted link was refused.
     pub link_error: Option<String>,
     last_fetch: Option<Instant>,
+    /// The MCP server's last change seen, and when the marker was last checked.
+    seen_change: Option<std::time::SystemTime>,
+    last_change_check: Instant,
     /// Time of the last successful fetch, shown as "Updated 10:32".
     pub updated_at: Option<chrono::NaiveDateTime>,
     pub error: Option<String>,
@@ -113,6 +116,7 @@ impl CalendarState {
             .as_ref()
             .map(|f| (f.load_config(), f.load_cache()))
             .unwrap_or_default();
+        let seen_change = files.as_ref().and_then(Files::changed_at);
         let (sender, receiver) = channel();
         Self {
             files,
@@ -126,6 +130,8 @@ impl CalendarState {
             adding_link: false,
             link_error: None,
             last_fetch: None,
+            seen_change,
+            last_change_check: Instant::now(),
             updated_at: None,
             error: None,
             anchor: Local::now().date_naive(),
@@ -437,6 +443,16 @@ impl CalendarState {
     /// Applies finished background work. Returns true when something changed on screen.
     pub fn poll(&mut self, ctx: &egui::Context) -> bool {
         let mut changed = false;
+        // The assistant created or changed an event through the MCP server: fetch again now.
+        if self.last_change_check.elapsed() >= Duration::from_secs(1) {
+            self.last_change_check = Instant::now();
+            let marker = self.files.as_ref().and_then(Files::changed_at);
+            if marker.is_some() && marker != self.seen_change {
+                self.seen_change = marker;
+                self.refresh();
+                changed = true;
+            }
+        }
         while let Ok(update) = self.receiver.try_recv() {
             changed = true;
             match update {

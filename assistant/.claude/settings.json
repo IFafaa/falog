@@ -9,7 +9,11 @@
       "mcp__falog__update_task",
       "mcp__falog__add_note",
       "mcp__falog__create_area",
-      "mcp__falog__update_area"
+      "mcp__falog__update_area",
+      "mcp__falog__list_events",
+      "mcp__falog__create_event",
+      "mcp__falog__update_event",
+      "mcp__falog__delete_event"
     ]
   }
 }

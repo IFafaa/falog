@@ -64,7 +64,7 @@ impl SettingsDialog {
             ui.label(RichText::new(text).size(12.5).color(theme.text_muted));
         };
         ui.label(
-            RichText::new("See your Google calendars next to your tasks. Falog only reads them.")
+            RichText::new("See your Google calendars next to your tasks. The assistant can also book meetings in signed-in accounts.")
                 .size(13.0)
                 .color(theme.text_muted),
         );
@@ -339,17 +339,18 @@ fn areas_section(
     areas: &[Area],
     events: &mut Vec<SettingsEvent>,
 ) {
-    let sources: Vec<(&str, &str, Option<i64>)> = calendar
+    // (source, label, area, read only)
+    let sources: Vec<(&str, &str, Option<i64>, bool)> = calendar
         .config
         .accounts
         .iter()
-        .map(|a| (a.email.as_str(), a.email.as_str(), a.area))
+        .map(|a| (a.email.as_str(), a.email.as_str(), a.area, !a.can_write))
         .chain(
             calendar
                 .config
                 .links
                 .iter()
-                .map(|l| (l.calendar.id.as_str(), l.calendar.name.as_str(), l.area)),
+                .map(|l| (l.calendar.id.as_str(), l.calendar.name.as_str(), l.area, false)),
         )
         .collect();
     if sources.is_empty() || areas.is_empty() {
@@ -362,7 +363,7 @@ fn areas_section(
             .color(theme.text_muted),
     );
     ui.add_space(4.0);
-    for (source, label, area) in sources {
+    for (source, label, area, read_only) in sources {
         ui.horizontal(|ui| {
             ui.add(Icon::Calendar.image(13.0, theme.icon_muted));
             ui.allocate_ui_with_layout(vec2(300.0, 22.0), Layout::left_to_right(Align::Center), |ui| {
@@ -377,6 +378,14 @@ fn areas_section(
                     source: source.to_owned(),
                     area: value,
                 });
+            }
+            if read_only {
+                ui.label(RichText::new("read only").size(12.0).color(theme.warning)).on_hover_text(
+                    "Connected before Falog could create events. Reconnect it (Sign in with Google, below) to let the assistant book meetings here.",
+                );
+                if button(ui, ButtonStyle::Ghost, None, "Reconnect").clicked() {
+                    events.push(SettingsEvent::ConnectGoogle);
+                }
             }
         });
     }
