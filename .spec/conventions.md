@@ -3,7 +3,7 @@
 ## Language
 
 Everything in the repository is in **English**: code, identifiers, comments, UI text, docs, commit
-messages. User data (task titles, company names) is whatever the user writes. Input parsing may accept
+messages. User data (task titles, area names) is whatever the user writes. Input parsing may accept
 other languages (status synonyms, weekday names) because users dictate in their own language.
 
 ## Code

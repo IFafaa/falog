@@ -1,7 +1,8 @@
 # Falog: guide for AI assistants and contributors
 
-Falog is a local-first task board for developers who work for several companies at once. Tasks are
-filed by talking to an AI assistant through an MCP server, and shown in a Zed-inspired desktop app.
+Falog is a local-first task board for developers who work for several companies at once and also
+want their personal tasks and appointments in the same place. Tasks are filed by talking to an AI
+assistant through an MCP server, and shown in a Zed-inspired desktop app.
 Everything is Rust; data lives in one SQLite file.
 
 This folder (`.spec/`) is the source of truth for how the project works and how to change it.

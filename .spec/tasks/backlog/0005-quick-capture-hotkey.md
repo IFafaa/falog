@@ -6,16 +6,16 @@
 ## Goal
 
 A global shortcut (e.g. `Ctrl+Alt+Space`) opens a small capture box from any app; typing or dictating
-(Win+H) a line creates a task with the same natural-language parsing used for due dates and companies.
+(Win+H) a line creates a task with the same natural-language parsing used for due dates and areas.
 
 ## Context
 
 The assistant is the main way to file tasks, but sometimes it is not open. This keeps capture under
-two seconds. Parsing should reuse `falog-core` (`date::parse_due`, `Store::find_company`).
+two seconds. Parsing should reuse `falog-core` (`date::parse_due`, `Store::find_area`).
 
 ## Scope
 
-- In: global hotkey, borderless always-on-top capture window, inline hints for `@company`, `!priority`,
+- In: global hotkey, borderless always-on-top capture window, inline hints for `@area`, `!priority`,
   `due friday`, Enter to save, Esc to cancel.
 - Out: editing existing tasks from the capture box.
 

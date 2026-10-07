@@ -35,7 +35,7 @@ src/
 ```
 
 - `Store` is the only way to touch the database. Methods take and return domain types.
-- All reads load whole tables (`tasks()`, `companies()`); filtering happens in memory. This is
+- All reads load whole tables (`tasks()`, `areas()`); filtering happens in memory. This is
   deliberate: data is small and it keeps queries trivial. Revisit only with measurements.
 - Schema changes are **append-only migrations** in `store/schema.rs`, tracked by `PRAGMA user_version`.
   Never edit a released migration.
