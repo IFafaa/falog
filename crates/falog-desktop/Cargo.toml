@@ -1,6 +1,6 @@
 [package]
 name = "falog-desktop"
-description = "Falog desktop app: a Zed-inspired board, list and agenda for your tasks"
+description = "Falog desktop app: board, list, focus and calendar views for your tasks"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

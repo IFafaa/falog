@@ -1,13 +1,13 @@
 # Third-party assets
 
-These assets were taken from the [Zed](https://github.com/zed-industries/zed) repository.
+Falog bundles these third-party assets under their own licenses.
 
-| Asset | Source in Zed | License |
+| Asset | Project | License |
 |---|---|---|
-| `fonts/IBMPlexSans-*.ttf` | `assets/fonts/ibm-plex-sans` | SIL Open Font License 1.1, see `fonts/IBMPlexSans-OFL.txt` |
-| `fonts/Lilex-Regular.ttf` | `assets/fonts/lilex` | SIL Open Font License 1.1, see `fonts/Lilex-OFL.txt` |
-| `icons/*.svg` | `assets/icons` (recolored to white) | ISC (Lucide), see `icons/LICENSE` |
-| One Dark / One Light color values in `src/theme.rs` | `assets/themes/one/one.json` | MIT, below |
+| `fonts/IBMPlexSans-*.ttf` | [IBM Plex](https://github.com/IBM/plex) | SIL Open Font License 1.1, see `fonts/IBMPlexSans-OFL.txt` |
+| `fonts/Lilex-Regular.ttf` | [Lilex](https://github.com/mishamyrt/Lilex) | SIL Open Font License 1.1, see `fonts/Lilex-OFL.txt` |
+| `icons/*.svg` | [Lucide](https://lucide.dev) (recolored to white) | ISC (Lucide), see `icons/LICENSE` |
+| One Dark / One Light color values in `src/theme.rs` | [One themes](https://github.com/atom/one-dark-ui) | MIT, below |
 
 ## One themes
 
