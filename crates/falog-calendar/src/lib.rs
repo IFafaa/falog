@@ -7,6 +7,8 @@
 
 
 mod error;
+pub mod model;
 mod url;
 
 pub use error::{Error, Result};
+pub use model::{Calendar, Event, EventTime};
