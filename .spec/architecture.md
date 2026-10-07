@@ -108,8 +108,9 @@ Voice (`assistant/voice.rs`): `cpal` records the default microphone, mixes to mo
 `<data dir>/models`, downloaded on first use) and unloads it after 5 idle minutes. Whisper sits behind the
 `whisper` cargo feature (default on) because it needs CMake and libclang to build.
 
-Performance notes (Ryzen 7 5700X, CPU busy with other apps, 6 s clip): `.cargo/config.toml` forces `/O2` and
-AVX2 for whisper.cpp under MSVC (without it: ~290 s); `audio_ctx` is sized to the clip instead of the fixed
+Performance notes (Ryzen 7 5700X, CPU busy with other apps, 6 s clip): `cmake/whisper.cmake` (a CMake
+project include that `.cargo/config.toml` points whisper-rs-sys at) forces `/O2` and AVX2 for whisper.cpp
+under MSVC only (without it: ~290 s); GCC and Clang keep ggml's native CPU tuning; `audio_ctx` is sized to the clip instead of the fixed
 30 s window (~20 s → ~8 s). The default voice language follows the regional format, because `Auto` adds a
 full-window language detection pass (~+20 s). OpenMP and flash attention made no measurable difference.
 

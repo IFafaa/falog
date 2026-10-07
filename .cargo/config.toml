@@ -1,15 +1,5 @@
-# whisper.cpp (voice input) is built with CMake by whisper-rs-sys, which forwards GGML_* and CMAKE_*
-# environment variables to CMake. Two MSVC pitfalls make transcription 30-100x slower if left alone:
-#
-# - the `cmake` crate replaces CMAKE_<LANG>_FLAGS_RELEASE with flags that have no /O2, so the C++ code
-#   is built unoptimized;
-# - ggml's GGML_NATIVE cannot detect CPU features under MSVC and leaves SIMD off. Target AVX2
-#   explicitly: any x86-64 CPU from 2013 on.
+# whisper-rs-sys forwards CMAKE_* and GGML_* environment variables to CMake when it builds whisper.cpp
+# (voice input). Cargo's [env] cannot vary per target, so this only points CMake at a file that applies
+# compiler-specific settings itself; see cmake/whisper.cmake.
 [env]
-CMAKE_C_FLAGS_RELEASE = "/O2 /Ob2 /DNDEBUG -nologo -MD -Brepro -W0"
-CMAKE_CXX_FLAGS_RELEASE = "/O2 /Ob2 /DNDEBUG /utf-8 -nologo -MD -Brepro -W0"
-GGML_NATIVE = "OFF"
-GGML_AVX = "ON"
-GGML_AVX2 = "ON"
-GGML_FMA = "ON"
-GGML_F16C = "ON"
+CMAKE_PROJECT_INCLUDE = { value = "cmake/whisper.cmake", relative = true }
