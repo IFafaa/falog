@@ -1,6 +1,6 @@
 # 0008: Live transcription
 
-**Status:** doing
+**Status:** done
 **Area:** desktop
 
 ## Goal
@@ -24,11 +24,11 @@ second or two keeps the preview a few seconds behind the speaker. Very short cli
 
 ## Acceptance criteria
 
-- [ ] Text appears in the composer within a few seconds of starting to speak and keeps updating
-- [ ] Stopping produces the final transcript (sent or left to edit, per the setting)
-- [ ] Partials never queue up behind each other
-- [ ] Short clips no longer repeat words
-- [ ] Specs updated
+- [x] Text appears in the composer within a few seconds of starting to speak and keeps updating
+- [x] Stopping produces the final transcript (sent or left to edit, per the setting)
+- [x] Partials never queue up behind each other
+- [x] Short clips no longer repeat words
+- [x] Specs updated
 
 ## Plan
 
@@ -36,3 +36,12 @@ second or two keeps the preview a few seconds behind the speaker. Very short cli
   newest pending job (a final one wins), trailing silence.
 - `Assistant`: schedule partials while recording, keep `live_text`.
 - Panel: show `live_text` while recording and while finishing.
+
+## Outcome
+
+Two worker lanes share one loaded model: a partial lane (half the cores, stale jobs dropped) and a
+final lane that starts as soon as the user stops instead of waiting for the preview in progress; no
+new preview starts while the final pass runs. The whisper-rs abort callback was tried for cancelling
+previews and dropped (it failed every run with error -6). On the CPU under load the first preview
+appears a few seconds after speaking starts and the final text about 8 to 9 s after stopping. GPU
+(Vulkan) is a setting; it could not be benchmarked fairly because the GPU was busy with a game.
