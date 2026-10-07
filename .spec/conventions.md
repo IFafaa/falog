@@ -2,9 +2,16 @@
 
 ## Language
 
-Everything in the repository is in **English**: code, identifiers, comments, UI text, docs, commit
-messages. User data (task titles, area names) is whatever the user writes. Input parsing may accept
-other languages (status synonyms, weekday names) because users dictate in their own language.
+Everything in the repository is in **English**, no exceptions: file and folder names, crates,
+modules, identifiers, comments, UI text, docs, specs, scripts, test data and commit messages. When
+you find something in another language, rename it in its own commit.
+
+- Prefer words that read as English to an English speaker and are not ambiguous in the product:
+  "agenda" is English, but the urgency view is called *Focus* so it is not confused with the calendar.
+- User data (task titles, area names) is whatever the user writes. Input parsing may accept other
+  languages (status synonyms, weekday names, "amanhã") because users dictate in their own language;
+  those words live only in parsing tables and their tests.
+- Conversation with the user may happen in any language; what lands in the repository is English.
 
 ## Code
 
