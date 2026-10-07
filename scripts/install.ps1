@@ -6,10 +6,13 @@
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
 param(
-    [string]$AssistantDir = (Join-Path $HOME 'falog-assistant')
+    [string]$AssistantDir = (Join-Path $HOME 'falog-assistant'),
+    # Install the binaries already in target\release instead of building.
+    [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
+
 $dest = Join-Path $env:LOCALAPPDATA 'Falog'
 $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 
@@ -44,9 +47,34 @@ if (-not (Get-Command cmake -ErrorAction SilentlyContinue) -or -not ($env:LIBCLA
     $features = @('--features', 'falog-desktop/gpu')
 }
 
-Write-Host '==> Building (release)'
-cargo build --release --workspace @features --manifest-path "$root\Cargo.toml"
-if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
+if ($SkipBuild) {
+    Write-Host '==> Using the binaries in target\release'
+} else {
+    Write-Host '==> Building (release)'
+    cargo build --release --workspace @features --manifest-path "$root\Cargo.toml"
+    if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
+}
+
+# A shell started by a packaged (MSIX) app, such as the Claude desktop app, sees a private copy of
+# AppData and HKCU: an install from there lands in the package's sandbox, which the Start menu,
+# sign-in and the real data folder never see. Build here, then hand the install to Explorer, which
+# runs outside the package.
+Add-Type -Namespace Falog -Name Package -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+public static extern int GetCurrentPackageFullName(ref int length, System.Text.StringBuilder name);
+'@
+$length = 0
+if ([Falog.Package]::GetCurrentPackageFullName([ref]$length, $null) -ne 15700) {  # 15700: no package
+    $launcher = Join-Path $root 'target\install-outside.cmd'
+    Set-Content -Encoding ascii $launcher @(
+        '@echo off',
+        "powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SkipBuild -AssistantDir `"$AssistantDir`"",
+        'if errorlevel 1 pause'
+    )
+    Start-Process explorer.exe $launcher
+    Write-Host '==> Running inside a packaged app: the install continues in a new window, outside of it.'
+    return
+}
 
 Write-Host "==> Installing to $dest"
 # Running executables cannot be overwritten.
