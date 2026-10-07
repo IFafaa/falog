@@ -5,6 +5,7 @@
 mod action;
 mod app;
 mod assistant;
+mod calendar;
 mod components;
 mod fonts;
 mod icons;
@@ -23,10 +24,16 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 fn main() -> eframe::Result {
-    let listener = match single_instance::claim() {
-        Claim::AlreadyRunning => return Ok(()),
-        Claim::Primary(listener) => Some(listener),
-        Claim::Unavailable => None,
+    // A database picked with FALOG_DB (demo data, tests) gets its own window next to the real one.
+    let separate = std::env::var_os(falog_core::store::DB_PATH_ENV).is_some_and(|path| !path.is_empty());
+    let listener = if separate {
+        None
+    } else {
+        match single_instance::claim() {
+            Claim::AlreadyRunning => return Ok(()),
+            Claim::Primary(listener) => Some(listener),
+            Claim::Unavailable => None,
+        }
     };
 
     let store = Store::open_default();
