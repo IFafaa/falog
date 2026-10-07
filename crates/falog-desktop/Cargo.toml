@@ -33,6 +33,8 @@ winreg.workspace = true
 default = ["whisper"]
 # Local speech recognition. Needs CMake and LLVM (libclang) at build time.
 whisper = ["dep:whisper-rs"]
+# Runs Whisper on the GPU through Vulkan. Needs the Vulkan SDK at build time and a Vulkan driver at run time.
+gpu = ["whisper", "whisper-rs/vulkan"]
 
 [lints]
 workspace = true
