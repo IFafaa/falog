@@ -12,7 +12,7 @@ use super::{AgentEvent, Environment, OptionKind, StartOptions};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-const PROMPT: &str = "Call the list_areas tool once, then reply with only the number of areas.";
+const PROMPT: &str = "Call create_area to add an area named Live check, then call list_areas, then reply with only the number of areas.";
 
 fn environment(name: &str) -> Environment {
     let deps = std::env::current_exe().unwrap();
@@ -81,6 +81,12 @@ fn live_agents_answer_with_falog_tools() {
                 .iter()
                 .any(|e| matches!(e, AgentEvent::ToolUse { name, .. } if name.ends_with("list_areas"))),
             "{id}: list_areas was not called"
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, AgentEvent::ToolUse { name, .. } if name.ends_with("create_area"))),
+            "{id}: create_area was not called"
         );
         assert!(
             events
