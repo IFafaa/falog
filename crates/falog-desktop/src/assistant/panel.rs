@@ -554,15 +554,17 @@ fn text_input(
         option_picker(ui, theme, assistant, OptionKind::Effort);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if assistant.active().busy {
-                if button(ui, ButtonStyle::Filled, Some(Icon::Stop), "Stop").clicked() {
+                if button(ui, ButtonStyle::Filled, Some(Icon::Stop), "")
+                    .on_hover_text("Stop")
+                    .clicked()
+                {
                     assistant.stop();
                 }
             } else {
                 let ready = !assistant.active().draft.trim().is_empty();
-                let send = ui.add_enabled_ui(ready, |ui| {
-                    button(ui, ButtonStyle::Accent, Some(Icon::Send), "Send")
-                });
-                if (send.inner.on_hover_text("Enter").clicked() || enter) && ready {
+                let send =
+                    ui.add_enabled_ui(ready, |ui| button(ui, ButtonStyle::Accent, Some(Icon::Send), ""));
+                if (send.inner.on_hover_text("Send (Enter)").clicked() || enter) && ready {
                     let text = std::mem::take(&mut assistant.active_mut().draft);
                     assistant.send(ui.ctx(), text);
                     response.request_focus();
