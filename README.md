@@ -184,7 +184,19 @@ cargo run -p falog-desktop             # the app, on your real database
 $env:FALOG_DB = "$PWD\target\demo.db"; cargo run -p falog-desktop
 ```
 
-`FALOG_DB` points both binaries at another database file.
+On macOS and Linux:
+
+```sh
+./scripts/seed-demo.sh                 # sample data in target/demo.db
+FALOG_DB="$PWD/target/demo.db" cargo run -p falog-desktop
+```
+
+`FALOG_DB` points both binaries at another database file. `cargo build --no-default-features` skips
+voice input (no CMake or libclang needed); `--features falog-desktop/gpu` runs it on the GPU (Metal on
+macOS, Vulkan elsewhere).
+
+Building on Linux also needs `pkg-config` and the ALSA headers (`libasound2-dev`); CI installs the
+packages it uses in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Credits
 

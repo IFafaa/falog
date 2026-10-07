@@ -31,6 +31,9 @@ cargo run -p falog-desktop               # run the app (FALOG_DB=path to use ano
 .\scripts\install.ps1                    # release build + install for the current user
 ```
 
+On macOS and Linux the scripts are `./scripts/seed-demo.sh`, `./scripts/install.sh` and
+`./scripts/uninstall.sh`. `--no-default-features` builds without voice input (no CMake or libclang).
+
 ## Rules that always apply
 
 @conventions.md
