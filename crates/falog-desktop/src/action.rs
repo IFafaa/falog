@@ -25,6 +25,7 @@ pub enum Action {
     /// Push-to-talk: start or finish dictating to the assistant.
     ToggleDictation,
     NewAssistantThread,
+    ShowAssistantHistory,
 }
 
 #[derive(Debug, Default)]

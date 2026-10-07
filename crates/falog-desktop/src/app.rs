@@ -379,6 +379,10 @@ impl FalogApp {
                 self.prefs.assistant_open = true;
                 self.assistant.new_thread();
             }
+            Action::ShowAssistantHistory => {
+                self.prefs.assistant_open = true;
+                self.assistant.show_history = true;
+            }
         }
     }
 

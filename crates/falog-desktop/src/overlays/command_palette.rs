@@ -220,6 +220,12 @@ impl CommandPalette {
             Action::NewAssistantThread,
         ));
         items.push(command(
+            Icon::Clock,
+            "assistant: show history".into(),
+            None,
+            Action::ShowAssistantHistory,
+        ));
+        items.push(command(
             Icon::Search,
             "workspace: focus search".into(),
             Some("Ctrl+F"),
