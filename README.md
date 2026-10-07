@@ -72,7 +72,9 @@ the assistant workspace to `~\falog-assistant`. `scripts\uninstall.ps1` reverts 
 **In Falog:** open the assistant dock with the ✦ button in the status bar or `Ctrl+Shift+A`. Type, or
 press `Ctrl+Space` (or the mic button), speak, and press it again: your words are transcribed on this
 computer and sent. The first time, Falog downloads the Whisper model (~574 MB). Pick the Claude model,
-your voice language and whether dictation sends right away in Settings.
+your voice language and whether dictation sends right away in Settings. Like Zed, each conversation
+is a thread: `+` starts a new one and the clock button lists past threads, so you can keep one per
+company and pick up any of them later, even after a restart.
 
 **From Claude Code or another MCP client:** open a session in `~\falog-assistant` (its `CLAUDE.md`
 teaches Claude how to file tasks) or mention tasks in any session, since the server is registered for
