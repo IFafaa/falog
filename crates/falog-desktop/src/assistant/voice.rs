@@ -228,8 +228,9 @@ pub struct Transcriber {
 }
 
 impl Transcriber {
-    pub fn new(model: PathBuf, ctx: egui::Context) -> Self {
-        let cache = Arc::new(ModelCache::new(model));
+    /// `use_gpu` only has an effect in builds with the `gpu` feature.
+    pub fn new(model: PathBuf, use_gpu: bool, ctx: egui::Context) -> Self {
+        let cache = Arc::new(ModelCache::new(model, use_gpu));
         let final_running = Arc::new(AtomicBool::new(false));
         let (results_tx, results) = mpsc::channel();
         let cores = thread::available_parallelism().map_or(4, |n| n.get());
@@ -278,13 +279,15 @@ impl Transcriber {
 /// The loaded model, shared by both lanes and released after [`UNLOAD_AFTER`] without use.
 struct ModelCache {
     path: PathBuf,
+    use_gpu: bool,
     state: Mutex<(Option<engine::Model>, Instant)>,
 }
 
 impl ModelCache {
-    fn new(path: PathBuf) -> Self {
+    fn new(path: PathBuf, use_gpu: bool) -> Self {
         Self {
             path,
+            use_gpu,
             state: Mutex::new((None, Instant::now())),
         }
     }
@@ -295,7 +298,7 @@ impl ModelCache {
             .lock()
             .map_err(|_| "Whisper model lock poisoned".to_string())?;
         if state.0.is_none() {
-            state.0 = Some(engine::load(&self.path)?);
+            state.0 = Some(engine::load(&self.path, self.use_gpu)?);
         }
         state.1 = Instant::now();
         state
@@ -400,8 +403,10 @@ mod engine {
         whisper_rs::install_logging_hooks();
     }
 
-    pub fn load(path: &Path) -> Result<Model, String> {
-        WhisperContext::new_with_params(path, WhisperContextParameters::default())
+    pub fn load(path: &Path, use_gpu: bool) -> Result<Model, String> {
+        let mut parameters = WhisperContextParameters::default();
+        parameters.use_gpu(use_gpu && cfg!(feature = "gpu"));
+        WhisperContext::new_with_params(path, parameters)
             .map(Arc::new)
             .map_err(|e| format!("Could not load the Whisper model: {e}"))
     }
@@ -450,7 +455,7 @@ mod engine {
 
     pub fn init() {}
 
-    pub fn load(_: &Path) -> Result<Model, String> {
+    pub fn load(_: &Path, _: bool) -> Result<Model, String> {
         Err("This build of Falog has no speech recognition (compiled without the `whisper` feature).".into())
     }
 

@@ -60,6 +60,8 @@ pub struct AssistantOptions {
     pub model: AssistantModel,
     pub language: VoiceLanguage,
     pub send_after_dictation: bool,
+    /// Run speech recognition on the GPU (builds with the `gpu` feature).
+    pub voice_gpu: bool,
 }
 
 #[derive(Debug)]
@@ -367,8 +369,9 @@ impl Assistant {
             VoiceState::Idle | VoiceState::NeedsModel => match Recorder::start(ctx.clone()) {
                 Ok(recorder) => {
                     // Create the worker now so the model loads while the user is still speaking.
-                    self.transcriber
-                        .get_or_insert_with(|| Transcriber::new(voice::model_path(), ctx.clone()));
+                    self.transcriber.get_or_insert_with(|| {
+                        Transcriber::new(voice::model_path(), options.voice_gpu, ctx.clone())
+                    });
                     self.live_text.clear();
                     self.last_partial = Instant::now();
                     self.voice = VoiceState::Recording(recorder);
@@ -377,9 +380,9 @@ impl Assistant {
             },
             VoiceState::Recording(recorder) => match recorder.finish() {
                 Some(audio) => {
-                    let transcriber = self
-                        .transcriber
-                        .get_or_insert_with(|| Transcriber::new(voice::model_path(), ctx.clone()));
+                    let transcriber = self.transcriber.get_or_insert_with(|| {
+                        Transcriber::new(voice::model_path(), options.voice_gpu, ctx.clone())
+                    });
                     transcriber.submit(audio, options.language, true);
                     self.voice = VoiceState::Transcribing;
                 }
@@ -393,6 +396,13 @@ impl Assistant {
         if matches!(self.voice, VoiceState::Recording(_) | VoiceState::NeedsModel) {
             self.voice = VoiceState::Idle;
             self.live_text.clear();
+        }
+    }
+
+    /// Drops the speech engine so the next dictation reloads it with new settings.
+    pub fn reset_voice_engine(&mut self) {
+        if !matches!(self.voice, VoiceState::Recording(_) | VoiceState::Transcribing) {
+            self.transcriber = None;
         }
     }
 

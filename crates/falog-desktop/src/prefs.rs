@@ -23,6 +23,8 @@ pub struct Prefs {
     pub voice_language: VoiceLanguage,
     /// Send dictated text right away instead of leaving it in the composer.
     pub send_after_dictation: bool,
+    /// Run speech recognition on the GPU when the build supports it.
+    pub voice_gpu: bool,
 }
 
 impl Prefs {
@@ -31,6 +33,7 @@ impl Prefs {
             model: self.assistant_model,
             language: self.voice_language,
             send_after_dictation: self.send_after_dictation,
+            voice_gpu: self.voice_gpu,
         }
     }
 }
@@ -49,6 +52,7 @@ impl Default for Prefs {
             assistant_model: AssistantModel::default(),
             voice_language: VoiceLanguage::default(),
             send_after_dictation: true,
+            voice_gpu: true,
         }
     }
 }

@@ -15,6 +15,7 @@ pub enum SettingsEvent {
     SetAutostart(bool),
     SetTheme(ThemeMode),
     AssistantModelChanged,
+    VoiceEngineChanged,
     Copied,
 }
 
@@ -104,6 +105,19 @@ impl SettingsDialog {
                             switch(ui, &mut prefs.send_after_dictation);
                         },
                     );
+                    if cfg!(feature = "gpu") {
+                        setting(
+                            ui,
+                            theme,
+                            "Speech recognition on GPU",
+                            "Much faster when the graphics card is free; turn off while gaming.",
+                            |ui| {
+                                if switch(ui, &mut prefs.voice_gpu).changed() {
+                                    events.push(SettingsEvent::VoiceEngineChanged);
+                                }
+                            },
+                        );
+                    }
                     let model_status = if voice::model_path().is_file() {
                         "Speech recognition: Whisper large-v3-turbo, on this computer.".to_owned()
                     } else {
