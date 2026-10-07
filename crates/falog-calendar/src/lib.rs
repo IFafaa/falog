@@ -10,6 +10,7 @@ pub mod config;
 mod error;
 pub mod layout;
 pub mod model;
+pub mod oauth;
 mod url;
 
 pub use config::{Account, CalendarConfig, Client, EventCache, Files};
