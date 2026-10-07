@@ -1,12 +1,12 @@
 # Design system
 
-Falog follows [Zed](https://github.com/zed-industries/zed)'s UI closely. When in doubt, open Zed and
-copy what it does. Reference sources in the Zed repo: `assets/themes/one/one.json` (colors),
-`crates/ui` (components, spacing), `crates/workspace` (docks, status bar), `crates/title_bar`.
+Falog looks like a modern code editor: dense, dark by default, keyboard first, with docks, a tab bar, a
+status bar and a command palette. This document is the reference for that look. New UI reuses these
+tokens, metrics and components and matches the screens that exist; when in doubt, copy a neighbor.
 
 ## Color tokens
 
-Defined in `theme.rs` with Zed's token names; values are Zed's **One Dark** and **One Light**.
+Defined in `theme.rs`; values are the **One Dark** and **One Light** palettes.
 Never hard-code colors in UI code; use a token.
 
 | Token | Use |
@@ -42,7 +42,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 
 ## Components (`components/`)
 
-| Component | Zed equivalent | Notes |
+| Component | Kind | Notes |
 |---|---|---|
 | `button(style, icon, label)` | `Button` | `Ghost`, `Filled`, `Accent` (primary), `Danger` |
 | `icon_button`, `icon_toggle` | `IconButton` | 24×24 ghost; toggles show `ghost_selected` |
@@ -67,9 +67,9 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 
 ### Assistant dock
 
-Modeled on Zed's agent panel. Header (32 px, `tab_bar`) with ✦ and the thread title (its first
+An agent panel. Header (32 px, `tab_bar`) with ✦ and the thread title (its first
 message; hover shows the model), then new thread (+), history (clock, toggled), zoom (maximize / minimize, `Shift+Esc`) and close.
-Zoomed, the dock fills the window like Zed's zoomed panels: sidebar, tabs, toolbar, views and task
+Zoomed, the dock fills the window: sidebar, tabs, toolbar, views and task
 panel are hidden, the status bar stays, and the thread, history and composer keep to a centered
 820 px column. The history
 view replaces the thread and composer with rows of 44 px: title, then `Agent · N messages · 2h ago` in
@@ -81,11 +81,11 @@ the result; click opens the task, hover shows the arguments) and errors in `erro
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
 (pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
 Under the text, the footer has two rows so it fits the default dock width. The first holds the thread's
-agent, model, effort and mode pickers (Zed's selectors: `text_muted` label and a chevron,
+agent, model, effort and mode pickers (selectors: `text_muted` label and a chevron,
 `ghost_hover` on hover, a menu above with a check on the current value; a picker only shows when
 the agent offers that setting, and the agent becomes a plain label once the thread has messages).
-The second has the mic, the fast mode flame (an icon toggle, `ghost_selected` while on, like Zed's
-burn mode; the tooltip says why it is unavailable), "Ultracode" in `text_placeholder` for Claude
+The second has the mic, the fast mode flame (an icon toggle, `ghost_selected` while on;
+the tooltip says why it is unavailable), "Ultracode" in `text_placeholder` for Claude
 agents with a tooltip on why it is off, and on the right the context ring and icon-only Send or
 Stop (tooltips "Send (Enter)", "Stop"). The context ring is 13 px across: a 2 px `border_variant`
 track filled clockwise from twelve o'clock in `text_muted`, `warning` from 70 % and `error` from
@@ -99,7 +99,7 @@ Enter on a complete name sends it, Esc closes.
 
 ### Calendar view
 
-Modeled on Google Calendar, painted with Zed tokens. Header: `Today` (filled), previous/next, the
+Modeled on Google Calendar, painted with the theme tokens. Header: `Today` (filled), previous/next, the
 range title (SemiBold 16), then the refresh button, status ("Updated 10:32" or the error in `warning`)
 and a Week/Month `segmented`. Weeks start on Sunday. Week: 52 px hour gutter, 48 px per hour, day names over the day number
 (today in a `text_accent` circle), an all-day row with lanes for all-day and multi-day events and for

@@ -2,7 +2,8 @@
 
 **A task board you talk to.** Falog is a local-first desktop app for developers who juggle work for
 several companies at once and still have a life to run. You tell your AI assistant about a request or
-an appointment, by voice or text, and it files the task for you; Falog shows everything on a Zed-inspired board, list, focus view and calendar.
+an appointment, by voice or text, and it files the task for you; Falog shows everything on a board, a list, a focus view and a
+calendar, in a fast, keyboard-first desktop app.
 
 ![Falog board with the task panel open](docs/screenshots/board.png)
 
@@ -28,7 +29,7 @@ it's urgent, needs to ship Friday"* and the task exists, with area, requester, d
   "amanhã" are understood.
 - **Work and life, one place.** Tasks belong to areas: each employer or client, plus personal ones like
   *Personal* or *Health*. Each area has a color and a sidebar entry to filter by.
-- **Zed's look and feel.** Same One Dark / One Light palettes, IBM Plex Sans, Lucide icons, a command
+- **An editor's look and feel.** One Dark / One Light palettes, IBM Plex Sans, Lucide icons, a command
   palette (`Ctrl+Shift+P`) and a task finder (`Ctrl+P`).
 - **Local and private.** A single SQLite file on your machine. No account, no server.
 - **Always there.** Opens at sign-in and keeps a single window.
@@ -126,7 +127,7 @@ launch may not be able to bring the existing window to the front.
 **In Falog:** open the assistant dock with the ✦ button in the status bar or `Ctrl+Shift+A`. Type, or
 press `Ctrl+Space` (or the mic button), speak, and press it again: your words are transcribed on this
 computer and sent. The first time, Falog downloads the Whisper model (~574 MB). Pick your voice
-language and whether dictation sends right away in Settings. Like Zed, each conversation is a thread:
+language and whether dictation sends right away in Settings. Each conversation is a thread:
 `+` starts a new one and the clock button lists past threads, so you can keep one per area and pick up
 any of them later, even after a restart. The composer footer picks the model (Opus, Sonnet, Haiku...),
 effort and permission mode of the thread, toggles fast mode, and shows how full the context is;
@@ -245,9 +246,9 @@ packages it uses in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Credits
 
-Falog's visual design follows [Zed](https://zed.dev). It bundles the One Dark and One Light color values
-(MIT), IBM Plex Sans and Lilex (SIL Open Font License) and Lucide icons (ISC) as shipped in the Zed
-repository; their licenses are next to the assets in `crates/falog-desktop/assets`. The app icon is
+Falog bundles the One Dark and One Light color values (MIT), IBM Plex Sans and Lilex (SIL Open Font
+License) and Lucide icons (ISC); their licenses are next to the assets in `crates/falog-desktop/assets`
+(see `THIRD-PARTY-NOTICES.md`). The app icon is
 original artwork under the project's MIT license; its SVG sources are in
 `crates/falog-desktop/assets/icon` and `tools/icon` regenerates the PNG, ICO and ICNS files.
 

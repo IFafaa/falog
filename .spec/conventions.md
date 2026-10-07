@@ -13,6 +13,14 @@ you find something in another language, rename it in its own commit.
   those words live only in parsing tables and their tests.
 - Conversation with the user may happen in any language; what lands in the repository is English.
 
+## Naming other products
+
+Describe Falog on its own terms. Code, comments, UI text and docs do not name other apps as the model
+for a design ("like X", "X-style", "X's panel"); say what the thing is instead. Third-party assets are
+credited only where their licenses require it, in `crates/falog-desktop/assets/THIRD-PARTY-NOTICES.md`.
+Services Falog integrates with (Google Calendar, Claude Code, ACP agents) are named, since they are
+what the feature is about.
+
 ## Code
 
 - Rust 2024 edition, `cargo fmt` with the repo's `rustfmt.toml`, `cargo clippy` clean (CI denies

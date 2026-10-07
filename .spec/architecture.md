@@ -66,7 +66,7 @@ src/
   assistant/     assistant dock: agents (Claude Code, ACP), threads + history, voice capture + Whisper, panel UI
   calendar.rs    Google Calendar state: links, accounts, cached events, background sign-in and refresh
   prefs.rs       persisted UI preferences
-  theme.rs       Zed color tokens -> egui visuals
+  theme.rs       color tokens -> egui visuals
   fonts.rs, icons.rs
   components/    reusable widgets (buttons, chips, modal, pickers, switch, text helpers)
   workspace/     window chrome: sidebar, tab bar, toolbar, status bar, task panel
@@ -146,7 +146,7 @@ threads ends the idle processes of the others; the next message resumes them. Th
 are saved to `<data dir>/assistant/threads.json` (`assistant/history.rs`: newest first, at most 100,
 written through a temporary file; an unreadable file is kept as `threads.json.bak`; threads saved
 before agents existed load as Claude Code threads) a couple of seconds after they change and when
-eframe saves its state. Falog opens on a fresh thread, as Zed does.
+eframe saves its state. Falog opens on a fresh thread.
 
 `<data dir>/assistant/agents.json` (`assistant/agents.rs`) keeps the user's custom agents, the last
 agent/model/effort picked (new threads start from it), and what each agent reported last time (its

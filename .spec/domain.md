@@ -22,7 +22,7 @@
 
 A sphere of the user's life a task belongs to: an employer, a client, "Personal", "Health"...
 `id`, `name` (unique, compared ignoring case **and** accents), `color` (`#rrggbb`). New areas take the
-next color of `PALETTE` (Zed's player colors). Areas were called companies until migration 2.
+next color of `PALETTE` (the One Dark player colors). Areas were called companies until migration 2.
 
 ### Note
 

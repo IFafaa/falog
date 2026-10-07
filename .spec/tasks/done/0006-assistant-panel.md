@@ -5,7 +5,7 @@
 
 ## Goal
 
-Talk to Falog itself. A right dock, like Zed's agent panel, holds a conversation with Claude; the user
+Talk to Falog itself. A right dock, an agent panel, holds a conversation with Claude; the user
 types or dictates (push-to-talk) and Claude creates and updates tasks, with every change showing up on
 the board immediately. No separate Claude Code window needed.
 

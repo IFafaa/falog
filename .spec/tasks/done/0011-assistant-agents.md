@@ -17,7 +17,7 @@ The dock spawns `claude --print --input-format stream-json --output-format strea
 ([architecture.md](../../architecture.md#assistant), `assistant/claude.rs`); threads talk to it
 directly. The model is a global setting (Default, Haiku, Sonnet, Opus) and effort cannot be chosen.
 
-ACP is the JSON-RPC 2.0 protocol over stdio that Zed uses for external agents. Checked against the
+ACP is the JSON-RPC 2.0 protocol over stdio that editors use for external agents. Checked against the
 schema in `agentclientprotocol/agent-client-protocol` (v1 1.24.1; v2 is still alpha):
 
 - Client → agent: `initialize` (`protocolVersion: 1`, `clientCapabilities` with no fs/terminal),
@@ -34,8 +34,8 @@ schema in `agentclientprotocol/agent-client-protocol` (v1 1.24.1; v2 is still al
   options with `category: "model"` and `"thought_level"`. The older `session/set_model` is gone from
   the schema.
 
-Adapters (npm, checked Oct 2026): `@agentclientprotocol/claude-agent-acp` (was
-`@zed-industries/claude-code-acp`, needs Node 22+; honors `_meta.systemPrompt` and
+Adapters (npm, checked Oct 2026): `@agentclientprotocol/claude-agent-acp` (needs
+Node 22+; honors `_meta.systemPrompt` and
 `_meta.claudeCode.options`), `@agentclientprotocol/codex-acp`, and Gemini CLI's own `gemini --acp`
 (`--experimental-acp` is deprecated).
 
@@ -55,7 +55,7 @@ reports its commands in the `init` message (`slash_commands`) and in `system/com
   - Agents configured as `{name, command, args, env}`: presets for Claude Code (headless, default),
     Claude via ACP, Gemini CLI and Codex; custom agents added and removed in Settings.
   - Per-thread agent, model and effort, persisted in `threads.json`; new threads start from the last
-    choice. Pickers in the composer footer, as in Zed. Changing model or effort of Claude Code
+    choice. Pickers in the composer footer. Changing model or effort of Claude Code
     restarts it with `--resume`; ACP agents switch live.
   - Slash commands: typing `/` lists the agent's commands; picking one inserts it, sending sends it as
     a prompt.
@@ -69,7 +69,7 @@ reports its commands in the `init` message (`slash_commands`) and in `system/com
 The user also asked, per thread, in the same composer footer: a **context ring** (how much of the
 model's context window is used), a **permission mode** picker (default, accept edits, plan, auto,
 bypass permissions), **effort** (done above), **Fast mode** and **Ultracode**, and a **full screen**
-assistant (Zed's panel zoom).
+assistant (panel zoom).
 
 - Context: Claude Code reports per-call `usage` (`input_tokens` + `cache_creation_input_tokens` +
   `cache_read_input_tokens` + `output_tokens` = tokens in context) and, on `result`,
@@ -80,7 +80,7 @@ assistant (Zed's panel zoom).
   config options with `category: "mode"`, or the older `modes` + `session/set_mode`.
 - Fast mode / Ultracode: only if Claude Code exposes them headless; otherwise shown disabled with
   the reason.
-- Zoom: a header button, `Shift+Esc` (Zed's `workspace::ToggleZoom`) and an "assistant: toggle zoom"
+- Zoom: a header button, `Shift+Esc` (the usual toggle-zoom key in editors) and an "assistant: toggle zoom"
   command; the dock fills the window (sidebar, tabs, toolbar, views and task panel hidden), the
   conversation stays a readable column; remembered in the preferences.
 
@@ -143,7 +143,7 @@ are slow on first run (download).
     the unstable `session/set_model` is gone from the schema. Claude Code headless gets a static
     list of aliases (Default, Fable, Opus, Sonnet, Haiku) and levels (low...max), so it never goes
     stale. Mode options (permission modes) are not shown: Falog answers permissions itself.
-  - A thread's agent is fixed after its first message, as in Zed: the conversation lives in the
+  - A thread's agent is fixed after its first message: the conversation lives in the
     agent. New threads start from the last agent/model/effort picked (`agents.json`).
   - Permission policy: allow once for falog tools however the agent spells them, reject everything
     else. Claude's adapter also gets `tools: []`, `settingSources: []` and `strictMcpConfig`
@@ -175,7 +175,7 @@ are slow on first run (download).
     reports in the thread); Claude's ACP adapter has its own `fast` option. Opus only.
   - Ultracode is a per-prompt keyword that has Claude run multi-agent workflows with its built-in
     tools; the assistant runs without them, so it is shown disabled with that reason.
-  - Zoom: header button, `Shift+Esc` (Zed's toggle zoom), "assistant: toggle zoom" command,
+  - Zoom: header button, `Shift+Esc`, "assistant: toggle zoom" command,
     `Prefs::assistant_zoomed`; the conversation keeps to an 820 px column. Checked with window
     captures, like the footer (ring at 76 % in amber, lit flame, greyed Ultracode).
 - Follow-ups:
