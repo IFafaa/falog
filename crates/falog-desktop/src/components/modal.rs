@@ -58,7 +58,13 @@ pub fn modal<R>(
                 .shadow(theme.popover_shadow())
                 .show(ui, |ui| {
                     ui.set_width(width);
-                    add_contents(ui)
+                    // Tall dialogs (Settings) scroll instead of running off a small window.
+                    egui::ScrollArea::vertical()
+                        .max_height(screen.height() - 48.0)
+                        .min_scrolled_height(screen.height() - 48.0)
+                        .auto_shrink([false, true])
+                        .show(ui, add_contents)
+                        .inner
                 })
                 .inner
         })
