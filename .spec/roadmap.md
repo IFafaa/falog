@@ -15,7 +15,7 @@ starts; move it to `tasks/done` when shipped.
 | 0008 | [Live transcription](tasks/done/0008-live-transcription.md) | See the words while dictating |
 | 0009 | [Areas instead of companies](tasks/done/0009-areas.md) | Personal tasks and appointments next to work |
 | 0010 | [Calendar view with Google Calendar](tasks/doing/0010-google-calendar.md) | Meetings from several Google accounts next to the tasks |
-| 0012 | [macOS and Linux](tasks/doing/0012-macos-and-linux.md) | The same board on the Mac and the Linux machine |
+| 0012 | [macOS and Linux](tasks/done/0012-macos-and-linux.md) | The same board on the Mac and the Linux machine |
 
 Later, unordered: tags/labels, manual ordering within a column, weekly report export (Markdown),
 undo for destructive actions, signed macOS builds and Linux packages (Flatpak, `.deb`).
