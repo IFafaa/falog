@@ -250,6 +250,8 @@ struct State {
     replaying: bool,
     /// The turn was cancelled; whatever still streams for it is dropped.
     cancelling: bool,
+    /// The latest `session/prompt`; answers to earlier (cancelled) ones are stale.
+    current_prompt: Option<u64>,
     options: Vec<ConfigOption>,
     /// Tool names by call id, for permission requests that only carry the id.
     tools: HashMap<String, String>,
@@ -269,6 +271,7 @@ impl State {
             needs_instructions: false,
             replaying: false,
             cancelling: false,
+            current_prompt: None,
             options: Vec::new(),
             tools: HashMap::new(),
         }
@@ -315,6 +318,9 @@ impl Connection {
             let id = state.next_id;
             state.next_id += 1;
             state.pending.insert(id, kind);
+            if kind == Request::Prompt {
+                state.current_prompt = Some(id);
+            }
             id
         };
         self.write(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }))
@@ -368,7 +374,13 @@ impl Connection {
                 Vec::new()
             }
             (id, None) => {
-                let kind = id.as_u64().and_then(|id| self.state().pending.remove(&id));
+                let kind = id.as_u64().and_then(|id| {
+                    let mut state = self.state();
+                    let kind = state.pending.remove(&id)?;
+                    // A stopped turn answering after a new message was sent must not end the new one.
+                    let stale = kind == Request::Prompt && state.current_prompt != Some(id);
+                    (!stale).then_some(kind)
+                });
                 match (kind, message.get("error")) {
                     (Some(kind), Some(error)) => self.on_error(kind, error),
                     (Some(kind), None) => self.on_result(kind, &message["result"]),
@@ -1150,6 +1162,36 @@ mod tests {
             json!({ "sessionUpdate": "agent_message_chunk", "content": { "type": "text", "text": "late" } }),
         );
         agent.reply(&prompt, json!({ "stopReason": "cancelled" }));
+        assert_eq!(
+            next_event(&mut session),
+            AgentEvent::TurnFinished {
+                is_error: false,
+                message: None,
+            }
+        );
+    }
+
+    #[test]
+    fn a_stopped_turn_does_not_end_the_next_one() {
+        let (mut session, mut agent) = connect(setup(None, None));
+        handshake(&mut agent, json!({}), "gemini-cli");
+        let new = agent.expect("session/new");
+        agent.reply(&new, json!({ "sessionId": "s1" }));
+        assert!(matches!(next_event(&mut session), AgentEvent::Ready { .. }));
+        assert!(matches!(next_event(&mut session), AgentEvent::Options(_)));
+
+        session.send("first").unwrap();
+        let first = agent.expect("session/prompt");
+        assert!(session.cancel());
+        agent.expect("session/cancel");
+        session.send("second").unwrap();
+        let second = agent.expect("session/prompt");
+        agent.reply(&first, json!({ "stopReason": "cancelled" }));
+        agent.update(
+            json!({ "sessionUpdate": "agent_message_chunk", "content": { "type": "text", "text": "Hi" } }),
+        );
+        assert_eq!(next_event(&mut session), AgentEvent::TextDelta("Hi".into()));
+        agent.reply(&second, json!({ "stopReason": "end_turn" }));
         assert_eq!(
             next_event(&mut session),
             AgentEvent::TurnFinished {
