@@ -8,7 +8,7 @@ use eframe::egui::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Placement {
-    /// Near the top, like Zed's command palette and pickers.
+    /// Near the top, for the command palette and pickers.
     Top,
     Center,
 }

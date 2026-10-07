@@ -7,7 +7,7 @@ const ICON: f32 = 14.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonStyle {
-    /// Transparent until hovered; the default in Zed toolbars.
+    /// Transparent until hovered; the default in toolbars.
     Ghost,
     /// Element background with a border.
     Filled,
@@ -79,7 +79,7 @@ pub fn button(ui: &mut Ui, style: ButtonStyle, icon: Option<Icon>, label: &str) 
     response.on_hover_cursor(CursorIcon::PointingHand)
 }
 
-/// Square ghost button with just an icon, like the ones in Zed's tab and status bars.
+/// Square ghost button with just an icon, as in the tab and status bars.
 pub fn icon_button(ui: &mut Ui, icon: Icon, tooltip: &str) -> Response {
     icon_toggle(ui, icon, false, tooltip)
 }

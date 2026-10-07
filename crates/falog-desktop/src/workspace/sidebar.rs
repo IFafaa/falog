@@ -1,4 +1,4 @@
-//! Left dock listing areas, styled like Zed's project panel.
+//! Left dock listing areas, styled like a project panel.
 
 use super::BAR_HEIGHT;
 use crate::action::{Action, Actions};

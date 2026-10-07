@@ -4,7 +4,7 @@ use eframe::egui::{
 };
 use std::sync::Arc;
 
-/// On/off switch (Zed's `Switch`).
+/// On/off switch.
 pub fn switch(ui: &mut Ui, on: &mut bool) -> Response {
     let theme = Theme::current(ui.ctx());
     let (rect, mut response) = ui.allocate_exact_size(vec2(30.0, 16.0), Sense::click());

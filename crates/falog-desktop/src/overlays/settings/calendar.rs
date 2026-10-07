@@ -429,7 +429,7 @@ fn hex(color: &str) -> Color32 {
     Color32::from_rgb(channel(1), channel(3), channel(5))
 }
 
-/// A row that folds a section open or closed, with a chevron like Zed's settings.
+/// A row that folds a section open or closed, with a chevron.
 fn disclosure(ui: &mut Ui, theme: &Theme, label: &str, open: bool) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
     if response.hovered() {

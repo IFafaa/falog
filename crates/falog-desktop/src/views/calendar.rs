@@ -1,5 +1,5 @@
 //! Meetings from Google Calendar next to the tasks that are due, in a week or month grid laid out
-//! like Google Calendar and painted with Zed's tokens.
+//! like Google Calendar and painted with the theme tokens.
 
 use super::ViewCx;
 use crate::action::{Action, Actions};

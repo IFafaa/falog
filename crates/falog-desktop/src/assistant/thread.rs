@@ -231,7 +231,7 @@ impl Thread {
         }
     }
 
-    /// The first message, shortened; Zed-style threads are named after how they started.
+    /// The first message, shortened: threads are named after how they started.
     pub fn title(&self) -> String {
         let first = self.items.iter().find_map(|item| match item {
             Item::User(text) => Some(text.trim()),

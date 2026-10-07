@@ -23,7 +23,7 @@ pub struct Prefs {
     /// Board view: keep showing tasks completed more than a week ago.
     pub show_old_completed: bool,
     pub assistant_open: bool,
-    /// The assistant fills the window (Zed's zoom).
+    /// The assistant fills the window (zoom).
     pub assistant_zoomed: bool,
     pub voice_language: VoiceLanguage,
     /// Send dictated text right away instead of leaving it in the composer.

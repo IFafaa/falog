@@ -1,4 +1,4 @@
-//! Slash command completion in the composer: typing `/` lists the agent's commands, like Zed.
+//! Slash command completion in the composer: typing `/` lists the agent's commands.
 
 use super::agent::SlashCommand;
 use crate::components::single_line;

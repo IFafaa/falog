@@ -1,5 +1,5 @@
 //! Paints the native Windows title bar with the theme's `title_bar` color, so the window
-//! chrome matches the app like Zed's does (Windows 11; older versions only get dark mode).
+//! chrome matches the app (Windows 11; older versions only get dark mode).
 
 use crate::theme::Theme;
 

@@ -1,6 +1,6 @@
 //! A client for the [Agent Client Protocol](https://agentclientprotocol.com) (ACP, version 1).
 //!
-//! ACP is newline-delimited JSON-RPC 2.0 over the agent's stdin/stdout, the protocol Zed uses for
+//! ACP is newline-delimited JSON-RPC 2.0 over the agent's stdin/stdout, the protocol editors use for
 //! external agents (Claude through its adapter, Gemini CLI, Codex...). Falog is the client: it
 //! opens one session per thread with the `falog` MCP server as the only tools, sends prompts and
 //! turns the agent's `session/update` notifications into [`AgentEvent`]s. It advertises no file

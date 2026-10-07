@@ -49,7 +49,7 @@ pub fn show(ctx: &egui::Context, theme: &Theme, current: View, actions: &mut Act
         });
 }
 
-/// A Zed tab: the active one takes the editor background and opens the bottom border.
+/// A tab: the active one takes the editor background and opens the bottom border.
 fn tab(ui: &mut Ui, theme: &Theme, view: View, active: bool) -> Response {
     let font = FontId::proportional(14.0);
     let galley = ui

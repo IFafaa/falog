@@ -1,4 +1,4 @@
-//! Reusable widgets styled after Zed's `ui` crate.
+//! Reusable widgets of the design system (see `.spec/design-system.md`).
 
 mod button;
 mod chip;

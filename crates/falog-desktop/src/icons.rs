@@ -1,4 +1,4 @@
-//! Lucide icons as shipped in Zed's `assets/icons` (ISC license), recolored to white so they
+//! Lucide icons (ISC license, see `assets/THIRD-PARTY-NOTICES.md`), recolored to white so they
 //! can be tinted with any theme color.
 
 use eframe::egui::{self, Color32, Image, ImageSource, Rect, Ui, include_image, vec2};

@@ -78,7 +78,7 @@ pub struct Assistant {
 }
 
 impl Assistant {
-    /// Loads the saved threads and opens a fresh one, as Zed does.
+    /// Loads the saved threads and opens a fresh one.
     pub fn new(database: Option<&Path>) -> Self {
         let launcher = Launcher {
             database: database.map(Path::to_path_buf),

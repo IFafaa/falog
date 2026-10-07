@@ -1,7 +1,6 @@
-//! Color tokens and egui styling modeled on Zed's design system.
+//! Color tokens and egui styling of Falog's design system (see `.spec/design-system.md`).
 //!
-//! Token names follow Zed's theme schema and the values are those of Zed's bundled
-//! "One Dark" and "One Light" themes (MIT, see `assets/themes/one` in the Zed repository).
+//! The values are the "One Dark" and "One Light" palettes (MIT, see `assets/THIRD-PARTY-NOTICES.md`).
 
 use crate::fonts;
 use chrono::NaiveDate;
@@ -267,7 +266,7 @@ pub fn color(rgb: Rgb) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
-/// Installs both themes, Zed-like spacing and type scale, and the user's light/dark preference.
+/// Installs both themes, the spacing and type scale, and the user's light/dark preference.
 pub fn install(ctx: &egui::Context, mode: ThemeMode) {
     ctx.set_visuals_of(egui::Theme::Dark, ONE_DARK.visuals());
     ctx.set_visuals_of(egui::Theme::Light, ONE_LIGHT.visuals());

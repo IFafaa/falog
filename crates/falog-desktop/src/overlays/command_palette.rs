@@ -1,4 +1,4 @@
-//! Zed-style command palette (Ctrl+Shift+P) and task finder (Ctrl+P).
+//! Command palette (Ctrl+Shift+P) and task finder (Ctrl+P).
 
 use crate::action::Action;
 use crate::components::{Placement, modal, paint_keybinding, single_line};

@@ -1,4 +1,4 @@
-//! Bundled typefaces, the same ones Zed ships: IBM Plex Sans for UI and Lilex for monospace.
+//! Bundled typefaces: IBM Plex Sans for UI and Lilex for monospace.
 //! Both are licensed under the SIL Open Font License (see `assets/fonts`).
 
 use eframe::egui::{self, FontData, FontDefinitions, FontFamily, FontId};

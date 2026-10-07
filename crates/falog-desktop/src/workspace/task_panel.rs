@@ -1,6 +1,6 @@
 //! Right dock for creating and editing a task.
 //!
-//! Edits are kept in a [`Draft`] and written on save (Ctrl+S), like a buffer in Zed.
+//! Edits are kept in a [`Draft`] and written on save (Ctrl+S), like a buffer in an editor.
 
 use super::BAR_HEIGHT;
 use crate::components::{ButtonStyle, area_picker, button, icon_button, priority_picker, status_picker};

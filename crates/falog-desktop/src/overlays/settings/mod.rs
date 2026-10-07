@@ -245,7 +245,7 @@ impl SettingsDialog {
 }
 
 fn appearance_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Vec<SettingsEvent>) {
-    setting(ui, theme, "Theme", "One Dark and One Light, from Zed.", |ui| {
+    setting(ui, theme, "Theme", "One Dark or One Light.", |ui| {
         let options: Vec<(ThemeMode, &str)> = ThemeMode::ALL.iter().map(|m| (*m, m.label())).collect();
         if segmented(ui, &mut prefs.theme, &options) {
             events.push(SettingsEvent::SetTheme(prefs.theme));
@@ -296,7 +296,7 @@ fn voice_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Vec<Set
     );
 }
 
-/// A settings page in the left column, like the sections of Zed's settings.
+/// A settings page in the left column.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SettingsTab {
     #[default]

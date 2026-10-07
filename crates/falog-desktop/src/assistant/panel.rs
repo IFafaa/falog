@@ -1,4 +1,4 @@
-//! The assistant dock, modeled on Zed's agent panel: thread on top, composer at the bottom, and a
+//! The assistant dock: thread on top, composer at the bottom, and a
 //! history view listing past threads.
 
 use super::agent::claude_code::FAST_ON;
@@ -70,7 +70,7 @@ pub fn show(
     });
 }
 
-/// Zed's agent panel header: the thread title on the left, thread actions on the right.
+/// The dock header: the thread title on the left, thread actions on the right.
 fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, zoomed: bool, actions: &mut Actions) {
     const BUTTONS_WIDTH: f32 = 122.0;
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), BAR_HEIGHT), Sense::hover());
@@ -316,7 +316,7 @@ fn empty_state(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     recent(ui, theme, assistant);
 }
 
-/// The last few threads under the examples, like Zed's empty agent panel.
+/// The last few threads under the examples, in the empty state.
 fn recent(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     const SHOWN: usize = 3;
     let total = assistant.recent_threads().len();
@@ -577,7 +577,7 @@ fn text_input(
     if std::mem::take(&mut assistant.focus_composer) {
         response.request_focus();
     }
-    // Zed's composer footer, on two rows so it fits a narrow dock: what the thread asks the agent
+    // The composer footer, on two rows so it fits a narrow dock: what the thread asks the agent
     // for, then the actions.
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
@@ -617,7 +617,7 @@ fn text_input(
     });
 }
 
-/// Fast mode, when the agent offers it: a flame that stays lit while on, like Zed's burn mode.
+/// Fast mode, when the agent offers it: a flame that stays lit while on.
 fn fast_toggle(ui: &mut Ui, assistant: &mut Assistant) {
     let Some((option, value)) = assistant.active().option(OptionKind::Fast) else {
         return;
@@ -759,7 +759,7 @@ fn picker_label_colored(ui: &mut Ui, label: &str, color: Color32) -> egui::Respo
     response
 }
 
-/// Zed's composer selectors: muted text with a chevron that opens a menu above it.
+/// Composer selectors: muted text with a chevron that opens a menu above it.
 fn option_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, kind: OptionKind) {
     let Some((option, value)) = assistant.active().option(kind) else {
         return;

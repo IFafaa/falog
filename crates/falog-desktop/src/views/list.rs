@@ -1,4 +1,4 @@
-//! Dense table of tasks, in the style of Zed's tables.
+//! Dense table of tasks.
 
 use super::ViewCx;
 use super::board::task_menu;
