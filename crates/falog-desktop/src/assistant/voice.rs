@@ -468,13 +468,9 @@ mod engine {
 
 // ---- model download --------------------------------------------------------------------------
 
-/// `<data dir>/Falog/models/<MODEL_FILE>`.
+/// `models/<MODEL_FILE>` in the data folder ([`falog_core::paths::data_home`]), shared by every database.
 pub fn model_path() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("Falog")
-        .join("models")
-        .join(MODEL_FILE)
+    falog_core::paths::data_home().join("models").join(MODEL_FILE)
 }
 
 #[derive(Debug)]

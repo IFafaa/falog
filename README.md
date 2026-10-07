@@ -66,9 +66,11 @@ the installers build Falog without voice.
 The installers build in release mode, install for the current user, enable launch at sign-in, register
 the MCP server with Claude Code (`claude mcp add --scope user falog`), copy the assistant workspace to
 `~/falog-assistant` and start Falog. The uninstallers revert it and keep your tasks unless you ask.
-Your tasks live in one SQLite file, `falog.db`, in `%APPDATA%\Falog` on Windows,
+Your tasks live in one SQLite file, `falog.db`, in `~\.falog` on Windows,
 `~/Library/Application Support/Falog` on macOS and `~/.local/share/Falog` on Linux (`FALOG_DB`
-points both binaries at another file).
+points both binaries at another file). On Windows it is not in AppData because packaged apps such as
+Claude desktop give the processes they start a private copy of AppData, so tasks filed from there would
+not show up in Falog. Older versions kept it in `%APPDATA%\Falog`; Falog moves it on first start.
 
 ### Windows
 

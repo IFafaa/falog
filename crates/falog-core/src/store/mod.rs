@@ -9,7 +9,7 @@ mod notes;
 mod schema;
 mod tasks;
 
-use crate::{Error, Result};
+use crate::{Error, Result, paths};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -17,15 +17,16 @@ use std::time::Duration;
 /// Environment variable that overrides the database location.
 pub const DB_PATH_ENV: &str = "FALOG_DB";
 
-/// `$FALOG_DB`, or `<data dir>/Falog/falog.db` (`%APPDATA%\Falog\falog.db` on Windows).
+/// The database chosen with `$FALOG_DB`, if any.
+fn override_path() -> Option<PathBuf> {
+    std::env::var_os(DB_PATH_ENV)
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from)
+}
+
+/// `$FALOG_DB`, or `falog.db` in [`paths::data_home`] (`%USERPROFILE%\.falog\falog.db` on Windows).
 pub fn default_path() -> PathBuf {
-    if let Some(path) = std::env::var_os(DB_PATH_ENV).filter(|p| !p.is_empty()) {
-        return PathBuf::from(path);
-    }
-    dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("Falog")
-        .join("falog.db")
+    override_path().unwrap_or_else(|| paths::data_home().join(paths::DATABASE_FILE))
 }
 
 #[derive(Debug)]
@@ -35,7 +36,12 @@ pub struct Store {
 }
 
 impl Store {
+    /// Opens [`default_path`]. Without `$FALOG_DB`, first moves the files of older versions into the
+    /// data folder ([`paths::migrate_legacy_data`]), so every binary finds them on its first start.
     pub fn open_default() -> Result<Self> {
+        if override_path().is_none() {
+            paths::migrate_legacy_data()?;
+        }
         Self::open(default_path())
     }
 

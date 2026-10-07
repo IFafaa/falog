@@ -45,6 +45,9 @@ fn main() -> eframe::Result {
             .with_inner_size([1360.0, 840.0])
             .with_min_inner_size([820.0, 520.0])
             .with_icon(icons::app_icon()),
+        // Next to the database instead of eframe's default (AppData on Windows, which packaged apps
+        // redirect); `Store::open_default` above moved an existing file here.
+        persistence_path: Some(falog_core::paths::data_home().join(falog_core::paths::PREFERENCES_FILE)),
         ..Default::default()
     };
 

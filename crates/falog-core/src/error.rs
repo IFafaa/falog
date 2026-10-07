@@ -28,6 +28,14 @@ pub enum Error {
         source: std::io::Error,
     },
 
+    #[error("could not move {from} to {to}: {source}")]
+    Migration {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error(transparent)]
     Database(#[from] rusqlite::Error),
 }

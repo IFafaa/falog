@@ -32,6 +32,7 @@ src/
   date.rs      today/now, natural-language due dates, urgency and formatting
   agenda.rs    buckets, sorting, summaries
   text.rs      accent/case-insensitive matching
+  paths.rs     data folder per platform, moving older layouts into it (see Files on disk)
   error.rs     Error enum (thiserror)
 ```
 
@@ -162,20 +163,37 @@ instead of dropping its cached events.
 
 ## Files on disk
 
-`<data dir>` is `dirs::data_dir()/Falog`: `%APPDATA%\Falog` on Windows,
+`<data dir>` is `falog_core::paths::data_home()`: `%USERPROFILE%\.falog` on Windows,
 `~/Library/Application Support/Falog` on macOS, `$XDG_DATA_HOME/Falog` (`~/.local/share/Falog`) on Linux.
+The assistant and calendar folders sit next to the database, so they follow `FALOG_DB`; the Whisper
+model and the window preferences stay in `<data dir>` for every database.
+
+| Content | Path |
+|---|---|
+| Tasks (override with `FALOG_DB`) | `<data dir>/falog.db` |
+| Assistant threads, MCP config | `<data dir>/assistant/` |
+| Whisper model | `<data dir>/models/` |
+| Google OAuth client, accounts with refresh tokens, calendar choices | `<data dir>/calendar/google.json` |
+| Last fetched events, shown at startup and offline | `<data dir>/calendar/events.json` |
+| Window and UI preferences (eframe `persistence_path`) | `<data dir>/app.ron` |
 
 | Content | Windows | macOS | Linux |
 |---|---|---|---|
-| Tasks (override with `FALOG_DB`) | `<data dir>\falog.db` | `<data dir>/falog.db` | `<data dir>/falog.db` |
-| Assistant threads, MCP config | `<data dir>\assistant\` | `<data dir>/assistant/` | `<data dir>/assistant/` |
-| Whisper model | `<data dir>\models\` | `<data dir>/models/` | `<data dir>/models/` |
-| Google OAuth client, accounts with refresh tokens, calendar choices | `<data dir>\calendar\google.json` | `<data dir>/calendar/google.json` | `<data dir>/calendar/google.json` |
-| Last fetched events, shown at startup and offline | `<data dir>\calendar\events.json` | `<data dir>/calendar/events.json` | `<data dir>/calendar/events.json` |
-| Window and UI preferences (eframe, app id `falog`) | `%APPDATA%\falog\data\app.ron` | `~/Library/Application Support/falog/app.ron` | `~/.local/share/falog/app.ron` |
 | Installed binaries | `%LOCALAPPDATA%\Falog\*.exe` | `~/Applications/Falog.app/Contents/MacOS/` | `~/.local/bin/` |
 | Launch at sign-in | `HKCU\...\Run\Falog` | `~/Library/LaunchAgents/app.falog.Falog.plist` | `~/.config/autostart/falog.desktop` |
 | App menu entry | Start menu `Falog.lnk` | the bundle itself | `~/.local/share/applications/falog.desktop` |
 
-Windows and macOS file systems ignore case, so eframe's `falog` folder is the same as `Falog` there; on
-Linux they are two folders.
+**Why not AppData on Windows.** Packaged (MSIX) apps such as Claude desktop redirect `%APPDATA%`,
+`%LOCALAPPDATA%` and `HKCU`, copy-on-write, for every process they start, into
+`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`. A `falog-mcp` started by Claude Code inside Claude
+desktop wrote to a private copy of the database that the Falog app never saw. The user profile is not
+redirected. (The binaries stay in `%LOCALAPPDATA%`: the installer detects the sandbox and finishes the
+install through Explorer.)
+
+**Moving older data.** Older versions kept the data in `%APPDATA%\Falog` (Windows) and let eframe keep
+`app.ron` in its own folder (`%APPDATA%\falog\data`, `~/.local/share/falog`). Without `FALOG_DB`,
+`Store::open_default` runs `paths::migrate_legacy_data` first, in both binaries: whatever the new folder
+lacks is moved there under a `migration.lock` file (a second process waits, then re-checks), the
+database through `VACUUM INTO` and a rename, then the old file is renamed `falog.moved.db`. Assistant
+threads keep their history, but Claude Code stores sessions per working directory, so `--resume` of a
+thread from before the move may not find its session (not verified).
