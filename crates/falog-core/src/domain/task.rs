@@ -20,11 +20,17 @@ pub struct Task {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub completed_at: Option<NaiveDateTime>,
+    /// When a done task was put away from the board; `None` while it is on it.
+    pub archived_at: Option<NaiveDateTime>,
 }
 
 impl Task {
     pub fn is_open(&self) -> bool {
         self.status.is_open()
+    }
+
+    pub fn is_archived(&self) -> bool {
+        self.archived_at.is_some()
     }
 
     pub fn area_id(&self) -> Option<AreaId> {

@@ -17,6 +17,7 @@
 | `note_count` | number | Derived |
 | `created_at`, `updated_at` | local datetime | `updated_at` also bumps when a note is added |
 | `completed_at` | `Option` | Set when moving into `done`, cleared when moving out |
+| `archived_at` | `Option` | Set when a done task is archived (put away from the board); cleared by restoring it or moving it out of `done` |
 
 ### Area
 
@@ -27,6 +28,12 @@ next color of `PALETTE` (the One Dark player colors). Migration 2 is intentional
 ### Note
 
 Append-only activity log entry: `id`, `task_id`, `body`, `created_at`. Deleted with its task.
+
+## Archive
+
+Only done tasks can be archived. Archived tasks keep every field and their notes; they leave the Board,
+List, Focus and Calendar views and `list_tasks`, and live in the Archive view until restored. Moving an
+archived task out of `done` restores it too, since an open task belongs on the board.
 
 ## Status
 

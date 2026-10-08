@@ -39,6 +39,8 @@ const MIGRATIONS: &[&str] = &[
     // Intentionally empty: databases created by earlier builds count it, so later migrations must keep
     // their numbers.
     "SELECT 1;",
+    // Done tasks put away from the board; NULL while the task is on it.
+    "ALTER TABLE tasks ADD COLUMN archived_at TEXT;",
 ];
 
 pub(super) fn migrate(conn: &Connection) -> Result<()> {
