@@ -81,14 +81,29 @@ pub fn catalog() -> Value {
         },
         {
             "name": "list_tasks",
-            "description": "Lists or searches tasks. Open tasks only unless include_done or status=done.",
+            "description": "Lists or searches tasks. Open tasks only unless include_done or status=done. Archived tasks are left out unless archived=true, which lists only them.",
             "inputSchema": { "type": "object", "properties": {
                 "area": { "type": "string" },
                 "status": status,
                 "search": { "type": "string", "description": "Matches title, description, requester or area" },
                 "include_done": { "type": "boolean" },
+                "archived": { "type": "boolean", "description": "List archived tasks instead of the ones on the board" },
                 "limit": { "type": "integer", "description": "Default 100" }
             }}
+        },
+        {
+            "name": "archive_tasks",
+            "description": "Puts done tasks away from the board, keeping them (and their notes) in the Archive. Use it when the user wants to clean up finished work; only done tasks can be archived.",
+            "inputSchema": { "type": "object", "properties": {
+                "ids": { "type": "array", "items": task_id, "description": "Tasks to archive" },
+                "all_done": { "type": "boolean", "description": "Archive every done task instead of ids" },
+                "area": { "type": "string", "description": "With all_done: only this area" }
+            }}
+        },
+        {
+            "name": "restore_task",
+            "description": "Takes an archived task back to the board's Done column.",
+            "inputSchema": { "type": "object", "properties": { "id": task_id }, "required": ["id"] }
         },
         {
             "name": "get_task",

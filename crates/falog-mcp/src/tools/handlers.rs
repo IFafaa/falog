@@ -3,7 +3,7 @@ use super::calendar::{self, CalendarAccess};
 use crate::format;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::NaiveDate;
-use falog_core::domain::{NewTask, Priority, Rgb, Status, Task, TaskPatch};
+use falog_core::domain::{NewTask, Priority, Rgb, Status, Task, TaskId, TaskPatch};
 use falog_core::{Store, date, focus, text::fold};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -25,6 +25,8 @@ pub fn call(store: &Store, access: &CalendarAccess, name: &str, args: Value) -> 
         "list_tasks" => list_tasks(store, parse(args)?),
         "get_task" => get_task(store, parse(args)?),
         "delete_task" => delete_task(store, parse(args)?),
+        "archive_tasks" => archive_tasks(store, parse(args)?),
+        "restore_task" => restore_task(store, parse(args)?),
         _ => bail!("unknown tool \"{name}\""),
     }
 }
@@ -134,9 +136,10 @@ fn add_note(store: &Store, args: AddNoteArgs) -> Result<String> {
 
 fn list_tasks(store: &Store, args: ListTasksArgs) -> Result<String> {
     let mut tasks = tasks_of(store, args.area.as_deref())?;
+    tasks.retain(|t| t.is_archived() == args.archived);
     match parse_status(args.status)? {
         Some(status) => tasks.retain(|t| t.status == status),
-        None if !args.include_done => tasks.retain(Task::is_open),
+        None if !args.include_done && !args.archived => tasks.retain(Task::is_open),
         None => {}
     }
     if let Some(query) = non_empty(args.search) {
@@ -179,6 +182,37 @@ fn delete_task(store: &Store, args: TaskArgs) -> Result<String> {
         task.area_name(),
         task.title
     ))
+}
+
+fn archive_tasks(store: &Store, args: ArchiveTasksArgs) -> Result<String> {
+    let ids: Vec<TaskId> = if args.all_done {
+        tasks_of(store, args.area.as_deref())?
+            .iter()
+            .filter(|t| t.status == Status::Done && !t.is_archived())
+            .map(|t| t.id)
+            .collect()
+    } else if args.ids.is_empty() {
+        bail!("pass the ids of the tasks to archive, or all_done=true");
+    } else {
+        for id in &args.ids {
+            let task = store.require_task(id.0)?;
+            if task.status != Status::Done {
+                bail!("#{} is not done; only finished tasks can be archived", task.id);
+            }
+        }
+        args.ids.iter().map(|id| id.0).collect()
+    };
+    let archived = store.archive_tasks(&ids)?;
+    Ok(match archived {
+        0 => "Nothing to archive: no done tasks on the board.".into(),
+        1 => "Archived 1 task. It stays in the Archive view until restored.".into(),
+        n => format!("Archived {n} tasks. They stay in the Archive view until restored."),
+    })
+}
+
+fn restore_task(store: &Store, args: TaskArgs) -> Result<String> {
+    let task = store.restore_task(args.id.0)?;
+    Ok(format!("Restored {}", format::task_line(&task, date::today())))
 }
 
 /// All tasks, or only those of the area matching `area`.

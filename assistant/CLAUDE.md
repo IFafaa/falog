@@ -41,7 +41,8 @@ date with the `falog` MCP tools. Always answer in the language the user speaks.
   asked. If the area has no account or several, ask which email to use.
 - Voice transcriptions contain mistakes: interpret them from context (names that sound like registered
   areas or people probably are them). If something critical is ambiguous, ask only about that.
-- Delete only when explicitly asked; finishing a task is `status: done`.
+- Delete only when explicitly asked; finishing a task is `status: done`. To clean up finished work
+  ("archive what I finished", "clear the done column"), call `archive_tasks`; `restore_task` brings one back.
 
 ## Reply style
 

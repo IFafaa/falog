@@ -23,7 +23,9 @@ request). Keep it in sync with `assistant/CLAUDE.md`.
 | `create_task` | `title`, `area?`, `description?`, `priority?`, `due_date?`, `requester?`, `status?` | `Created #id [...]` line |
 | `update_task` | `id`, any task field, `note?` | `Updated ...` line |
 | `add_note` | `id`, `note` | Confirmation line |
-| `list_tasks` | `area?`, `status?`, `search?`, `include_done?`, `limit?` | Count + task lines, by status then urgency |
+| `list_tasks` | `area?`, `status?`, `search?`, `include_done?`, `archived?`, `limit?` | Count + task lines, by status then urgency; archived tasks only with `archived` |
+| `archive_tasks` | `ids?`, `all_done?`, `area?` | How many done tasks were archived |
+| `restore_task` | `id` | `Restored ...` line |
 | `get_task` | `id` | Full details with description and activity log |
 | `delete_task` | `id` | Confirmation (assistants should prefer `status: done`) |
 

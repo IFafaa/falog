@@ -12,6 +12,9 @@ pub fn task_line(task: &Task, today: NaiveDate) -> String {
         facts.push(format!("due {due} ({})", date::describe_due(due, today)));
     }
     facts.push(task.status.label().to_string());
+    if task.is_archived() {
+        facts.push("archived".into());
+    }
     if !task.requester.is_empty() {
         facts.push(format!("requested by {}", task.requester));
     }

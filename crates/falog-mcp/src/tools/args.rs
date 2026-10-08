@@ -69,12 +69,25 @@ pub struct ListTasksArgs {
     pub search: Option<String>,
     #[serde(default)]
     pub include_done: bool,
+    /// Only archived tasks instead of the ones on the board.
+    #[serde(default)]
+    pub archived: bool,
     pub limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TaskArgs {
     pub id: TaskRef,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ArchiveTasksArgs {
+    #[serde(default)]
+    pub ids: Vec<TaskRef>,
+    /// Every done task (of `area`, when given) instead of `ids`.
+    #[serde(default)]
+    pub all_done: bool,
+    pub area: Option<String>,
 }
 
 /// A task id given as `12`, `"12"` or `"#12"`.

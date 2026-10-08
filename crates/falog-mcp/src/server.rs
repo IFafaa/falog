@@ -166,7 +166,7 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names.len(), 14);
+        assert_eq!(names.len(), 16);
         assert!(names.contains(&"create_task") && names.contains(&"get_focus"));
     }
 
@@ -198,6 +198,42 @@ mod tests {
         let details = call(&server, 4, "get_task", json!({ "id": 1 }));
         assert!(text(&details).contains("repro'd"));
         assert!(text(&call(&server, 5, "get_focus", json!({}))).contains("Fix Google login"));
+    }
+
+    #[test]
+    fn archives_done_tasks_out_of_the_list() {
+        let server = server();
+        call(
+            &server,
+            1,
+            "create_task",
+            json!({ "title": "Ship v1", "status": "done" }),
+        );
+        call(&server, 2, "create_task", json!({ "title": "Plan v2" }));
+        let refused = call(&server, 3, "archive_tasks", json!({ "ids": [2] }));
+        assert!(
+            text(&refused).contains("only finished tasks"),
+            "{}",
+            text(&refused)
+        );
+
+        let archived = call(&server, 4, "archive_tasks", json!({ "all_done": true }));
+        assert!(
+            text(&archived).starts_with("Archived 1 task"),
+            "{}",
+            text(&archived)
+        );
+        let board = text(&call(&server, 5, "list_tasks", json!({ "include_done": true }))).to_owned();
+        assert!(!board.contains("Ship v1") && board.contains("Plan v2"), "{board}");
+        let archive = text(&call(&server, 6, "list_tasks", json!({ "archived": true }))).to_owned();
+        assert!(
+            archive.contains("Ship v1") && archive.contains("archived"),
+            "{archive}"
+        );
+
+        call(&server, 7, "restore_task", json!({ "id": 1 }));
+        let board = text(&call(&server, 8, "list_tasks", json!({ "include_done": true }))).to_owned();
+        assert!(board.contains("Ship v1"), "{board}");
     }
 
     #[test]

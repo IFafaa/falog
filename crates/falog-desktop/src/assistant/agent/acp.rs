@@ -27,7 +27,7 @@ use std::thread;
 const PROTOCOL_VERSION: u64 = 1;
 
 /// The tools of the `falog` MCP server; the only ones an agent may run.
-const FALOG_TOOLS: [&str; 14] = [
+const FALOG_TOOLS: [&str; 16] = [
     "create_task",
     "update_task",
     "add_note",
@@ -42,6 +42,8 @@ const FALOG_TOOLS: [&str; 14] = [
     "create_event",
     "update_event",
     "delete_event",
+    "archive_tasks",
+    "restore_task",
 ];
 
 /// The id under which an agent's older `modes` (switched with `session/set_mode`) are shown.
