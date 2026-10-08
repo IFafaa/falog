@@ -52,7 +52,7 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
 
   # Speech recognition on the GPU: Metal on macOS, Vulkan on Linux. Windows needs the Vulkan SDK
   # installed, which is not on the runner; build it locally with `--features falog-desktop/gpu`.
