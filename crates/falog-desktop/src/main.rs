@@ -42,8 +42,8 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("Falog")
             .with_app_id("falog")
-            .with_inner_size([1360.0, 840.0])
-            .with_min_inner_size([820.0, 520.0])
+            .with_inner_size(app::WINDOW_SIZE)
+            .with_min_inner_size(app::MIN_WINDOW_SIZE)
             .with_icon(icons::app_icon()),
         // Next to the database instead of eframe's default (AppData on Windows, which packaged apps
         // redirect); `Store::open_default` above moved an existing file here.

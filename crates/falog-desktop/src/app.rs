@@ -19,7 +19,7 @@ use crate::workspace::task_panel::{self, PanelEvent, TaskPanel};
 use crate::workspace::{sidebar, tab_bar, toolbar};
 use crate::{fonts, icons::Icon};
 use chrono::NaiveDate;
-use eframe::egui::{self, Frame, Id, Key, Margin, Modifiers, RichText, ViewportCommand};
+use eframe::egui::{self, Frame, Id, Key, Margin, Modifiers, RichText, Vec2, ViewportCommand, vec2};
 use falog_core::domain::{Area, Status, Task, TaskId, TaskPatch};
 use falog_core::{Store, date, focus};
 use std::sync::Arc;
@@ -29,6 +29,10 @@ use std::time::{Duration, Instant};
 /// How often to check whether the MCP server (or another process) changed the database.
 const POLL_INTERVAL: Duration = Duration::from_millis(800);
 const TOAST_DURATION: Duration = Duration::from_secs(5);
+
+/// Size of a new window, and the smallest one the layout fits in.
+pub const WINDOW_SIZE: Vec2 = vec2(1360.0, 840.0);
+pub const MIN_WINDOW_SIZE: Vec2 = vec2(820.0, 520.0);
 
 #[derive(Debug)]
 pub struct FalogApp {
@@ -53,6 +57,8 @@ pub struct FalogApp {
     toast: Option<Toast>,
     show_requested: Arc<AtomicBool>,
     title_bar_dark: Option<bool>,
+    /// Whether the restored window size was checked against [`MIN_WINDOW_SIZE`].
+    window_checked: bool,
 }
 
 impl FalogApp {
@@ -98,6 +104,7 @@ impl FalogApp {
             confirm: None,
             toast: None,
             show_requested,
+            window_checked: false,
             title_bar_dark: None,
         };
         app.reload();
@@ -508,6 +515,20 @@ impl FalogApp {
         }
     }
 
+    /// A window saved while minimized can come back a few pixels wide: the minimum size is not
+    /// applied to the size restored at startup. Such a window goes back to the default size.
+    fn check_window_size(&mut self, ctx: &egui::Context) {
+        let (minimized, inner) = ctx.input(|i| (i.viewport().minimized, i.viewport().inner_rect));
+        let Some(inner) = inner else { return };
+        if minimized == Some(true) {
+            return;
+        }
+        self.window_checked = true;
+        if too_small(inner.size()) {
+            ctx.send_viewport_cmd(ViewportCommand::InnerSize(WINDOW_SIZE));
+        }
+    }
+
     // ---- overlays --------------------------------------------------------------------------
 
     fn overlays(&mut self, ctx: &egui::Context, actions: &mut Actions) {
@@ -663,6 +684,9 @@ impl eframe::App for FalogApp {
             title_bar::apply(frame, theme);
             self.title_bar_dark = Some(theme.dark);
         }
+        if !self.window_checked {
+            self.check_window_size(ctx);
+        }
         if self.show_requested.swap(false, Ordering::Relaxed) {
             ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(ViewportCommand::Focus);
@@ -817,4 +841,21 @@ fn startup_error(ctx: &egui::Context, theme: &Theme, error: &str) {
             let hint = format!("Set {} to use another location.", falog_core::store::DB_PATH_ENV);
             ui.label(RichText::new(hint).color(theme.text_placeholder));
         });
+}
+
+fn too_small(size: Vec2) -> bool {
+    size.x < MIN_WINDOW_SIZE.x || size.y < MIN_WINDOW_SIZE.y
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_window_below_the_minimum_is_too_small() {
+        assert!(too_small(vec2(64.4, 64.4)));
+        assert!(too_small(vec2(1360.0, 300.0)));
+        assert!(!too_small(MIN_WINDOW_SIZE));
+        assert!(!too_small(WINDOW_SIZE));
+    }
 }
