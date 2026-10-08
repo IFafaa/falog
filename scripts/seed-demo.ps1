@@ -36,7 +36,11 @@ $calls = @(
     @{ name = 'create_task'; arguments = @{ title = 'Renew the gym membership'; area = 'health'; status = 'done' } },
     @{ name = 'create_task'; arguments = @{ title = 'Dentist appointment at 3 pm'; area = 'health'; due_date = (Day 2) } },
     @{ name = 'create_task'; arguments = @{ title = 'Renew car insurance'; area = 'home'; priority = 'high'; due_date = (Day 6); description = 'Current policy ends next month. Compare at least two quotes.' } },
-    @{ name = 'add_note'; arguments = @{ id = 1; note = 'Reproduced on a Pixel 8 emulator; the redirect URI is missing from the console.' } }
+    @{ name = 'add_note'; arguments = @{ id = 1; note = 'Reproduced on a Pixel 8 emulator; the redirect URI is missing from the console.' } },
+    @{ name = 'create_task'; arguments = @{ title = 'File the tax return'; area = 'home'; status = 'done' } },
+    @{ name = 'create_task'; arguments = @{ title = 'Move the build to the new CI runners'; area = 'work'; status = 'done'; requester = 'Carlos' } },
+    @{ name = 'create_task'; arguments = @{ title = 'Finish module 3 of the online course'; area = 'studies'; status = 'done' } },
+    @{ name = 'archive_tasks'; arguments = @{ ids = @(13, 14, 15) } }
 )
 
 $id = 0

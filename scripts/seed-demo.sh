@@ -49,6 +49,10 @@ calls=(
     '"create_task","arguments":{"title":"Dentist appointment at 3 pm","area":"health","due_date":"'"$(day 2)"'"}'
     '"create_task","arguments":{"title":"Renew car insurance","area":"home","priority":"high","due_date":"'"$(day 6)"'","description":"Current policy ends next month. Compare at least two quotes."}'
     '"add_note","arguments":{"id":1,"note":"Reproduced on a Pixel 8 emulator; the redirect URI is missing from the console."}'
+    '"create_task","arguments":{"title":"File the tax return","area":"home","status":"done"}'
+    '"create_task","arguments":{"title":"Move the build to the new CI runners","area":"work","status":"done","requester":"Carlos"}'
+    '"create_task","arguments":{"title":"Finish module 3 of the online course","area":"studies","status":"done"}'
+    '"archive_tasks","arguments":{"ids":[13,14,15]}'
 )
 
 id=0
