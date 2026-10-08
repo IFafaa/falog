@@ -233,10 +233,10 @@ mod tests {
     fn strips_html_from_descriptions() {
         let mut meeting = event(at(7, 10, 0), at(7, 11, 0));
         meeting.description =
-            "Agenda:<br>1. Q&amp;A<br/><b>Bring</b> notes &lt;draft&gt;<ul><li>a</li></ul>".into();
+            "Topics:<br>1. Q&amp;A<br/><b>Bring</b> notes &lt;draft&gt;<ul><li>a</li></ul>".into();
         assert_eq!(
             meeting.plain_description(),
-            "Agenda:\n1. Q&A\nBring notes <draft>\na"
+            "Topics:\n1. Q&A\nBring notes <draft>\na"
         );
         meeting.description = "Plain text, 2 < 3".into();
         assert_eq!(meeting.plain_description(), "Plain text, 2 < 3");

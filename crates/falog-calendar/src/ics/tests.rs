@@ -54,7 +54,7 @@ UID:nyc0123456789@google.com
 ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=me@exam
  ple.com;X-NUM-GUESTS=0:mailto:me@example.com
 X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij
-DESCRIPTION:Agenda: roadmap\\; budget\\n\\n-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~
+DESCRIPTION:Topics: roadmap\\; budget\\n\\n-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~
  :~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-\\nJoin with Google Meet: https://meet
  .google.com/abc-defg-hij\\n\\nLearn more about Meet at: https://support.google.
  com/a/users/answer/9282720\\n\\nPlease do not edit this section.\\n-::~:~::~:~:~
@@ -191,7 +191,7 @@ fn reads_google_meet_and_cleans_the_description() {
         Some("https://meet.google.com/abc-defg-hij")
     );
     // The alarm's description belongs to the alarm; Google's Meet block is dropped.
-    assert_eq!(sync.description, "Agenda: roadmap; budget");
+    assert_eq!(sync.description, "Topics: roadmap; budget");
 
     let lunch = find(&events, "Lunch")[0];
     assert_eq!(
