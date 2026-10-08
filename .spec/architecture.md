@@ -15,7 +15,7 @@ point. `falog-core` holds every rule so both binaries behave identically.
 
 | Crate | Kind | Depends on | Responsibility |
 |---|---|---|---|
-| `falog-core` | lib | rusqlite, chrono | Domain types, validation, date parsing, agenda rules, persistence |
+| `falog-core` | lib | rusqlite, chrono | Domain types, validation, date parsing, urgency buckets, persistence |
 | `falog-mcp` | bin `falog-mcp` | core, calendar, serde_json | MCP protocol, tool schemas, argument parsing, text output; calendar tools through the same `calendar/` files as the app |
 | `falog-calendar` | lib | ureq, chrono, chrono-tz, rrule, sha2 | iCal feeds, Google OAuth (loopback + PKCE), Calendar API, event model and layout rules, files |
 | `falog-desktop` | bin `falog` | core, calendar, eframe/egui | UI, theming, OS integration |
@@ -30,7 +30,7 @@ src/
   domain/      entities and value types (Task, Area, Note, Status, Priority, Rgb, ids)
   store/       Store (connection) + one file per aggregate: tasks, areas, notes, schema
   date.rs      today/now, natural-language due dates, urgency and formatting
-  agenda.rs    buckets, sorting, summaries
+  focus.rs     urgency buckets, sorting, summaries
   text.rs      accent/case-insensitive matching
   paths.rs     data folder per platform, moving older layouts into it (see Files on disk)
   error.rs     Error enum (thiserror)

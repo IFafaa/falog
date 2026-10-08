@@ -32,7 +32,7 @@ date with the `falog` MCP tools. Always answer in the language the user speaks.
   blocked means `waiting`. New information goes into `note` (the activity log); do not overwrite the
   description.
 - **Catching up** ("good morning", "what's on my plate today/this week", "where was I",
-  "what did I do last week"): call `get_agenda` and `list_events` and reply with a short, prioritized
+  "what did I do last week"): call `get_focus` and `list_events` and reply with a short, prioritized
   summary: what is on fire first, the day's meetings, then a suggestion of what to tackle today,
   grouped by area when that helps.
 - **Meetings and appointments** with a time: book them with `create_event` in the area's calendar

@@ -15,7 +15,7 @@ pub fn catalog() -> Value {
 
     json!([
         {
-            "name": "get_agenda",
+            "name": "get_focus",
             "description": "What needs attention: overdue, due today, due this week, in progress, waiting, upcoming, backlog, plus tasks completed in the last 7 days. Use it when the user wants to catch up or plan their day/week.",
             "inputSchema": { "type": "object", "properties": {
                 "area": { "type": "string", "description": "Only this area" }
@@ -102,7 +102,7 @@ pub fn catalog() -> Value {
         },
         {
             "name": "list_events",
-            "description": "Meetings and other events from the user's Google calendars for a day or a range (default: today), with their area, join link, and the calendar and id that update_event and delete_event need. Use it with get_agenda when the user catches up, and before booking to check they are free.",
+            "description": "Meetings and other events from the user's Google calendars for a day or a range (default: today), with their area, join link, and the calendar and id that update_event and delete_event need. Use it with get_focus when the user catches up, and before booking to check they are free.",
             "inputSchema": { "type": "object", "properties": {
                 "from": { "type": "string", "description": "First day, YYYY-MM-DD (default today)" },
                 "to": { "type": "string", "description": "Last day, inclusive, YYYY-MM-DD (default: same as from)" },

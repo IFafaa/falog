@@ -5,7 +5,7 @@ use falog_core::domain::TaskId;
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
-pub struct AgendaArgs {
+pub struct FocusArgs {
     pub area: Option<String>,
 }
 

@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "mcp__falog__get_agenda",
+      "mcp__falog__get_focus",
       "mcp__falog__list_areas",
       "mcp__falog__list_tasks",
       "mcp__falog__get_task",

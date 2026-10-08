@@ -9,8 +9,8 @@ use crate::icons::Icon;
 use crate::prefs::Prefs;
 use crate::theme::Theme;
 use chrono::NaiveDate;
-use falog_core::agenda::{by_urgency, cmp_due};
 use falog_core::domain::{Area, Task, TaskId};
+use falog_core::focus::{by_urgency, cmp_due};
 use falog_core::text::fold;
 use serde::{Deserialize, Serialize};
 
@@ -19,8 +19,6 @@ pub enum View {
     #[default]
     Board,
     List,
-    /// Saved as `Agenda` before the rename.
-    #[serde(alias = "Agenda")]
     Focus,
     Calendar,
 }

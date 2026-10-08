@@ -7,7 +7,7 @@ use eframe::egui::{
     self, Align, Color32, CursorIcon, FontId, Frame, Layout, Margin, Rect, Response, Sense, TopBottomPanel,
     Ui, pos2, vec2,
 };
-use falog_core::agenda::Summary;
+use falog_core::focus::Summary;
 use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -4,7 +4,7 @@ use crate::format;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::NaiveDate;
 use falog_core::domain::{NewTask, Priority, Rgb, Status, Task, TaskPatch};
-use falog_core::{Store, agenda, date, text::fold};
+use falog_core::{Store, date, focus, text::fold};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -15,7 +15,7 @@ pub fn call(store: &Store, access: &CalendarAccess, name: &str, args: Value) -> 
         "create_event" => calendar::create_event(store, access, parse(args)?),
         "update_event" => calendar::update_event(access, parse(args)?),
         "delete_event" => calendar::delete_event(access, parse(args)?),
-        "get_agenda" => get_agenda(store, parse(args)?),
+        "get_focus" => get_focus(store, parse(args)?),
         "list_areas" => list_areas(store),
         "create_area" => create_area(store, parse(args)?),
         "update_area" => update_area(store, parse(args)?),
@@ -38,9 +38,9 @@ fn parse<T: DeserializeOwned>(args: Value) -> Result<T> {
     serde_json::from_value(args).context("invalid arguments")
 }
 
-fn get_agenda(store: &Store, args: AgendaArgs) -> Result<String> {
+fn get_focus(store: &Store, args: FocusArgs) -> Result<String> {
     let tasks = tasks_of(store, args.area.as_deref())?;
-    Ok(format::agenda(&tasks, date::today()))
+    Ok(format::focus(&tasks, date::today()))
 }
 
 fn list_areas(store: &Store) -> Result<String> {
@@ -147,7 +147,7 @@ fn list_tasks(store: &Store, args: ListTasksArgs) -> Result<String> {
     }
     tasks.sort_by(|a, b| {
         let column = |t: &Task| Status::ALL.iter().position(|s| *s == t.status);
-        column(a).cmp(&column(b)).then_with(|| agenda::by_urgency(a, b))
+        column(a).cmp(&column(b)).then_with(|| focus::by_urgency(a, b))
     });
 
     let today = date::today();

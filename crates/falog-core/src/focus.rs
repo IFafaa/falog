@@ -1,6 +1,6 @@
 //! Groups open tasks by how urgently they need attention.
 //!
-//! This powers the desktop "Focus" view and the MCP `get_agenda` tool, which is how the user
+//! This powers the desktop "Focus" view and the MCP `get_focus` tool, which is how the user
 //! gets back up to speed on Monday morning.
 
 use crate::date::end_of_week;

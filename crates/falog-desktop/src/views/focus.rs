@@ -9,9 +9,9 @@ use crate::theme::{self, Theme};
 use eframe::egui::{
     Align2, Color32, CursorIcon, FontId, Frame, Margin, Rect, RichText, ScrollArea, Sense, Ui, pos2, vec2,
 };
-use falog_core::agenda::{self, Bucket};
 use falog_core::date;
 use falog_core::domain::{Priority, Task};
+use falog_core::focus::{self, Bucket};
 use std::collections::HashSet;
 
 const MAX_WIDTH: f32 = 880.0;
@@ -39,7 +39,7 @@ pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut 
 
 fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut Actions) {
     let theme = cx.theme;
-    let summary = agenda::summary(cx.tasks, cx.today);
+    let summary = focus::summary(cx.tasks, cx.today);
 
     ui.add_space(20.0);
     ui.label(
@@ -62,7 +62,7 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut A
     ui.add_space(10.0);
     area_chips(ui, cx, actions);
 
-    for section in agenda::sections(cx.tasks, cx.today)
+    for section in focus::sections(cx.tasks, cx.today)
         .iter()
         .filter(|s| !s.tasks.is_empty())
     {
@@ -81,7 +81,7 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut A
         }
     }
 
-    let completed = agenda::recently_completed(cx.tasks, cx.today, 7);
+    let completed = focus::recently_completed(cx.tasks, cx.today, 7);
     if !completed.is_empty() && section_header(ui, theme, COMPLETED, completed.len(), theme.success, state) {
         for task in completed {
             task_row(ui, cx, task, actions);

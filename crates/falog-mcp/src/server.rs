@@ -13,7 +13,7 @@ appointment\"), call create_task with a short actionable title, the area, a \
 description that keeps ALL the context they gave, the requester, the due date as YYYY-MM-DD (resolve \
 relative dates against today) and a priority. One message may contain several requests: create one task \
 each. Before updating a task mentioned by name, find its id with list_tasks. When they ask what to work \
-on or to catch up (\"good morning\", \"what's on my plate\", \"what did I do last week\"), call get_agenda. \
+on or to catch up (\"good morning\", \"what's on my plate\", \"what did I do last week\"), call get_focus. \
 Statuses: todo, in_progress, waiting (blocked on someone, in review), done. Reply in the user's language.";
 
 #[derive(Debug)]
@@ -167,7 +167,7 @@ mod tests {
             .map(|t| t["name"].as_str().unwrap())
             .collect();
         assert_eq!(names.len(), 14);
-        assert!(names.contains(&"create_task") && names.contains(&"get_agenda"));
+        assert!(names.contains(&"create_task") && names.contains(&"get_focus"));
     }
 
     #[test]
@@ -197,7 +197,7 @@ mod tests {
 
         let details = call(&server, 4, "get_task", json!({ "id": 1 }));
         assert!(text(&details).contains("repro'd"));
-        assert!(text(&call(&server, 5, "get_agenda", json!({}))).contains("Fix Google login"));
+        assert!(text(&call(&server, 5, "get_focus", json!({}))).contains("Fix Google login"));
     }
 
     #[test]

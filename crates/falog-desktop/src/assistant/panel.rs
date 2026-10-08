@@ -445,7 +445,7 @@ fn tool_label(name: &str, pending: bool) -> &'static str {
         ("delete_task", false) => "Deleted task",
         ("create_area", true) => "Adding area…",
         ("create_area", false) => "Added area",
-        ("get_agenda", _) => "Read the agenda",
+        ("get_focus", _) => "Read what needs attention",
         ("list_tasks", _) => "Searched tasks",
         ("get_task", _) => "Read task",
         ("list_areas", _) => "Listed areas",

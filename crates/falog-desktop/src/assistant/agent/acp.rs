@@ -33,7 +33,7 @@ const FALOG_TOOLS: [&str; 9] = [
     "add_note",
     "delete_task",
     "create_area",
-    "get_agenda",
+    "get_focus",
     "list_tasks",
     "get_task",
     "list_areas",
@@ -1352,7 +1352,7 @@ mod tests {
     fn recognizes_falog_tools_by_any_spelling() {
         assert_eq!(falog_tool("create_task"), Some("create_task"));
         assert_eq!(falog_tool("mcp__falog__update_task"), Some("update_task"));
-        assert_eq!(falog_tool("falog.get_agenda"), Some("get_agenda"));
+        assert_eq!(falog_tool("falog.get_focus"), Some("get_focus"));
         assert_eq!(falog_tool("list_tasks (falog MCP Server)"), Some("list_tasks"));
         assert_eq!(falog_tool("mcp__jira__create_task"), None);
         assert_eq!(falog_tool("list_tasks_by_owner"), None);
