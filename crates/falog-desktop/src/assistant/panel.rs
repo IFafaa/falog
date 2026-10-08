@@ -548,6 +548,12 @@ fn set_draft(ui: &Ui, assistant: &mut Assistant, draft: String) {
     ui.memory_mut(|m| m.request_focus(id));
 }
 
+/// Consumes an Enter press without Shift. `consume_key(Modifiers::NONE, ..)` alone would also take
+/// Shift+Enter (egui ignores an extra Shift), which must reach the text field as a line break.
+pub(super) fn take_plain_enter(input: &mut egui::InputState) -> bool {
+    !input.modifiers.shift && input.consume_key(Modifiers::NONE, Key::Enter)
+}
+
 fn text_input(
     ui: &mut Ui,
     theme: &Theme,
@@ -563,8 +569,8 @@ fn text_input(
             set_draft(ui, assistant, draft);
         }
     }
-    // Enter sends, Shift+Enter breaks the line; consume Enter before the text field sees it.
-    let enter = focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
+    // Enter sends, Shift+Enter breaks the line; take Enter before the text field sees it.
+    let enter = focused && ui.input_mut(take_plain_enter);
     let response = ui.add(
         TextEdit::multiline(&mut assistant.active_mut().draft)
             .id(id)
@@ -949,6 +955,32 @@ fn model_prompt(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Whether the composer's send key takes an Enter pressed with `modifiers`.
+    fn sends(modifiers: Modifiers) -> bool {
+        let ctx = egui::Context::default();
+        let enter = egui::Event::Key {
+            key: Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        };
+        let input = egui::RawInput {
+            modifiers,
+            events: vec![enter],
+            ..Default::default()
+        };
+        let mut sent = false;
+        let _ = ctx.run(input, |ctx| sent = ctx.input_mut(take_plain_enter));
+        sent
+    }
+
+    #[test]
+    fn enter_sends_and_shift_enter_breaks_the_line() {
+        assert!(sends(Modifiers::NONE));
+        assert!(!sends(Modifiers::SHIFT));
+    }
 
     #[test]
     fn finds_the_first_task_id() {

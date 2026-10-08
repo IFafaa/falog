@@ -87,7 +87,7 @@ the agent offers that setting, and the agent becomes a plain label once the thre
 The second has the mic, the fast mode flame (an icon toggle, `ghost_selected` while on;
 the tooltip says why it is unavailable), "Ultracode" in `text_placeholder` for Claude
 agents with a tooltip on why it is off, and on the right the context ring and icon-only Send or
-Stop (tooltips "Send (Enter)", "Stop"). The context ring is 13 px across: a 2 px `border_variant`
+Stop (tooltips "Send (Enter)", "Stop"); Enter sends and Shift+Enter breaks the line. The context ring is 13 px across: a 2 px `border_variant`
 track filled clockwise from twelve o'clock in `text_muted`, `warning` from 70 % and `error` from
 90 %; its tooltip reads "Context: 12.4k of 200k tokens (6%)". Settings › Assistant lists the agents one per line (name, command line in monospace `text_muted`,
 `Installed` in `success` or `Not found` in `text_placeholder` with the setup hint on hover, a trash

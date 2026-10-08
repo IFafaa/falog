@@ -79,7 +79,7 @@ pub fn handle_keys(ui: &mut Ui, id: Id, commands: &[SlashCommand], draft: &str) 
         }
         let selected = &matches[state.selected].name;
         // Enter on a full name sends it; on a partial one it completes first.
-        let enter = draft[1..] != **selected && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
+        let enter = draft[1..] != **selected && ui.input_mut(super::panel::take_plain_enter);
         if tab || enter {
             key = MenuKey::Complete(format!("/{selected} "));
         }
