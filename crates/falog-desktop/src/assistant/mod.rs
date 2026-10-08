@@ -63,6 +63,9 @@ pub struct Assistant {
     /// Latest partial transcript while dictating, shown greyed out in the composer.
     pub live_text: String,
     pub focus_composer: bool,
+    /// The dictation was stopped with Enter: its transcript goes to the composer even when
+    /// `send_after_dictation` is on, and the next Enter sends it.
+    dictation_to_draft: bool,
     partial_pending: bool,
     last_partial: Instant,
     launcher: Launcher,
@@ -109,6 +112,7 @@ impl Assistant {
             show_history: false,
             voice: VoiceState::Idle,
             live_text: String::new(),
+            dictation_to_draft: false,
             focus_composer: false,
             partial_pending: false,
             last_partial: Instant::now(),
@@ -403,18 +407,30 @@ impl Assistant {
     ) {
         self.voice = VoiceState::Idle;
         self.live_text.clear();
+        let to_draft = std::mem::take(&mut self.dictation_to_draft);
         match result {
             Ok(text) if text.trim().is_empty() => {
                 self.active_mut()
                     .items
                     .push(Item::Notice("Didn't catch that.".into()));
             }
-            Ok(text) if options.send_after_dictation => self.send(ctx, text),
+            Ok(text) if options.send_after_dictation && !to_draft => self.send(ctx, text),
             Ok(text) => {
-                self.active_mut().draft = text;
+                let draft = &mut self.active_mut().draft;
+                *draft = append_dictation(draft, &text);
                 self.focus_composer = true;
             }
             Err(message) => self.active_mut().items.push(Item::Error(message)),
+        }
+    }
+
+    /// Stops recording and puts the transcript in the composer, without sending it.
+    pub fn dictate_to_draft(&mut self, ctx: &egui::Context, options: AssistantOptions) {
+        if matches!(self.voice, VoiceState::Recording(_)) {
+            self.dictation_to_draft = true;
+            self.toggle_dictation(ctx, options);
+            // Too short to transcribe: nothing will arrive.
+            self.dictation_to_draft = matches!(self.voice, VoiceState::Transcribing);
         }
     }
 
@@ -452,6 +468,7 @@ impl Assistant {
     }
 
     pub fn cancel_dictation(&mut self) {
+        self.dictation_to_draft = false;
         if matches!(self.voice, VoiceState::Recording(_) | VoiceState::NeedsModel) {
             self.voice = VoiceState::Idle;
             self.live_text.clear();
@@ -470,9 +487,28 @@ impl Assistant {
     }
 }
 
+/// The draft with a transcript added after what was already typed.
+fn append_dictation(draft: &str, text: &str) -> String {
+    let (draft, text) = (draft.trim_end(), text.trim());
+    if draft.is_empty() {
+        text.to_owned()
+    } else {
+        format!("{draft} {text}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dictation_adds_to_what_was_typed() {
+        assert_eq!(append_dictation("", " remind me tomorrow "), "remind me tomorrow");
+        assert_eq!(
+            append_dictation("About #12: ", "it shipped"),
+            "About #12: it shipped"
+        );
+    }
 
     fn assistant(name: &str) -> (Assistant, PathBuf) {
         let dir = std::env::temp_dir().join(format!("falog-assistant-{name}-{}", std::process::id()));

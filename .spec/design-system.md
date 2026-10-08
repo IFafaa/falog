@@ -79,7 +79,8 @@ examples, with "View all" when there are more. The thread lists user messages (b
 caret), tool calls as compact bordered cards (spinner → check / warning, action label, first line of
 the result; click opens the task, hover shows the arguments) and errors in `error`. The composer is an
 `editor`-filled box whose border turns `border_focused` on focus; it swaps to a recording bar
-(pulsing `error` dot, timer, level meter), a transcribing spinner, or the model download prompt.
+(pulsing `error` dot, timer, level meter, "Enter to insert" in `text_placeholder`; Enter stops and adds the
+transcript after the draft to review, even with "Send after dictation" on, and the next Enter sends it), a transcribing spinner, or the model download prompt.
 Under the text, the footer has two rows so it fits the default dock width. The first holds the thread's
 agent, model, effort and mode pickers (selectors: `text_muted` label and a chevron,
 `ghost_hover` on hover, a menu above with a check on the current value; a picker only shows when

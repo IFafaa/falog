@@ -867,6 +867,12 @@ fn recording(
     elapsed: std::time::Duration,
     options: AssistantOptions,
 ) {
+    // Enter stops and leaves the transcript in the composer to review; the next Enter sends it.
+    let composer = Id::new(COMPOSER_ID);
+    let free = ui.memory(|m| m.focused().is_none_or(|id| id == composer));
+    if free && ui.input_mut(take_plain_enter) {
+        assistant.dictate_to_draft(ui.ctx(), options);
+    }
     ui.horizontal(|ui| {
         let pulse = (ui.input(|i| i.time) * 3.0).sin() as f32 * 0.25 + 0.75;
         let (dot, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
@@ -885,6 +891,11 @@ fn recording(
             vec2(meter.width() * level.clamp(0.02, 1.0), meter.height()),
         );
         ui.painter().rect_filled(filled, 3.0, theme.text_accent);
+        ui.label(
+            RichText::new("Enter to insert")
+                .size(12.0)
+                .color(theme.text_placeholder),
+        );
     });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
@@ -897,7 +908,15 @@ fn recording(
             } else {
                 "Done"
             };
-            if button(ui, ButtonStyle::Accent, Some(Icon::Check), label).clicked() {
+            let tooltip = if options.send_after_dictation {
+                "Stop and send (Enter only inserts the text)"
+            } else {
+                "Stop and insert the text (Enter)"
+            };
+            if button(ui, ButtonStyle::Accent, Some(Icon::Check), label)
+                .on_hover_text(tooltip)
+                .clicked()
+            {
                 assistant.toggle_dictation(ui.ctx(), options);
             }
             if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {
