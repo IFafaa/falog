@@ -96,12 +96,15 @@ mod tests {
         let dir = std::env::temp_dir();
         let previous = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
+        // Not `dir`: on macOS the temp dir is under /var, a symlink the working directory resolves
+        // to /private/var.
+        let cwd = std::env::current_dir().unwrap();
         let store = Store::open(&name);
         std::env::set_current_dir(previous).unwrap();
 
         let store = store.unwrap();
         assert!(store.path().unwrap().is_absolute());
-        assert_eq!(store.path().unwrap(), dir.join(&name));
+        assert_eq!(store.path().unwrap(), cwd.join(&name));
         drop(store);
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(dir.join(format!("{name}{suffix}")));
