@@ -115,6 +115,9 @@ pub fn migrate(home: &Path, legacy: &Legacy, wait: Duration) -> Result<()> {
     loop {
         match fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
             Ok(_) => break,
+            Err(err) if is_transient(&err) && SystemTime::now() <= deadline => {
+                thread::sleep(Duration::from_millis(20));
+            }
             Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
                 if is_stale(&lock) {
                     let _ = fs::remove_file(&lock);
@@ -140,6 +143,12 @@ pub fn migrate(home: &Path, legacy: &Legacy, wait: Duration) -> Result<()> {
         .try_for_each(|(from, to)| move_item(&from, &to));
     let _ = fs::remove_file(&lock);
     result
+}
+
+/// Windows answers "access denied" to creating the lock while another process is still opening or
+/// deleting it; that passes, so it is retried like a held lock.
+fn is_transient(err: &io::Error) -> bool {
+    cfg!(windows) && err.kind() == io::ErrorKind::PermissionDenied
 }
 
 fn is_stale(lock: &Path) -> bool {
@@ -366,20 +375,23 @@ mod tests {
 
     #[test]
     fn two_processes_starting_together_migrate_once() {
-        let root = TempDir::new("race");
-        let legacy = old_layout(&root.0);
-        let home = root.0.join(".falog");
+        // Several rounds with more processes than the app has: the races are rare.
+        for round in 0..5 {
+            let root = TempDir::new(&format!("race-{round}"));
+            let legacy = old_layout(&root.0);
+            let home = root.0.join(".falog");
 
-        let results: Vec<Result<()>> = thread::scope(|scope| {
-            let runs: Vec<_> = (0..4)
-                .map(|_| scope.spawn(|| migrate(&home, &legacy, LOCK_WAIT)))
-                .collect();
-            runs.into_iter().map(|run| run.join().unwrap()).collect()
-        });
+            let results: Vec<Result<()>> = thread::scope(|scope| {
+                let runs: Vec<_> = (0..8)
+                    .map(|_| scope.spawn(|| migrate(&home, &legacy, LOCK_WAIT)))
+                    .collect();
+                runs.into_iter().map(|run| run.join().unwrap()).collect()
+            });
 
-        assert!(results.iter().all(Result::is_ok), "{results:?}");
-        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Work"]);
-        assert!(home.join("models").join("model.bin").exists());
+            assert!(results.iter().all(Result::is_ok), "round {round}: {results:?}");
+            assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Work"]);
+            assert!(home.join("models").join("model.bin").exists());
+        }
     }
 
     #[test]
