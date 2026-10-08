@@ -1,5 +1,6 @@
 //! The ways to look at tasks (and meetings), shown as tabs.
 
+pub mod archive;
 pub mod board;
 pub mod calendar;
 pub mod focus;
@@ -21,10 +22,18 @@ pub enum View {
     List,
     Focus,
     Calendar,
+    /// Done tasks put away from the board.
+    Archive,
 }
 
 impl View {
-    pub const ALL: [Self; 4] = [Self::Board, Self::List, Self::Focus, Self::Calendar];
+    pub const ALL: [Self; 5] = [
+        Self::Board,
+        Self::List,
+        Self::Focus,
+        Self::Calendar,
+        Self::Archive,
+    ];
 
     pub const fn label(self) -> &'static str {
         match self {
@@ -32,6 +41,7 @@ impl View {
             Self::List => "List",
             Self::Focus => "Focus",
             Self::Calendar => "Calendar",
+            Self::Archive => "Archive",
         }
     }
 
@@ -41,6 +51,7 @@ impl View {
             Self::List => Icon::List,
             Self::Focus => Icon::Reader,
             Self::Calendar => Icon::Calendar,
+            Self::Archive => Icon::Archive,
         }
     }
 
@@ -50,6 +61,7 @@ impl View {
             Self::List => "Ctrl+2",
             Self::Focus => "Ctrl+3",
             Self::Calendar => "Ctrl+4",
+            Self::Archive => "Ctrl+5",
         }
     }
 }
@@ -94,7 +106,7 @@ impl SortOrder {
 pub struct ViewCx<'a> {
     pub theme: &'static Theme,
     pub today: NaiveDate,
-    /// Tasks after the area filter and search.
+    /// Tasks after the area filter and search: archived ones in the Archive view, the others elsewhere.
     pub tasks: &'a [Task],
     pub areas: &'a [Area],
     pub prefs: &'a Prefs,

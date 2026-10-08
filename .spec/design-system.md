@@ -56,7 +56,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 
 ```
 ┌ native title bar (themed) ─────────────────────────────────────────────────────────┐
-│ sidebar │ tab bar: Board·List·Focus·Calendar           🔍 ＋ │ task  │ assistant      │
+│ sidebar │ tab bar: Board·List·Focus·Calendar·Archive   🔍 ＋ │ task  │ assistant      │
 │ (left   │ toolbar: breadcrumb › view    sort ✓ [search]    │ panel │ thread         │
 │  dock)  │ view                                             │       │ ────────────── │
 │         │                                                  │       │ composer 🎤 ➤  │
@@ -96,6 +96,19 @@ Typing `/` opens the command menu above the composer (`elevated_surface`, popove
 30 px): `/name` in monospace, the argument hint in `text_placeholder`, the description in
 `text_muted`; the selected row is `ghost_selected`. Arrows move, Tab or Enter completes `/name `,
 Enter on a complete name sends it, Esc closes.
+
+### Archive view
+
+Done tasks put away from the board (`Ctrl+5`), in the Focus layout: an 880 px centered column with
+"Archive" in SemiBold 22, then "N archived tasks · restore one to put it back in Done" in `text_muted`.
+Months of completion, newest first, are collapsible headers (chevron, month in SemiBold 14.5, count
+badge) over rows of 30 px: the done icon in `success`, `#id` in monospace `text_placeholder`, the title in
+`text_muted` (no strikethrough), then the area dot and name and the completion day on the right. Hovering
+a row swaps the day for a 24 px restore button (archive-restore icon, `ghost_selected` on hover). A click
+opens the task; right-click has Restore. The board's Done header has an archive icon button that archives
+every done task it holds (after the area filter and search); the task menu has Archive for done tasks, and
+the task panel has a ghost Archive (or Restore) button next to Delete. The search and the area filter
+apply here too; the toolbar has no sort or completed toggle.
 
 ### Calendar view
 

@@ -40,9 +40,9 @@ pub fn show(ctx: &egui::Context, theme: &Theme, prefs: &mut Prefs, search: &mut 
                                 prefs.show_completed = !prefs.show_completed;
                             }
                         }
-                        View::Focus | View::Calendar => {}
+                        View::Focus | View::Calendar | View::Archive => {}
                     }
-                    if !matches!(prefs.view, View::Focus | View::Calendar) {
+                    if !matches!(prefs.view, View::Focus | View::Calendar | View::Archive) {
                         ComboBox::from_id_salt("sort")
                             .selected_text(format!("Sort: {}", prefs.sort.label()))
                             .width(130.0)

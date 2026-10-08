@@ -197,6 +197,12 @@ impl CommandPalette {
             ));
         }
         items.push(command(
+            Icon::Archive,
+            "task: archive done tasks".into(),
+            None,
+            Action::ArchiveDone,
+        ));
+        items.push(command(
             Icon::SidebarLeft,
             "workspace: toggle sidebar".into(),
             Some("Ctrl+B"),

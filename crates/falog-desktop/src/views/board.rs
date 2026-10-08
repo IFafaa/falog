@@ -94,7 +94,7 @@ fn column(
     let (tasks, hidden) = column_tasks(cx, status);
     ui.allocate_ui_with_layout(size, Layout::top_down(Align::Min), |ui| {
         ui.set_min_size(size);
-        column_header(ui, cx.theme, status, tasks.len(), actions);
+        column_header(ui, cx.theme, status, tasks.len(), tasks.len() + hidden, actions);
         ui.add_space(4.0);
         ScrollArea::vertical()
             .id_salt(("board-column", status.as_str()))
@@ -128,7 +128,15 @@ fn column(
     .rect
 }
 
-fn column_header(ui: &mut Ui, theme: &Theme, status: Status, count: usize, actions: &mut Actions) {
+/// `done` counts every done task the column holds, including the ones hidden for being old.
+fn column_header(
+    ui: &mut Ui,
+    theme: &Theme,
+    status: Status,
+    count: usize,
+    done: usize,
+    actions: &mut Actions,
+) {
     ui.horizontal(|ui| {
         ui.set_height(28.0);
         ui.add_space(4.0);
@@ -139,13 +147,21 @@ fn column_header(ui: &mut Ui, theme: &Theme, status: Status, count: usize, actio
                 .color(theme.text),
         );
         badge(ui, count.to_string());
-        if status != Status::Done {
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if status != Status::Done {
                 if icon_button(ui, Icon::Plus, &format!("New task in {}", status.label())).clicked() {
                     actions.push(Action::NewTask(status));
                 }
-            });
-        }
+            } else if done > 0 {
+                let tooltip = match done {
+                    1 => "Archive the done task".to_owned(),
+                    n => format!("Archive the {n} done tasks"),
+                };
+                if icon_button(ui, Icon::Archive, &tooltip).clicked() {
+                    actions.push(Action::ArchiveDone);
+                }
+            }
+        });
     });
 }
 
@@ -260,6 +276,15 @@ pub fn task_menu(ui: &mut Ui, task: &Task, actions: &mut Actions) {
             }
         }
     });
+    if task.is_archived() {
+        if ui.button("Restore to the board").clicked() {
+            actions.push(Action::RestoreTask(task.id));
+            ui.close_menu();
+        }
+    } else if task.status == Status::Done && ui.button("Archive").clicked() {
+        actions.push(Action::ArchiveTask(task.id));
+        ui.close_menu();
+    }
     ui.separator();
     if ui.button("Delete…").clicked() {
         actions.push(Action::DeleteTask(task.id));

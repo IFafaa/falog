@@ -18,6 +18,8 @@ important, by Friday"* and the task exists, with area, due date and priority.
 
 - **Board, List and Focus views.** Drag cards between *To do*, *In progress*, *Waiting* and *Done*.
   Focus groups open work into *Overdue*, *Due today*, *Due this week*, and so on.
+- **Archive what you finished.** Archive done tasks one by one or the whole *Done* column; they leave the
+  board and wait in the Archive tab, grouped by month, until you restore them.
 - **Your appointments too.** A Calendar tab shows Google Calendar from as many accounts as you like, by week or month, next to the tasks due each day. Paste each calendar's private link;
   no sign-in needed.
 - **An assistant you talk to, built in.** Open the assistant dock (`Ctrl+Shift+A`), press `Ctrl+Space`
@@ -221,7 +223,7 @@ On macOS, `Cmd` takes the place of `Ctrl`.
 | `Ctrl+Shift+P` | Command palette |
 | `Ctrl+P` | Find a task |
 | `Ctrl+N` | New task |
-| `Ctrl+1` … `Ctrl+4` | Board / List / Focus / Calendar |
+| `Ctrl+1` … `Ctrl+5` | Board / List / Focus / Calendar / Archive |
 | `T` / `J` / `K` / `W` / `M` | Calendar: today / next / previous / week / month |
 | `Ctrl+F` | Search |
 | `Ctrl+B` | Toggle sidebar |

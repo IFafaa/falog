@@ -6,6 +6,8 @@ use falog_core::domain::{Priority, Status};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Icon {
+    Archive,
+    ArchiveRestore,
     ArrowDown,
     ArrowUp,
     ArrowUpRight,
@@ -54,6 +56,8 @@ pub enum Icon {
 impl Icon {
     fn source(self) -> ImageSource<'static> {
         match self {
+            Self::Archive => include_image!("../assets/icons/archive.svg"),
+            Self::ArchiveRestore => include_image!("../assets/icons/archive_restore.svg"),
             Self::ArrowDown => include_image!("../assets/icons/arrow_down.svg"),
             Self::ArrowUp => include_image!("../assets/icons/arrow_up.svg"),
             Self::ArrowUpRight => include_image!("../assets/icons/arrow_up_right.svg"),

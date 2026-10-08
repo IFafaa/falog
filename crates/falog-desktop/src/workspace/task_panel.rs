@@ -79,6 +79,9 @@ pub struct TaskPanel {
     pub error: Option<String>,
     meta: String,
     focus_title: bool,
+    /// Whether the saved task is done, and whether it is archived.
+    done: bool,
+    archived: bool,
 }
 
 impl TaskPanel {
@@ -97,6 +100,8 @@ impl TaskPanel {
             error: None,
             meta: String::new(),
             focus_title: true,
+            done: false,
+            archived: false,
         }
     }
 
@@ -110,6 +115,9 @@ impl TaskPanel {
         if let Some(done) = task.completed_at {
             meta.push_str(&format!(" · completed {}", done.format("%b %-d, %H:%M")));
         }
+        if let Some(archived) = task.archived_at {
+            meta.push_str(&format!(" · archived {}", archived.format("%b %-d, %H:%M")));
+        }
         Self {
             id: Some(task.id),
             saved: draft.clone(),
@@ -119,6 +127,8 @@ impl TaskPanel {
             error: None,
             meta,
             focus_title: false,
+            done: task.status == Status::Done,
+            archived: task.is_archived(),
         }
     }
 
@@ -132,6 +142,8 @@ pub enum PanelEvent {
     Save,
     Close,
     Delete,
+    Archive,
+    Restore,
     AddNote(String),
     DeleteNote(NoteId),
 }
@@ -275,6 +287,20 @@ fn body(
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if button(ui, ButtonStyle::Danger, Some(Icon::Trash), "Delete").clicked() {
                     events.push(PanelEvent::Delete);
+                }
+                if panel.archived {
+                    if button(ui, ButtonStyle::Ghost, Some(Icon::ArchiveRestore), "Restore")
+                        .on_hover_text("Put it back in the board's Done column")
+                        .clicked()
+                    {
+                        events.push(PanelEvent::Restore);
+                    }
+                } else if panel.done
+                    && button(ui, ButtonStyle::Ghost, Some(Icon::Archive), "Archive")
+                        .on_hover_text("Put it away from the board, in the Archive (Ctrl+5)")
+                        .clicked()
+                {
+                    events.push(PanelEvent::Archive);
                 }
             });
         }

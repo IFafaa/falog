@@ -13,6 +13,10 @@ pub enum Action {
     NewTask(Status),
     MoveTask(TaskId, Status),
     DeleteTask(TaskId),
+    ArchiveTask(TaskId),
+    RestoreTask(TaskId),
+    /// Archive every done task the board shows (after the area filter and search).
+    ArchiveDone,
     SetView(View),
     FilterArea(Option<AreaId>),
     ToggleSidebar,

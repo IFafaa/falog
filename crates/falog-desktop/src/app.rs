@@ -10,6 +10,7 @@ use crate::overlays::settings::{SettingsDialog, SettingsEvent, SettingsTab};
 use crate::platform::{autostart, title_bar};
 use crate::prefs::Prefs;
 use crate::theme::{self, Theme};
+use crate::views::archive::ArchiveState;
 use crate::views::board::BoardState;
 use crate::views::focus::FocusState;
 use crate::views::{self, View, ViewCx};
@@ -41,6 +42,7 @@ pub struct FalogApp {
     search: String,
     board: BoardState,
     focus: FocusState,
+    archive_view: ArchiveState,
     task_panel: Option<TaskPanel>,
     assistant: Assistant,
     calendar: CalendarState,
@@ -86,6 +88,7 @@ impl FalogApp {
             search: String::new(),
             board: BoardState::default(),
             focus: FocusState::default(),
+            archive_view: ArchiveState::default(),
             task_panel: None,
             assistant,
             calendar,
@@ -177,10 +180,12 @@ impl FalogApp {
         });
     }
 
-    /// Tasks after the area filter and the search box.
+    /// Tasks after the area filter and the search box; only the Archive view shows archived ones.
     fn visible_tasks(&self) -> Vec<Task> {
+        let archive = self.prefs.view == View::Archive;
         self.tasks
             .iter()
+            .filter(|t| t.is_archived() == archive)
             .filter(|t| self.prefs.area.is_none() || t.area_id() == self.prefs.area)
             .filter(|t| t.matches(&self.search))
             .cloned()
@@ -257,6 +262,16 @@ impl FalogApp {
                         self.ask_delete_task(id);
                     }
                 }
+                PanelEvent::Archive => {
+                    if let Some(id) = id {
+                        self.archive_tasks(&[id]);
+                    }
+                }
+                PanelEvent::Restore => {
+                    if let Some(id) = id {
+                        self.restore_task(id);
+                    }
+                }
                 PanelEvent::AddNote(body) => {
                     if let Some(id) = id
                         && self.write(|store| store.add_note(id, &body)).is_some()
@@ -322,6 +337,7 @@ impl FalogApp {
                 (Key::Num2, Action::SetView(View::List)),
                 (Key::Num3, Action::SetView(View::Focus)),
                 (Key::Num4, Action::SetView(View::Calendar)),
+                (Key::Num5, Action::SetView(View::Archive)),
                 (Key::B, Action::ToggleSidebar),
                 (Key::F, Action::FocusSearch),
                 (Key::Comma, Action::OpenSettings),
@@ -360,6 +376,20 @@ impl FalogApp {
             Action::NewTask(status) => self.task_panel = Some(TaskPanel::new(self.prefs.area, status)),
             Action::MoveTask(id, status) => self.move_task(id, status),
             Action::DeleteTask(id) => self.ask_delete_task(id),
+            Action::ArchiveTask(id) => self.archive_tasks(&[id]),
+            Action::RestoreTask(id) => self.restore_task(id),
+            Action::ArchiveDone => {
+                // What the board shows, whichever view is open.
+                let done: Vec<TaskId> = self
+                    .tasks
+                    .iter()
+                    .filter(|t| t.status == Status::Done && !t.is_archived())
+                    .filter(|t| self.prefs.area.is_none() || t.area_id() == self.prefs.area)
+                    .filter(|t| t.matches(&self.search))
+                    .map(|t| t.id)
+                    .collect();
+                self.archive_tasks(&done);
+            }
             Action::SetView(view) => self.prefs.view = view,
             Action::FilterArea(area) => self.prefs.area = area,
             Action::ToggleSidebar => self.prefs.sidebar_open = !self.prefs.sidebar_open,
@@ -439,6 +469,42 @@ impl FalogApp {
             if panel_shows_it {
                 self.open_task(id);
             }
+        }
+    }
+
+    fn archive_tasks(&mut self, ids: &[TaskId]) {
+        if ids.is_empty() {
+            self.notify("No done tasks to archive", ToastKind::Error);
+            return;
+        }
+        let Some(count) = self.write(|store| store.archive_tasks(ids)) else {
+            return;
+        };
+        let message = match (count, ids) {
+            (1, [id]) => format!("Archived #{id}; find it in the Archive (Ctrl+5)"),
+            (n, _) => format!("Archived {n} tasks; find them in the Archive (Ctrl+5)"),
+        };
+        self.notify(message, ToastKind::Success);
+        self.refresh_panel(ids);
+    }
+
+    fn restore_task(&mut self, id: TaskId) {
+        if self.write(|store| store.restore_task(id)).is_some() {
+            self.notify(format!("Restored #{id} to Done"), ToastKind::Success);
+            self.refresh_panel(&[id]);
+        }
+    }
+
+    /// Reloads the open task when it is one of `ids` and has no unsaved edits.
+    fn refresh_panel(&mut self, ids: &[TaskId]) {
+        let shown = self
+            .task_panel
+            .as_ref()
+            .filter(|p| !p.is_dirty())
+            .and_then(|p| p.id)
+            .filter(|id| ids.contains(id));
+        if let Some(id) = shown {
+            self.open_task(id);
         }
     }
 
@@ -700,7 +766,10 @@ impl eframe::App for FalogApp {
                     areas: &self.areas,
                     prefs: &self.prefs,
                     selected: self.task_panel.as_ref().and_then(|p| p.id),
-                    has_any_task: !self.tasks.is_empty(),
+                    has_any_task: self
+                        .tasks
+                        .iter()
+                        .any(|t| t.is_archived() == (self.prefs.view == View::Archive)),
                 };
                 match self.prefs.view {
                     View::Board => views::board::show(ui, &cx, &mut self.board, &mut actions),
@@ -713,6 +782,7 @@ impl eframe::App for FalogApp {
                         self.prefs.calendar_mode,
                         &mut actions,
                     ),
+                    View::Archive => views::archive::show(ui, &cx, &mut self.archive_view, &mut actions),
                 }
             });
 
