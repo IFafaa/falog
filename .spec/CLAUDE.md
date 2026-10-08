@@ -12,7 +12,7 @@ when behavior or structure changes.
 |---|---|
 | [product.md](product.md) | need the why: users, goals, non-goals, vocabulary |
 | [architecture.md](architecture.md) | add a module or crate, touch persistence, sync or startup |
-| [domain.md](domain.md) | change tasks, statuses, priorities, dates or the agenda |
+| [domain.md](domain.md) | change tasks, statuses, priorities, dates or the Focus buckets |
 | [mcp.md](mcp.md) | add or change an MCP tool or its output |
 | [design-system.md](design-system.md) | build or restyle any UI |
 | [conventions.md](conventions.md) | write code, tests or commits (always) |

@@ -6,7 +6,7 @@
 ## Goal
 
 See meetings from several Google accounts (work and personal) in a Calendar tab next to Board, List
-and Agenda, laid out like Google Calendar: a week grid by hour and a month grid.
+and Focus, laid out like Google Calendar: a week grid by hour and a month grid.
 
 ## Context
 
@@ -35,7 +35,7 @@ read-only scope; Google shows an "unverified app" warning once).
   join link, open in Google Calendar); tasks due on a day shown as all-day items; background refresh
   every 5 minutes and on demand; events cached on disk so the view opens instantly and offline.
 - Out: creating or editing events, other providers (Outlook), reminders, meetings in the assistant's
-  agenda (follow-up), day view. iCal links came later, in 0014.
+  catch-up summary (follow-up), day view. iCal links came later, in 0014.
 
 ## Acceptance criteria
 

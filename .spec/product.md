@@ -15,7 +15,7 @@ Work, Personal, Health, Home, Studies) and their open tasks number in the tens, 
 
 1. **Capture with zero friction.** Describing a request to an assistant, by voice or text, must be
    enough to file a complete task (title, area, context, requester, due date, priority).
-2. **Recover context fast.** The Focus view and the `get_agenda` tool answer "what needs my attention
+2. **Recover context fast.** The Focus view and the `get_focus` tool answer "what needs my attention
    now?" in seconds.
 3. **See everything in one place**, separated by area (work and personal) but never siloed.
 4. **Stay out of the way.** Starts with the OS, one window, instant, offline, no account.
@@ -35,5 +35,5 @@ Work, Personal, Health, Home, Studies) and their open tasks number in the tens, 
 | Area | A part of the user's life: "Work", "Personal", "Health", "Home"... Every task may belong to one. |
 | Requester | The person who asked for the task. |
 | Note | Timestamped entry in a task's activity log. |
-| Agenda | Open tasks grouped by urgency, shown in the Focus view (see [domain.md](domain.md#agenda-buckets)). |
+| Focus | Open tasks grouped by urgency, shown in the Focus view (see [domain.md](domain.md#focus-buckets)). |
 | Assistant | Claude acting on tasks: the in-app assistant dock, or any MCP client using `falog-mcp`. |

@@ -50,7 +50,7 @@ The workspace has four crates:
 
 | Crate | What it is |
 |---|---|
-| `falog-core` | Domain model, natural-language due dates, agenda rules and the SQLite store |
+| `falog-core` | Domain model, natural-language due dates, urgency buckets and the SQLite store |
 | `falog-mcp` | MCP server over stdio (`falog-mcp`) |
 | `falog-calendar` | Read-only Google Calendar: iCal links, OAuth sign-in, calendars, events, local cache |
 | `falog-desktop` | The egui desktop app (`falog`) |

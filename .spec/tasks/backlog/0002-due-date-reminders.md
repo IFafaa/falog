@@ -10,8 +10,8 @@ day before a high or urgent task is due.
 
 ## Context
 
-Forgotten deadlines are the core pain (see [product.md](../../product.md)). The agenda rules in
-[domain.md](../../domain.md#agenda-buckets) already compute what is due.
+Forgotten deadlines are the core pain (see [product.md](../../product.md)). The Focus buckets in
+[domain.md](../../domain.md#focus-buckets) already compute what is due.
 
 ## Scope
 
@@ -21,7 +21,7 @@ Forgotten deadlines are the core pain (see [product.md](../../product.md)). The 
 
 ## Acceptance criteria
 
-- [ ] At the configured time, a single toast summarizes overdue and due-today counts; clicking opens the Agenda
+- [ ] At the configured time, a single toast summarizes overdue and due-today counts; clicking opens the Focus view
 - [ ] High/urgent tasks due tomorrow get a reminder once
 - [ ] Reminders survive restarts without duplicating (store what was sent)
 - [ ] Setting to disable reminders

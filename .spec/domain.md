@@ -57,7 +57,7 @@ because input is often dictated.
 
 Assistants should still send ISO dates; the parser is a safety net and powers the UI's due field.
 
-## Agenda buckets
+## Focus buckets
 
 Each **open** task belongs to exactly one bucket, checked in this order:
 
