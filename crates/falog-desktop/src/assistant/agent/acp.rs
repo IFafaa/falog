@@ -27,7 +27,7 @@ use std::thread;
 const PROTOCOL_VERSION: u64 = 1;
 
 /// The tools of the `falog` MCP server; the only ones an agent may run.
-const FALOG_TOOLS: [&str; 9] = [
+const FALOG_TOOLS: [&str; 14] = [
     "create_task",
     "update_task",
     "add_note",
@@ -37,6 +37,11 @@ const FALOG_TOOLS: [&str; 9] = [
     "list_tasks",
     "get_task",
     "list_areas",
+    "update_area",
+    "list_events",
+    "create_event",
+    "update_event",
+    "delete_event",
 ];
 
 /// The id under which an agent's older `modes` (switched with `session/set_mode`) are shown.
@@ -1349,7 +1354,23 @@ mod tests {
     }
 
     #[test]
+    fn knows_every_tool_of_the_mcp_server() {
+        // A tool missing here is refused when an ACP agent asks to run it.
+        let catalog = include_str!("../../../../falog-mcp/src/tools/catalog.rs");
+        let tools: Vec<&str> = catalog
+            .split("\"name\": \"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .collect();
+        assert!(tools.len() > 10, "{tools:?}");
+        for tool in tools {
+            assert_eq!(falog_tool(tool), Some(tool), "add {tool} to FALOG_TOOLS");
+        }
+    }
+
+    #[test]
     fn recognizes_falog_tools_by_any_spelling() {
+        assert_eq!(falog_tool("mcp__falog__create_event"), Some("create_event"));
         assert_eq!(falog_tool("create_task"), Some("create_task"));
         assert_eq!(falog_tool("mcp__falog__update_task"), Some("update_task"));
         assert_eq!(falog_tool("falog.get_focus"), Some("get_focus"));
