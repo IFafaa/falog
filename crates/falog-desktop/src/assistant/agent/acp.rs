@@ -202,7 +202,7 @@ impl Session for AcpSession {
         let Some(session_id) = state.session_id.clone() else {
             // Still opening: applied as soon as the session is up.
             let kind = state.options.iter().find(|o| o.id == id).map(|o| o.kind);
-            return kind.is_some_and(|kind| state.setup.options.set(kind, value.to_owned()));
+            return kind.is_some_and(|kind| state.setup.options.selection.set(kind, value.to_owned()));
         };
         drop(state);
         self.connection.set_option(&session_id, id, value).is_ok()
@@ -577,7 +577,7 @@ impl Connection {
             state.options.clone_from(&options);
             let wanted: Vec<(OptionKind, Option<String>)> = OptionKind::PICKED
                 .iter()
-                .map(|kind| (*kind, state.setup.options.get(*kind).map(str::to_owned)))
+                .map(|kind| (*kind, state.setup.options.selection.get(*kind).map(str::to_owned)))
                 .collect();
             (std::mem::take(&mut state.queued), wanted)
         };
@@ -886,6 +886,7 @@ fn legacy_modes(modes: &Value) -> Option<ConfigOption> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assistant::agent::Selection;
     use std::collections::VecDeque;
     use std::io::Read;
     use std::sync::mpsc::Sender;
@@ -1006,8 +1007,10 @@ mod tests {
             system_prompt: "Be brief.".into(),
             options: StartOptions {
                 resume: resume.map(str::to_owned),
-                model: model.map(str::to_owned),
-                ..StartOptions::default()
+                selection: Selection {
+                    model: model.map(str::to_owned),
+                    ..Selection::default()
+                },
             },
         }
     }

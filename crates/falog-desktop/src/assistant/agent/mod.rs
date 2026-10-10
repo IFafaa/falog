@@ -178,17 +178,27 @@ pub struct Environment {
 pub struct StartOptions {
     /// Continue an earlier conversation (after a stop, a restart or a model change).
     pub resume: Option<String>,
-    /// Model to ask for; `None` uses the agent's default.
+    pub selection: Selection,
+}
+
+/// What a thread asks its agent for, as a `Choice::value` of each option; `None` leaves it to the
+/// agent's default (and fast mode off).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Selection {
+    #[serde(default)]
     pub model: Option<String>,
-    /// Effort (thinking) level to ask for; `None` uses the agent's default.
+    /// Effort (thinking) level.
+    #[serde(default)]
     pub effort: Option<String>,
-    /// Permission mode; `None` keeps Falog's default.
+    /// Permission mode.
+    #[serde(default)]
     pub mode: Option<String>,
-    /// Fast mode (`on`/`off`); `None` leaves it off.
+    /// Fast mode, `on` or `off`.
+    #[serde(default)]
     pub fast: Option<String>,
 }
 
-impl StartOptions {
+impl Selection {
     /// The value asked for a kind of option.
     pub fn get(&self, kind: OptionKind) -> Option<&str> {
         match kind {

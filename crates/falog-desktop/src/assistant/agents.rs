@@ -53,7 +53,7 @@ impl SavedAgents {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assistant::agent::{Choice, OptionKind};
+    use crate::assistant::agent::{Choice, OptionKind, Selection};
 
     #[test]
     fn saves_and_loads() {
@@ -64,8 +64,10 @@ mod tests {
         let mut saved = SavedAgents {
             last: Some(Settings {
                 agent: AgentId("gemini".into()),
-                model: Some("flash".into()),
-                ..Settings::default()
+                selection: Selection {
+                    model: Some("flash".into()),
+                    ..Selection::default()
+                },
             }),
             ..SavedAgents::default()
         };

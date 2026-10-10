@@ -138,18 +138,18 @@ impl ClaudeSession {
             "--setting-sources",
             "",
         ]);
-        let mode = options.mode.as_deref().filter(|m| *m != DEFAULT);
+        let mode = options.selection.mode.as_deref().filter(|m| *m != DEFAULT);
         command.args(["--permission-mode", mode.unwrap_or(FALOG_MODE)]);
-        let fast = options.fast.as_deref() == Some(FAST_ON);
+        let fast = options.selection.fast.as_deref() == Some(FAST_ON);
         if fast {
             command.args(["--settings", r#"{"fastMode":true}"#]);
         }
         command.arg("--mcp-config").arg(&mcp_config);
         command.arg("--append-system-prompt").arg(&env.system_prompt);
-        if let Some(model) = options.model.as_deref().filter(|m| *m != DEFAULT) {
+        if let Some(model) = options.selection.model.as_deref().filter(|m| *m != DEFAULT) {
             command.args(["--model", model]);
         }
-        if let Some(effort) = options.effort.as_deref().filter(|e| *e != DEFAULT) {
+        if let Some(effort) = options.selection.effort.as_deref().filter(|e| *e != DEFAULT) {
             command.args(["--effort", effort]);
         }
         if let Some(session) = &options.resume {

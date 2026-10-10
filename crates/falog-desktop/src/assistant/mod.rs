@@ -616,7 +616,10 @@ mod tests {
 
         let restored = Assistant::with_history(Launcher { database: None }, path.clone());
         assert_eq!(restored.active().settings.agent, AgentId::default());
-        assert_eq!(restored.active().settings.model.as_deref(), Some("haiku"));
+        assert_eq!(
+            restored.active().settings.selection.model.as_deref(),
+            Some("haiku")
+        );
         assert_eq!(restored.recent_threads()[0].agent_name, "Gemini CLI");
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }

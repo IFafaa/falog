@@ -3,7 +3,8 @@
 use super::agent::claude_code;
 use super::agent::registry::{Agent, AgentId};
 use super::agent::{
-    self, AgentEvent, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions, Usage,
+    self, AgentEvent, ConfigOption, Environment, OptionKind, Selection, Session, SlashCommand, StartOptions,
+    Usage,
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
@@ -81,51 +82,16 @@ pub struct Settings {
     /// Threads saved before agents existed talked to Claude Code.
     #[serde(default)]
     pub agent: AgentId,
-    /// A `Choice::value` of the agent's model option.
-    #[serde(default)]
-    pub model: Option<String>,
-    /// A `Choice::value` of the agent's effort option.
-    #[serde(default)]
-    pub effort: Option<String>,
-    /// A `Choice::value` of the agent's permission mode option.
-    #[serde(default)]
-    pub mode: Option<String>,
-    /// `on` or `off`.
-    #[serde(default)]
-    pub fast: Option<String>,
+    /// Saved inline (model, effort, mode, fast), as before the type existed.
+    #[serde(flatten)]
+    pub selection: Selection,
 }
 
 impl Settings {
-    fn get(&self, kind: OptionKind) -> Option<&str> {
-        match kind {
-            OptionKind::Model => self.model.as_deref(),
-            OptionKind::Effort => self.effort.as_deref(),
-            OptionKind::Mode => self.mode.as_deref(),
-            OptionKind::Fast => self.fast.as_deref(),
-            OptionKind::Other => None,
-        }
-    }
-
-    /// Remembers a choice. Returns false for kinds that are not remembered.
-    fn set(&mut self, kind: OptionKind, value: String) -> bool {
-        let slot = match kind {
-            OptionKind::Model => &mut self.model,
-            OptionKind::Effort => &mut self.effort,
-            OptionKind::Mode => &mut self.mode,
-            OptionKind::Fast => &mut self.fast,
-            OptionKind::Other => return false,
-        };
-        *slot = Some(value);
-        true
-    }
-
     fn start_options(&self, resume: Option<String>) -> StartOptions {
         StartOptions {
             resume,
-            model: self.model.clone(),
-            effort: self.effort.clone(),
-            mode: self.mode.clone(),
-            fast: self.fast.clone(),
+            selection: self.selection.clone(),
         }
     }
 }
@@ -453,6 +419,7 @@ impl Thread {
         let option = self.options.iter().find(|o| o.kind == kind)?;
         let value = self
             .settings
+            .selection
             .get(kind)
             .or(option.current.as_deref())
             .or_else(|| option.choices.first().map(|c| c.value.as_str()))?;
@@ -465,7 +432,7 @@ impl Thread {
         let Some(id) = self.options.iter().find(|o| o.kind == kind).map(|o| o.id.clone()) else {
             return;
         };
-        if !self.settings.set(kind, value.clone()) {
+        if !self.settings.selection.set(kind, value.clone()) {
             return;
         }
         let applied = self
@@ -624,9 +591,9 @@ mod tests {
         thread.session_id = Some("abc".into());
         thread.items.push(Item::User("hi".into()));
         thread.draft = "unsent".into();
-        thread.settings.effort = Some("high".into());
+        thread.settings.selection.effort = Some("high".into());
         let restored = Thread::from_record(thread.to_record());
-        assert_eq!(restored.settings.effort.as_deref(), Some("high"));
+        assert_eq!(restored.settings.selection.effort.as_deref(), Some("high"));
         assert_eq!(restored.id, ThreadId(4));
         assert_eq!(restored.session_id.as_deref(), Some("abc"));
         assert_eq!(restored.draft, "unsent");
@@ -649,7 +616,7 @@ mod tests {
         thread.choose(OptionKind::Effort, "max".into());
         let (option, model) = thread.option(OptionKind::Model).unwrap();
         assert_eq!(option.label(model), "Opus");
-        assert_eq!(thread.settings.effort.as_deref(), Some("max"));
+        assert_eq!(thread.settings.selection.effort.as_deref(), Some("max"));
     }
 
     /// A session that records what it is asked to do.

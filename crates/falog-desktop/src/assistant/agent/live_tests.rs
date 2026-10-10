@@ -8,7 +8,7 @@
 //! ```
 
 use super::registry;
-use super::{AgentEvent, Environment, OptionKind, StartOptions};
+use super::{AgentEvent, Environment, OptionKind, Selection, StartOptions};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -64,10 +64,13 @@ fn live_agents_answer_with_falog_tools() {
         let env = environment(id);
         let ctx = eframe::egui::Context::default();
         let options = StartOptions {
-            effort: (id == registry::CLAUDE_CODE).then(|| "low".into()),
-            model: (id == registry::CLAUDE_CODE).then(|| "haiku".into()),
-            // Falog tools must keep working outside the default mode.
-            mode: Some("acceptEdits".into()),
+            selection: Selection {
+                effort: (id == registry::CLAUDE_CODE).then(|| "low".into()),
+                model: (id == registry::CLAUDE_CODE).then(|| "haiku".into()),
+                // Falog tools must keep working outside the default mode.
+                mode: Some("acceptEdits".into()),
+                ..Selection::default()
+            },
             ..StartOptions::default()
         };
         let mut session = agent.start(&env, &options, &ctx).unwrap();
