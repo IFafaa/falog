@@ -1323,7 +1323,7 @@ checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
 name = "falog-calendar"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1339,7 +1339,7 @@ dependencies = [
 
 [[package]]
 name = "falog-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -1350,7 +1350,7 @@ dependencies = [
 
 [[package]]
 name = "falog-desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "cpal",
@@ -1372,7 +1372,7 @@ dependencies = [
 
 [[package]]
 name = "falog-mcp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
