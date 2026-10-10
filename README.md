@@ -3,6 +3,8 @@
 **A personal organizer you talk to.** Falog keeps your tasks, errands and appointments in one place, on
 your machine. Tell your AI assistant what you need to do, by voice or text, and it files it for you.
 
+Downloads, features and roadmap: **<https://ifafaa.github.io/falog/>**
+
 ## Why
 
 Things to do show up everywhere: a call, a message, something you remember in the shower. Writing each
