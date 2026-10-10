@@ -161,6 +161,10 @@ fn month_header(ui: &mut Ui, cx: &ViewCx<'_>, month: &Month<'_>, state: &mut Arc
 fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
     let theme = cx.theme;
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
+    // Long lists: rows scrolled out of view take their space but draw nothing.
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
     let hovered = ui.rect_contains_pointer(rect);
     if cx.selected == Some(task.id) {
         ui.painter().rect_filled(rect, 4.0, theme.ghost_selected);
