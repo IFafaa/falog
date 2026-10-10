@@ -1,0 +1,9 @@
+---
+// Plain text where `backticks` mark code, as in the specs' markdown.
+interface Props {
+  text: string;
+}
+const parts = Astro.props.text.split("`");
+---
+
+{parts.map((part, i) => (i % 2 === 1 ? <code>{part}</code> : part))}

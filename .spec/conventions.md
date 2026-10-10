@@ -48,7 +48,8 @@ what the feature is about.
 - [Conventional Commits](https://www.conventionalcommits.org): `type(scope): summary`
   - types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `build`, `ci`, `chore`,
     `revert`; `!` after the type or scope marks a breaking change
-  - scopes (optional, lowercase): `core`, `mcp`, `calendar`, `desktop`, `assistant`, `scripts`, `spec`
+  - scopes (optional, lowercase): `core`, `mcp`, `calendar`, `desktop`, `assistant`, `scripts`, `spec`,
+    `site`
   - imperative, lowercase, no trailing period, ≤ 72 chars for the whole subject; body explains why
     when not obvious. CI checks the subjects of every pull request ([CI](#ci)).
 - Specs change in the same commit as the behavior they describe.

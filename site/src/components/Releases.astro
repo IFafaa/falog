@@ -1,0 +1,24 @@
+---
+// Every release with its notes, read from the GitHub API by app.js and rendered as text.
+import { COPY, REPO, type Lang } from "../i18n";
+
+interface Props {
+  lang: Lang;
+}
+const t = COPY[Astro.props.lang];
+const r = t.releases;
+---
+
+<section class="section page-top" aria-labelledby="releases-title">
+  <div class="wrap narrow">
+    <header class="section-head">
+      <p class="label mono">{r.label}</p>
+      <h1 id="releases-title">{r.title}</h1>
+      <p class="section-lede">{r.lede}</p>
+    </header>
+    <ol class="releases full" id="release-list" aria-live="polite">
+      <li class="muted">{t.js.loading}</li>
+    </ol>
+    <a class="more mono" href={`${REPO}/releases`}>{r.onGithub}</a>
+  </div>
+</section>

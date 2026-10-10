@@ -29,6 +29,7 @@ cargo test --workspace                   # tests
 cargo run -p falog-desktop               # run the app (FALOG_DB=path to use another database)
 .\scripts\seed-demo.ps1                  # demo data in target\demo.db
 .\scripts\install.ps1                    # release build + install for the current user
+cd site; npm ci; npm run dev             # the public site at localhost:4321/falog/ (Node 22.12+)
 ```
 
 On macOS and Linux the scripts are `./scripts/seed-demo.sh`, `./scripts/install.sh` and

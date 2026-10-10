@@ -28,3 +28,18 @@ sur = "sur"
 
 [default.extend-identifiers]
 PNGs = "PNGs"
+
+# The public site's Brazilian Portuguese copy (site/src/i18n/pt.ts, conventions.md "Language"): these
+# words are right in Portuguese, and only that file accepts them.
+[type.site-pt]
+extend-glob = ["pt.ts"]
+
+[type.site-pt.extend-words]
+cliente = "cliente"
+comando = "comando"
+comandos = "comandos"
+fale = "fale"
+inicial = "inicial"
+instale = "instale"
+prefere = "prefere"
+tema = "tema"

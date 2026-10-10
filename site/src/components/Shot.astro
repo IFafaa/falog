@@ -1,0 +1,26 @@
+---
+// A screenshot of the app in both themes; CSS shows the one that matches the page's theme.
+import { asset } from "../i18n";
+
+interface Props {
+  name: string;
+  alt: { dark: string; light: string };
+  class?: string;
+  /** Load right away (the first screen) instead of when scrolled near. */
+  eager?: boolean;
+}
+const { name, alt, class: className, eager = false } = Astro.props;
+---
+
+<figure class:list={["shot", className]}>
+  <img
+    class="for-dark"
+    src={asset(`img/${name}-dark.webp`)}
+    width="2040"
+    height="1260"
+    alt={alt.dark}
+    loading={eager ? undefined : "lazy"}
+    fetchpriority={eager ? "high" : undefined}
+  />
+  <img class="for-light" src={asset(`img/${name}-light.webp`)} width="2040" height="1260" alt={alt.light} loading="lazy" />
+</figure>

@@ -21,6 +21,7 @@ starts; move it to `tasks/done` when shipped.
 | 0014 | [Google Calendar through secret iCal links](tasks/done/0014-ical-links.md) | Connect a calendar by pasting a link instead of creating an OAuth client |
 | 0015 | [Calendars by area, events by voice](tasks/doing/0015-calendar-areas-and-events.md) | Which meetings belong to which job, and booking them through the assistant |
 | 0016 | [CI quality gate](tasks/done/0016-ci-quality-gate.md) | One required check that says the code is correct before it lands on `main` |
+| 0018 | [Public site](tasks/done/0018-public-site.md) | Three pages, in English and Portuguese: what Falog does, downloads and releases |
 
 Later, unordered: tags/labels, manual ordering within a column, weekly report export (Markdown),
 undo for destructive actions, signed macOS builds and Linux packages (Flatpak, `.deb`).

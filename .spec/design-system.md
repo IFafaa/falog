@@ -173,6 +173,14 @@ colors as 14 px swatches (the current one ringed in `text`) and a Danger Remove,
 address under it in monospace `text_placeholder`. Signing in with an OAuth client sits under a
 disclosure row (chevron, `ghost_hover` on hover), folded unless a client or account already exists.
 
+## Public site
+
+The site in `site/` (an Astro project in English and Portuguese, see task 0018) wears the same look
+on the web: the color tokens above as CSS variables (light text accent darkened to `#3f5bc8` for
+contrast on `#fafafa`), IBM Plex Sans for text and Lilex for labels, versions, shortcuts and commands, 1 px
+`border_variant` lines, 4–8 px radii and real screenshots in both themes. Dark is the default; light
+follows the system or the toggle.
+
 ## Rules
 
 - Prefer painting rows by hand (`allocate_exact_size` + painter) for pixel control; use egui widgets for

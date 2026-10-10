@@ -1,0 +1,159 @@
+---
+// The overview: what Falog is, its views and features, and a look at its progress.
+import Icon from "./Icon.astro";
+import Shot from "./Shot.astro";
+import Code from "./Code.astro";
+import { COPY, REPO, pageUrl, type Lang } from "../i18n";
+import { roadmap, type Stage } from "../lib/roadmap";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const t = COPY[lang];
+const h = t.home;
+const tr = (text: string) => t.roadmap[text] ?? text;
+// English text shown on a Portuguese page keeps its language for screen readers.
+const textLang = (text: string) => (t.roadmap[text] || lang === "en" ? undefined : "en");
+
+const SHIPPED_SHOWN = 5;
+const groups: { stage: Stage; items: typeof roadmap.tasks }[] = [
+  { stage: "doing", items: roadmap.tasks.filter((task) => task.stage === "doing") },
+  { stage: "next", items: roadmap.tasks.filter((task) => task.stage === "next") },
+  { stage: "done", items: roadmap.tasks.filter((task) => task.stage === "done").reverse() },
+];
+---
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow mono"><span class="pulse" aria-hidden="true"></span><span id="hero-version">{h.eyebrow}</span></p>
+    <h1 set:html={h.title} />
+    <p class="lede">{h.lede}</p>
+    <div class="cta">
+      <a class="btn primary" id="hero-download" href={pageUrl(lang, "download")}>
+        <Icon name="download" />
+        <span id="hero-download-label">{h.download}</span>
+        <span class="btn-meta mono" id="hero-download-meta"></span>
+      </a>
+      <a class="btn ghost" href={REPO}>{h.source}</a>
+    </div>
+    <p class="also mono" id="hero-also">{h.also}<a href={pageUrl(lang, "download")}>{h.allDownloads}</a></p>
+    <Shot name="hero" alt={h.heroAlt} class="hero-shot" eager />
+  </div>
+</section>
+
+<section class="section" id="features" aria-labelledby="features-title">
+  <div class="wrap">
+    <header class="section-head">
+      <p class="label mono">{h.featuresLabel}</p>
+      <h2 id="features-title">{h.featuresTitle}</h2>
+      <p class="section-lede">{h.featuresLede}</p>
+    </header>
+
+    <div class="views">
+      <div class="tabs" role="tablist" aria-label={h.viewsLabel}>
+        {
+          h.views.map((view, i) => (
+            <button
+              role="tab"
+              id={`tab-${view.id}`}
+              aria-controls={`view-${view.id}`}
+              aria-selected={i === 0 ? "true" : "false"}
+              tabindex={i === 0 ? undefined : "-1"}
+            >
+              {view.name} <kbd class="mod">Ctrl+{i + 1}</kbd>
+            </button>
+          ))
+        }
+      </div>
+      {
+        h.views.map((view, i) => (
+          <div class="view" role="tabpanel" id={`view-${view.id}`} aria-labelledby={`tab-${view.id}`} hidden={i > 0}>
+            <p class="view-caption" set:html={view.caption} />
+            <Shot
+              name={view.id}
+              alt={{ dark: h.themeAlt.dark + view.alt, light: h.themeAlt.light + view.alt }}
+            />
+          </div>
+        ))
+      }
+    </div>
+
+    <ul class="grid" aria-label={h.featuresList}>
+      {
+        h.features.map((feature) => (
+          <li class="cell">
+            <Icon name={feature.icon} class="cell-icon" />
+            <h3>{feature.title}</h3>
+            <p set:html={feature.text} />
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="progress" aria-labelledby="progress-title">
+  <div class="wrap">
+    <header class="section-head">
+      <p class="label mono">{h.progressLabel}</p>
+      <h2 id="progress-title">{h.progressTitle}</h2>
+      <p class="section-lede" set:html={h.progressLede} />
+    </header>
+
+    <div class="progress">
+      <div class="column">
+        <h3 class="column-title">{h.latestTitle}</h3>
+        <div id="latest-release" aria-live="polite">
+          <p class="muted">{h.latestLoading}</p>
+        </div>
+        <a class="more mono" href={pageUrl(lang, "releases")}>{h.allReleases} →</a>
+      </div>
+
+      <div class="column" id="roadmap">
+        <h3 class="column-title">{h.roadmapTitle}</h3>
+        {
+          groups.map(
+            (group) =>
+              group.items.length > 0 && (
+                <div class={`roadmap-group ${group.stage}`}>
+                  <h4>{h.stages[group.stage]}</h4>
+                  <ul>
+                    {(group.stage === "done" ? group.items.slice(0, SHIPPED_SHOWN) : group.items).map((task) => (
+                      <li>
+                        <span class="roadmap-num">{task.num}</span>
+                        <span lang={textLang(task.title)}>
+                          <Code text={tr(task.title)} />
+                        </span>
+                        <span class="roadmap-why" lang={textLang(task.why)}>
+                          <Code text={tr(task.why)} />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {group.stage === "done" && group.items.length > SHIPPED_SHOWN && (
+                    <p class="roadmap-more muted">{h.moreShipped(group.items.length - SHIPPED_SHOWN)}</p>
+                  )}
+                </div>
+              ),
+          )
+        }
+        {
+          roadmap.later.length > 0 && (
+            <div class="roadmap-group later">
+              <h4>{h.stages.later}</h4>
+              <ul class="roadmap-later">
+                {roadmap.later.map((idea) => (
+                  <li lang={textLang(idea)}>
+                    <Code text={tr(idea)} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+        <a class="more mono" href={`${REPO}/blob/main/.spec/roadmap.md`}>{h.roadmapLink}</a>
+      </div>
+    </div>
+  </div>
+</section>

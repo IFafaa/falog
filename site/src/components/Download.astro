@@ -1,0 +1,72 @@
+---
+// Stable builds for each system (fixed asset names on the latest release), the Linux one-liner, and
+// the newest preview when there is one. app.js fills in versions and handles a missing release.
+import Icon from "./Icon.astro";
+import { COPY, pageUrl, type Lang } from "../i18n";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const d = COPY[lang].download;
+const LATEST = "https://github.com/IFafaa/falog/releases/latest/download/";
+---
+
+<section class="section page-top" aria-labelledby="download-title">
+  <div class="wrap">
+    <header class="section-head">
+      <p class="label mono">{d.label}</p>
+      <h1 id="download-title">{d.title}</h1>
+      <p class="section-lede mono" id="stable-status">{d.stableDefault}</p>
+    </header>
+
+    <p class="notice" id="no-release" hidden set:html={d.noRelease} />
+
+    <div class="platforms" data-your-system={d.yourSystem}>
+      <article class="platform" id="os-windows">
+        <h2>Windows</h2>
+        <p class="platform-sub mono">{d.windows.sub}</p>
+        <div class="platform-actions">
+          <a class="btn primary dl" href={`${LATEST}Falog-Setup-x64.exe`}><Icon name="download" />{d.windows.button}</a>
+        </div>
+        <p class="platform-note" set:html={d.windows.note} />
+      </article>
+
+      <article class="platform" id="os-macos">
+        <h2>macOS</h2>
+        <p class="platform-sub mono">{d.macos.sub}</p>
+        <div class="platform-actions">
+          <a class="btn primary dl" id="mac-arm" href={`${LATEST}Falog-macOS-arm64.dmg`}><Icon name="download" />{d.macos.arm}</a>
+          <a class="btn ghost dl" id="mac-intel" href={`${LATEST}Falog-macOS-x64.dmg`}>{d.macos.intel}</a>
+        </div>
+        <p class="platform-note" set:html={d.macos.note} />
+      </article>
+
+      <article class="platform" id="os-linux">
+        <h2>Linux</h2>
+        <p class="platform-sub mono">{d.linux.sub}</p>
+        <div class="terminal">
+          <code id="install-cmd">curl -fsSL {LATEST}install.sh | sh</code>
+          <button class="icon-btn copy" type="button" data-copy="install-cmd" aria-label={d.linux.copy} title={d.linux.copy}>
+            <Icon name="copy" class="i-copy" />
+            <Icon name="check" class="i-check" />
+          </button>
+        </div>
+        <div class="platform-actions">
+          <a class="btn ghost dl" href={`${LATEST}falog-linux-x86_64.tar.gz`}><Icon name="download" />{d.linux.button}</a>
+        </div>
+        <p class="platform-note">{d.linux.note}</p>
+      </article>
+    </div>
+
+    <p class="download-foot" set:html={d.agents} />
+
+    <section class="preview" id="preview" aria-labelledby="preview-title" hidden>
+      <h2 id="preview-title"><span class="badge preview-badge">{d.previewBadge}</span> <span class="mono" id="preview-version"></span></h2>
+      <p>{d.previewText}</p>
+      <ul class="preview-assets" id="preview-assets"></ul>
+    </section>
+
+    <p class="download-foot" set:html={d.older.replace("{releases}", pageUrl(lang, "releases"))} />
+  </div>
+</section>
