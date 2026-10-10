@@ -307,8 +307,31 @@ fn save<T: Serialize>(dir: &Path, name: &str, value: &T) -> Result<()> {
     std::fs::create_dir_all(dir).map_err(file_error(dir))?;
     let path = dir.join(name);
     let temp = dir.join(format!("{name}.tmp"));
-    std::fs::write(&temp, serde_json::to_vec_pretty(value)?).map_err(file_error(&temp))?;
+    write_private(&temp, &serde_json::to_vec_pretty(value)?).map_err(file_error(&temp))?;
     std::fs::rename(&temp, &path).map_err(file_error(&path))
+}
+
+/// Writes a file only the user can read on Unix (0600): it holds refresh tokens, the OAuth client
+/// secret and secret calendar addresses. Windows already keeps the user's profile private.
+fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        // `mode` applies only to new files; a temp file left by a crash keeps its old one.
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        file.write_all(bytes)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, bytes)
+    }
 }
 
 #[cfg(test)]
@@ -413,6 +436,15 @@ mod tests {
         config.upsert(account("me@gmail.com", vec![calendar("primary", true)]));
         files.save_config(&config).unwrap();
         assert_eq!(files.load_config(), config);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(dir.join("google.json"))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600, "tokens must not be readable by other users");
+        }
 
         std::fs::write(dir.join("google.json"), "{ not json").unwrap();
         assert_eq!(files.load_config(), CalendarConfig::default());
