@@ -166,6 +166,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # Starts pages.yml below, so the public site lists the new release.
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -211,3 +213,9 @@ jobs:
             --title "Falog $VERSION" --notes-file notes.md \
             dist/Falog-Setup-x64.exe dist/Falog-macOS-arm64.dmg dist/Falog-macOS-x64.dmg \
             dist/falog-linux-x86_64.tar.gz dist/install.sh dist/SHA256SUMS
+      # A release created with GITHUB_TOKEN starts no other workflow, so ask for the site rebuild that
+      # bakes the new release into the download and release pages.
+      - name: Update the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

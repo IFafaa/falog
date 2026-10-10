@@ -1,7 +1,9 @@
 # Publishes the public site (https://ifafaa.github.io/falog/) to GitHub Pages: the Astro project in
 # site/, which also reads the fonts and icon from crates/falog-desktop/assets and the roadmap from
-# .spec/roadmap.md. The pages read releases from the GitHub API in the browser, so a new release needs
-# no redeploy.
+# .spec/roadmap.md. Releases are read from the GitHub API while building (with the workflow's token)
+# and baked into the pages, so visitors never hit the API. release.yml starts this workflow after it
+# publishes a release (a release made with GITHUB_TOKEN starts no workflow by itself), and a daily
+# run catches anything else, such as a release edited by hand.
 #
 # One-time setup: repository Settings › Pages › Source: GitHub Actions.
 # Actions are pinned to commit SHAs (the comment says which release); update them together.
@@ -23,6 +25,8 @@ on:
       - .spec/roadmap.md
       - .github/workflows/pages.yml
   workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
 
 # One deployment at a time; a newer push replaces a queued one but never cancels a running deploy.
 concurrency:
@@ -54,6 +58,9 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - run: npm ci
       - run: npm run build
+        env:
+          # Reads the releases (5,000 requests an hour instead of 60); a failed read fails the build.
+          GITHUB_TOKEN: ${{ github.token }}
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         if: github.event_name != 'pull_request'
         with:
