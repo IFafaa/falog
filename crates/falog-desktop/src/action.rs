@@ -46,6 +46,12 @@ pub enum Action {
     },
     /// Show or hide a calendar link, by its position in the saved links.
     ToggleCalendarLink(usize),
+    /// Look for a newer release now.
+    CheckForUpdates,
+    /// Download the newer release that was found.
+    DownloadUpdate,
+    /// Install the downloaded release and restart Falog.
+    InstallUpdate,
 }
 
 #[derive(Debug, Default)]

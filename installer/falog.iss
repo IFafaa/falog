@@ -86,11 +86,19 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 Filename: "{cmd}"; Parameters: "/c claude mcp remove --scope user falog >nul 2>&1 & claude mcp add --scope user falog -- ""{app}\falog-mcp.exe"""; StatusMsg: "{cm:RegisteringMcp}"; Flags: runhidden; Tasks: mcp
 Filename: "{app}\falog.exe"; Description: "{cm:LaunchProgram,Falog}"; Flags: nowait postinstall skipifsilent
+; An update started from inside Falog runs silently with /update=1: start the new version again.
+Filename: "{app}\falog.exe"; Flags: nowait; Check: IsUpdate
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/c claude mcp remove --scope user falog"; Flags: runhidden; RunOnceId: "RemoveFalogMcp"; Check: ClaudeInstalled
 
 [Code]
+{ True when Falog itself started this setup to update (crates/falog-desktop/src/update/install.rs). }
+function IsUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:update|0}') = '1';
+end;
+
 { True when the Claude Code CLI is on PATH; the assistant dock and the MCP registration need it. }
 function ClaudeInstalled: Boolean;
 var

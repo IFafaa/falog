@@ -14,6 +14,7 @@ mod overlays;
 mod platform;
 mod prefs;
 mod theme;
+mod update;
 mod views;
 mod workspace;
 

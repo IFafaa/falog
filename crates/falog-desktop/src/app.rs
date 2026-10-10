@@ -10,11 +10,12 @@ use crate::overlays::settings::{SettingsDialog, SettingsEvent, SettingsTab};
 use crate::platform::{autostart, title_bar};
 use crate::prefs::Prefs;
 use crate::theme::{self, Theme};
+use crate::update::{self, Updater};
 use crate::views::archive::ArchiveState;
 use crate::views::board::BoardState;
 use crate::views::focus::FocusState;
 use crate::views::{self, View, ViewCx};
-use crate::workspace::status_bar::{self, StatusBar, Toast, ToastKind};
+use crate::workspace::status_bar::{self, StatusBar, Toast, ToastKind, UpdateBadge};
 use crate::workspace::task_panel::{self, PanelEvent, TaskPanel};
 use crate::workspace::{sidebar, tab_bar, toolbar};
 use crate::{fonts, icons::Icon};
@@ -64,6 +65,7 @@ pub struct FalogApp {
     title_bar_dark: Option<bool>,
     /// Whether the restored window size was checked against [`MIN_WINDOW_SIZE`].
     window_checked: bool,
+    updater: Updater,
 }
 
 impl FalogApp {
@@ -113,6 +115,7 @@ impl FalogApp {
             toast: None,
             show_requested,
             window_checked: false,
+            updater: Updater::default(),
             title_bar_dark: None,
         };
         app.reload();
@@ -464,6 +467,9 @@ impl FalogApp {
             Action::RefreshCalendar => self.calendar.refresh(),
             Action::ToggleCalendar { account, calendar } => self.calendar.toggle_calendar(account, calendar),
             Action::ToggleCalendarLink(index) => self.calendar.toggle_link(index),
+            Action::CheckForUpdates => self.updater.check(ctx, self.prefs.update_preview),
+            Action::DownloadUpdate => self.updater.download(ctx),
+            Action::InstallUpdate => self.install_update(ctx),
         }
     }
 
@@ -526,6 +532,31 @@ impl FalogApp {
         }
     }
 
+    /// Installs the downloaded update and quits, so the new version can start.
+    fn install_update(&mut self, ctx: &egui::Context) {
+        if self.task_panel.as_ref().is_some_and(TaskPanel::is_dirty) {
+            self.notify("Save or discard the open task before updating", ToastKind::Error);
+            return;
+        }
+        match self.updater.install() {
+            Ok(()) => {
+                self.assistant.save();
+                ctx.send_viewport_cmd(ViewportCommand::Close);
+            }
+            Err(message) => self.notify(message, ToastKind::Error),
+        }
+    }
+
+    fn update_badge(&self) -> Option<UpdateBadge> {
+        match &self.updater.state {
+            update::State::Available(release) => Some(UpdateBadge::Available(release.version.to_string())),
+            update::State::Preparing(_) => Some(UpdateBadge::Downloading(None)),
+            update::State::Downloading(_, download) => Some(UpdateBadge::Downloading(download.progress())),
+            update::State::Ready(release, _) => Some(UpdateBadge::Ready(release.version.to_string())),
+            _ => None,
+        }
+    }
+
     /// Reloads the open task when it is one of `ids` and has no unsaved edits.
     fn refresh_panel(&mut self, ids: &[TaskId]) {
         let shown = self
@@ -576,7 +607,8 @@ impl FalogApp {
         }
 
         if let Some(dialog) = &mut self.settings {
-            let (events, close) = dialog.show(ctx, &mut self.prefs, &self.calendar, &self.areas);
+            let (events, close) =
+                dialog.show(ctx, &mut self.prefs, &self.calendar, &self.areas, &self.updater);
             if close {
                 self.settings = None;
             }
@@ -669,6 +701,9 @@ impl FalogApp {
                 }
             }
             SettingsEvent::SetCalendarArea { source, area } => self.calendar.set_area(&source, area),
+            SettingsEvent::CheckForUpdates => self.apply(ctx, Action::CheckForUpdates),
+            SettingsEvent::DownloadUpdate => self.apply(ctx, Action::DownloadUpdate),
+            SettingsEvent::InstallUpdate => self.apply(ctx, Action::InstallUpdate),
         }
     }
 
@@ -725,6 +760,8 @@ impl eframe::App for FalogApp {
             // A tool just ran: show its effect now instead of waiting for the next poll.
             self.sync();
         }
+        self.updater
+            .poll(ctx, self.prefs.check_updates, self.prefs.update_preview);
         if self.calendar.poll(ctx) {
             ctx.request_repaint();
         }
@@ -758,6 +795,7 @@ impl eframe::App for FalogApp {
             assistant_open: self.prefs.assistant_open,
             listening: self.assistant.is_recording(),
             toast: self.toast.as_ref(),
+            update: self.update_badge(),
         };
         status_bar::show(ctx, theme, bar, &mut actions);
         // Zoomed, the assistant takes the whole window and the workspace is not drawn.

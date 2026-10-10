@@ -10,6 +10,7 @@ use crate::icons::Icon;
 use crate::platform::reveal;
 use crate::prefs::Prefs;
 use crate::theme::{Theme, ThemeMode};
+use crate::update::{self, Updater};
 mod calendar;
 use calendar::{CalendarForm, NewLink};
 
@@ -47,6 +48,9 @@ pub enum SettingsEvent {
         source: String,
         area: Option<AreaId>,
     },
+    CheckForUpdates,
+    DownloadUpdate,
+    InstallUpdate,
 }
 
 #[derive(Debug)]
@@ -96,6 +100,7 @@ impl SettingsDialog {
         prefs: &mut Prefs,
         calendar: &CalendarState,
         areas: &[Area],
+        updater: &Updater,
     ) -> (Vec<SettingsEvent>, bool) {
         const WIDTH: f32 = 780.0;
         const HEIGHT: f32 = 520.0;
@@ -158,7 +163,7 @@ impl SettingsDialog {
                                     ui.add_space(6.0);
                                     match self.tab {
                                         SettingsTab::General => {
-                                            self.general_tab(ui, theme, prefs, &mut events)
+                                            self.general_tab(ui, theme, prefs, updater, &mut events)
                                         }
                                         SettingsTab::Appearance => {
                                             appearance_tab(ui, theme, prefs, &mut events)
@@ -184,6 +189,7 @@ impl SettingsDialog {
         ui: &mut Ui,
         theme: &Theme,
         prefs: &mut Prefs,
+        updater: &Updater,
         events: &mut Vec<SettingsEvent>,
     ) {
         setting(
@@ -207,18 +213,7 @@ impl SettingsDialog {
             },
         );
 
-        section(ui, theme, "About");
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(concat!("Falog ", env!("CARGO_PKG_VERSION")))
-                    .size(13.0)
-                    .color(theme.text_muted),
-            );
-            ui.hyperlink_to(
-                RichText::new("Releases").size(13.0),
-                "https://github.com/IFafaa/falog/releases",
-            );
-        });
+        updates_section(ui, theme, prefs, updater, events);
     }
 
     fn assistant_tab(&mut self, ui: &mut Ui, theme: &Theme, events: &mut Vec<SettingsEvent>) {
@@ -264,6 +259,87 @@ fn appearance_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Ve
             events.push(SettingsEvent::SetTheme(prefs.theme));
         }
     });
+}
+
+/// The running version, what the updater is doing, and the update preferences.
+fn updates_section(
+    ui: &mut Ui,
+    theme: &Theme,
+    prefs: &mut Prefs,
+    updater: &Updater,
+    events: &mut Vec<SettingsEvent>,
+) {
+    section(ui, theme, "Updates");
+    let current = concat!("Falog ", env!("CARGO_PKG_VERSION"));
+    let (status, action) = match &updater.state {
+        _ if !updater.enabled => (
+            format!("{current}. This build updates the way it was built, not from here."),
+            None,
+        ),
+        update::State::Idle => (
+            format!("{current}."),
+            Some(("Check for updates", SettingsEvent::CheckForUpdates)),
+        ),
+        update::State::Checking => ("Checking for updates…".to_owned(), None),
+        update::State::UpToDate => (
+            format!("{current} is the latest version."),
+            Some(("Check again", SettingsEvent::CheckForUpdates)),
+        ),
+        update::State::Available(release) => (
+            format!(
+                "Falog {} is available. You have {}.",
+                release.version,
+                env!("CARGO_PKG_VERSION")
+            ),
+            Some(("Download", SettingsEvent::DownloadUpdate)),
+        ),
+        update::State::Preparing(release) | update::State::Downloading(release, _) => {
+            (format!("Downloading Falog {}…", release.version), None)
+        }
+        update::State::Ready(release, _) => (
+            format!("Falog {} is ready to install.", release.version),
+            Some(("Restart to update", SettingsEvent::InstallUpdate)),
+        ),
+        update::State::Failed(message) => (
+            format!("{message}."),
+            Some(("Try again", SettingsEvent::CheckForUpdates)),
+        ),
+    };
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(status).size(13.0).color(theme.text_muted));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if let Some((label, event)) = action
+                && button(ui, ButtonStyle::Ghost, None, label).clicked()
+            {
+                events.push(event);
+            }
+        });
+    });
+    ui.horizontal(|ui| {
+        ui.hyperlink_to(
+            RichText::new("What's new").size(13.0),
+            "https://github.com/IFafaa/falog/releases",
+        );
+    });
+    ui.add_space(6.0);
+    setting(
+        ui,
+        theme,
+        "Check for updates automatically",
+        "Look for a new version now and then, and show it in the status bar.",
+        |ui| {
+            switch(ui, &mut prefs.check_updates);
+        },
+    );
+    setting(
+        ui,
+        theme,
+        "Preview versions",
+        "Also offer early versions of what comes next. They are less stable.",
+        |ui| {
+            switch(ui, &mut prefs.update_preview);
+        },
+    );
 }
 
 fn voice_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Vec<SettingsEvent>) {

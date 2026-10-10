@@ -29,6 +29,10 @@ pub struct Prefs {
     pub send_after_dictation: bool,
     /// Run speech recognition on the GPU when the build supports it.
     pub voice_gpu: bool,
+    /// Look for a newer Falog now and then.
+    pub check_updates: bool,
+    /// Offer preview releases too, not only stable ones.
+    pub update_preview: bool,
 }
 
 impl Prefs {
@@ -58,6 +62,8 @@ impl Default for Prefs {
             voice_language: VoiceLanguage::default(),
             send_after_dictation: true,
             voice_gpu: true,
+            check_updates: true,
+            update_preview: false,
         }
     }
 }

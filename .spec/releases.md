@@ -84,6 +84,28 @@ either channel is the first `tag_name` of `https://api.github.com/repos/IFafaa/f
 whisper.cpp is built with `GGML_NATIVE=OFF`, so the downloads run on any x86-64 CPU with AVX2 (2013 on)
 instead of only on CPUs like the build machine's.
 
+## Updating from the app
+
+Falog installed from a download (or the install scripts) updates itself; builds run from a source
+checkout (`target/`) and demo windows (`FALOG_DB`) never do. The code is `crates/falog-desktop/src/update`.
+
+- **Checking:** 10 seconds after start and every 6 hours (Settings › General › *Check for updates
+  automatically*, on by default), or with *Check for updates*. It reads
+  `https://github.com/IFafaa/falog/releases.atom`, not the REST API, whose 60 requests an hour per address
+  a few curious visitors could use up. A newer Stable release is offered; previews too with *Preview
+  versions* on.
+- **Offering:** the status bar shows *Update to X.Y.Z*; a click downloads this system's asset from the
+  release and checks it against the release's `SHA256SUMS` before keeping it (`data folder/updates/`).
+- **Installing:** *Restart to update* installs and quits; the new version starts by itself. Windows runs
+  the setup program with `/VERYSILENT /update=1` (it keeps the first install's choices, and
+  `installer/falog.iss` starts Falog again when `/update=1` is given). macOS copies `Falog.app` out of the
+  disk image next to the running app and swaps them. Linux replaces `falog` and `falog-mcp` next to the
+  running binary. On macOS and Linux a small shell waits for the old process to exit before starting
+  the new one, which would otherwise only bring the old window to the front.
+
+The asset names and `SHA256SUMS` are what the app relies on: renaming them breaks updating for every
+copy already installed.
+
 ## Not signed yet
 
 The Windows installer has no code signature (SmartScreen shows "Windows protected your PC"), and the

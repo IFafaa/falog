@@ -30,6 +30,18 @@ pub struct StatusBar<'a> {
     /// The microphone is recording for the assistant.
     pub listening: bool,
     pub toast: Option<&'a Toast>,
+    pub update: Option<UpdateBadge>,
+}
+
+/// The update button at the right of the status bar, when a newer Falog is on its way.
+#[derive(Clone, Debug, PartialEq)]
+pub enum UpdateBadge {
+    /// A newer version was found; clicking downloads it.
+    Available(String),
+    /// 0.0–1.0 once the size is known.
+    Downloading(Option<f32>),
+    /// Downloaded and verified; clicking installs it and restarts Falog.
+    Ready(String),
 }
 
 pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mut Actions) {
@@ -53,6 +65,34 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
                         .clicked()
                     {
                         actions.push(Action::ToggleAssistant);
+                    }
+                    match &bar.update {
+                        Some(UpdateBadge::Available(version)) => {
+                            let label = format!("Update to {version}");
+                            let clicked = item(ui, theme, Icon::ArrowDown, theme.text_accent, &label)
+                                .on_hover_text("Download the new version of Falog")
+                                .clicked();
+                            if clicked {
+                                actions.push(Action::DownloadUpdate);
+                            }
+                        }
+                        Some(UpdateBadge::Downloading(progress)) => {
+                            let label = match progress {
+                                Some(done) => format!("Downloading update {:.0}%", done * 100.0),
+                                None => "Downloading update…".to_owned(),
+                            };
+                            item(ui, theme, Icon::ArrowDown, theme.icon_muted, &label);
+                        }
+                        Some(UpdateBadge::Ready(version)) => {
+                            let clicked =
+                                item(ui, theme, Icon::Refresh, theme.text_accent, "Restart to update")
+                                    .on_hover_text(format!("Install Falog {version} and start it again"))
+                                    .clicked();
+                            if clicked {
+                                actions.push(Action::InstallUpdate);
+                            }
+                        }
+                        None => {}
                     }
                     if bar.listening && item(ui, theme, Icon::Mic, theme.error, "Listening").clicked() {
                         actions.push(Action::ToggleDictation);

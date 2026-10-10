@@ -61,7 +61,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 │  dock)  │ view                                             │       │ ────────────── │
 │         │                                                  │       │ composer 🎤 ➤  │
 ├─────────┴──────────────────────────────────────────────────┴───────┴────────────────┤
-│ status bar: sidebar toggle                       listening · ✦ · date · ⌘ · ⚙        │
+│ status bar: sidebar toggle                update · listening · ✦ · date · ⌘ · ⚙ │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -163,7 +163,11 @@ A 780 × 520 modal with a 184 px `panel` column of pages on the left (General, A
 Voice, Calendar, Data; icon + label rows of 30 px, `ghost_selected` for the open page) and the page on
 the right: its title in SemiBold 16, then rows of title, description in `text_muted` and the control on
 the right. Each page is one function in `overlays/settings/` (Calendar in its own file). General ends
-with an "About" section: "Falog x.y.z" (the crate version) in `text_muted` and a link to the releases.
+with an "Updates" section: the version and what the updater is doing in `text_muted` with a ghost
+button on the right (*Check for updates*, *Download*, *Restart to update*), a "What's new" link to the
+releases, and switches for automatic checks and preview versions. The status bar offers an update at
+its right, left of ✦, as an item in `text_accent`: *Update to X.Y.Z* (arrow down), *Downloading update
+N%* in `icon_muted` while it downloads, then *Restart to update* (refresh icon).
 `Action::OpenSettingsTab` opens a given page, as the calendar's "Add a calendar link" does.
 
 The Calendar page puts the easy path first: an "Add a calendar link" section with a four-step how-to in
