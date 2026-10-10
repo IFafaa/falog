@@ -16,6 +16,7 @@ when behavior or structure changes.
 | [mcp.md](mcp.md) | add or change an MCP tool or its output |
 | [design-system.md](design-system.md) | build or restyle any UI |
 | [conventions.md](conventions.md) | write code, tests or commits (always) |
+| [releases.md](releases.md) | bump the version, cut a release or change the downloads |
 | [roadmap.md](roadmap.md) | pick the next thing to build |
 | [tasks/](tasks/README.md) | plan a feature: one spec file per task |
 
