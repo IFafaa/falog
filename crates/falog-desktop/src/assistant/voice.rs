@@ -4,6 +4,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read, Write};
@@ -18,8 +19,11 @@ use std::time::{Duration, Instant};
 pub const SAMPLE_RATE: u32 = 16_000;
 /// Large v3 Turbo, 5-bit quantized: near large-v3 accuracy (Portuguese included) at CPU speed.
 pub const MODEL_FILE: &str = "ggml-large-v3-turbo-q5_0.bin";
-pub const MODEL_URL: &str =
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin";
+/// Pinned to a commit, so the file cannot change under [`MODEL_SHA256`].
+pub const MODEL_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin";
+/// The model is parsed by native code: a download that is not exactly this file is thrown away.
+const MODEL_SHA256: &str = "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2";
+const MODEL_BYTES: u64 = 574_041_195;
 /// Rough size, shown before the download starts.
 pub const MODEL_SIZE_MB: u32 = 574;
 /// Frees the model's memory (~600 MB) after this long without dictation.
@@ -528,29 +532,81 @@ fn download(
     }
     let partial = destination.with_extension("part");
     let mut file = File::create(&partial)?;
-    let mut reader = response.into_reader();
-    let mut buffer = vec![0u8; 1 << 16];
     let mut last_repaint = Instant::now();
-    loop {
-        let read = reader.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        file.write_all(&buffer[..read])?;
-        received.fetch_add(read as u64, Ordering::Relaxed);
-        if last_repaint.elapsed() > Duration::from_millis(100) {
-            ctx.request_repaint();
-            last_repaint = Instant::now();
-        }
+    let copied = copy_verified(
+        response.into_reader(),
+        &mut file,
+        MODEL_BYTES,
+        MODEL_SHA256,
+        |read| {
+            received.fetch_add(read as u64, Ordering::Relaxed);
+            if last_repaint.elapsed() > Duration::from_millis(100) {
+                ctx.request_repaint();
+                last_repaint = Instant::now();
+            }
+        },
+    );
+    if let Err(err) = copied {
+        drop(file);
+        let _ = std::fs::remove_file(&partial);
+        return Err(err);
     }
     file.sync_all()?;
     drop(file);
     std::fs::rename(&partial, destination)
 }
 
+/// Copies `reader` into `writer`, failing unless it is exactly `size` bytes with SHA-256 `sha256`.
+/// `progress` gets the size of each chunk.
+fn copy_verified(
+    mut reader: impl Read,
+    writer: &mut impl Write,
+    size: u64,
+    sha256: &str,
+    mut progress: impl FnMut(usize),
+) -> io::Result<()> {
+    let corrupted = || io::Error::other("The voice model download was damaged; try again");
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 1 << 16];
+    let mut total = 0u64;
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        total += read as u64;
+        if total > size {
+            return Err(corrupted());
+        }
+        hasher.update(&buffer[..read]);
+        writer.write_all(&buffer[..read])?;
+        progress(read);
+    }
+    let digest: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    if total == size && digest == sha256 {
+        Ok(())
+    } else {
+        Err(corrupted())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keeps_only_the_expected_model() {
+        // SHA-256 of "abc".
+        let sha = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        let copy = |bytes: &[u8], size| {
+            let mut out = Vec::new();
+            copy_verified(bytes, &mut out, size, sha, |_| {}).map(|()| out)
+        };
+        assert_eq!(copy(b"abc", 3).unwrap(), b"abc");
+        assert!(copy(b"abd", 3).is_err(), "tampered");
+        assert!(copy(b"ab", 3).is_err(), "truncated");
+        assert!(copy(b"abcd", 3).is_err(), "too long");
+    }
 
     #[test]
     fn resampling_keeps_duration() {
