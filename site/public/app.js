@@ -324,11 +324,8 @@ function releaseItem(release, latestId, open) {
   return item;
 }
 
-// The hero and the download buttons once the latest stable release is known.
+// The download buttons and the latest release once the latest stable release is known.
 function showStable(release) {
-  const version = $("#hero-version");
-  if (version) version.textContent = fill(S.versionOut, { version: release.tag_name });
-
   const status = $("#stable-status");
   if (status) {
     status.replaceChildren(
@@ -360,12 +357,10 @@ function showNoRelease() {
   if (notice) notice.hidden = false;
   const status = $("#stable-status");
   if (status) status.textContent = S.stableNone;
-  const version = $("#hero-version");
-  if (version) version.textContent = S.comingSoon;
   const hero = $("#hero-download");
   if (hero) {
     hero.href = mine ? REPO + "/blob/main/docs/install/" + mine.docs + ".md" : DOWNLOAD_URL;
-    $("#hero-download-label").textContent = mine ? fill(S.buildFor, { os: mine.name }) : S.howToInstall;
+    $("#hero-download-label").textContent = mine ? fill(S.installOn, { os: mine.name }) : S.howToInstall;
     $("#hero-download-meta").textContent = "";
   }
   const latest = $("#latest-release");

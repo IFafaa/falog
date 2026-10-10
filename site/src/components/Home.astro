@@ -3,8 +3,8 @@
 import Icon from "./Icon.astro";
 import Shot from "./Shot.astro";
 import Code from "./Code.astro";
-import { COPY, REPO, pageUrl, type Lang } from "../i18n";
-import { roadmap, type Stage } from "../lib/roadmap";
+import { COPY, pageUrl, type Lang } from "../i18n";
+import { roadmap, type RoadmapTask } from "../lib/roadmap";
 
 interface Props {
   lang: Lang;
@@ -13,20 +13,24 @@ const { lang } = Astro.props;
 const t = COPY[lang];
 const h = t.home;
 const tr = (text: string) => t.roadmap[text] ?? text;
-// English text shown on a Portuguese page keeps its language for screen readers.
-const textLang = (text: string) => (t.roadmap[text] || lang === "en" ? undefined : "en");
+// Roadmap text with no Portuguese entry stays English; say so to screen readers.
+const textLang = (text: string) => (lang === "en" || t.roadmap[text] ? undefined : "en");
 
+// Engineering work on the roadmap that changes nothing a person using Falog sees.
+const BEHIND_THE_SCENES = new Set(["0013", "0016", "0018"]);
 const SHIPPED_SHOWN = 5;
-const groups: { stage: Stage; items: typeof roadmap.tasks }[] = [
-  { stage: "doing", items: roadmap.tasks.filter((task) => task.stage === "doing") },
-  { stage: "next", items: roadmap.tasks.filter((task) => task.stage === "next") },
-  { stage: "done", items: roadmap.tasks.filter((task) => task.stage === "done").reverse() },
+const visible = roadmap.tasks.filter((task) => !BEHIND_THE_SCENES.has(task.num));
+const next = visible.filter((task) => task.stage === "next");
+const shipped = visible.filter((task) => task.stage === "done").reverse();
+// Work in progress is not shown: the page lists what is next and what shipped.
+const groups: { stage: "next" | "done"; items: RoadmapTask[]; why: boolean }[] = [
+  { stage: "next", items: next, why: true },
+  { stage: "done", items: shipped.slice(0, SHIPPED_SHOWN), why: false },
 ];
 ---
 
 <section class="hero" id="top">
   <div class="wrap">
-    <p class="eyebrow mono"><span class="pulse" aria-hidden="true"></span><span id="hero-version">{h.eyebrow}</span></p>
     <h1 set:html={h.title} />
     <p class="lede">{h.lede}</p>
     <div class="cta">
@@ -35,7 +39,7 @@ const groups: { stage: Stage; items: typeof roadmap.tasks }[] = [
         <span id="hero-download-label">{h.download}</span>
         <span class="btn-meta mono" id="hero-download-meta"></span>
       </a>
-      <a class="btn ghost" href={REPO}>{h.source}</a>
+      <a class="btn ghost" href="#features">{h.tour}</a>
     </div>
     <p class="also mono" id="hero-also">{h.also}<a href={pageUrl(lang, "download")}>{h.allDownloads}</a></p>
     <Shot name="hero" alt={h.heroAlt} class="hero-shot" eager />
@@ -61,7 +65,7 @@ const groups: { stage: Stage; items: typeof roadmap.tasks }[] = [
               aria-selected={i === 0 ? "true" : "false"}
               tabindex={i === 0 ? undefined : "-1"}
             >
-              {view.name} <kbd class="mod">Ctrl+{i + 1}</kbd>
+              {view.name}
             </button>
           ))
         }
@@ -119,40 +123,27 @@ const groups: { stage: Stage; items: typeof roadmap.tasks }[] = [
                 <div class={`roadmap-group ${group.stage}`}>
                   <h4>{h.stages[group.stage]}</h4>
                   <ul>
-                    {(group.stage === "done" ? group.items.slice(0, SHIPPED_SHOWN) : group.items).map((task) => (
+                    {group.items.map((task) => (
                       <li>
-                        <span class="roadmap-num">{task.num}</span>
                         <span lang={textLang(task.title)}>
                           <Code text={tr(task.title)} />
                         </span>
-                        <span class="roadmap-why" lang={textLang(task.why)}>
-                          <Code text={tr(task.why)} />
-                        </span>
+                        {group.why && (
+                          <span class="roadmap-why" lang={textLang(task.why)}>
+                            <Code text={tr(task.why)} />
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
-                  {group.stage === "done" && group.items.length > SHIPPED_SHOWN && (
-                    <p class="roadmap-more muted">{h.moreShipped(group.items.length - SHIPPED_SHOWN)}</p>
+                  {group.stage === "done" && shipped.length > SHIPPED_SHOWN && (
+                    <p class="roadmap-more muted">{h.moreShipped(shipped.length - SHIPPED_SHOWN)}</p>
                   )}
                 </div>
               ),
           )
         }
-        {
-          roadmap.later.length > 0 && (
-            <div class="roadmap-group later">
-              <h4>{h.stages.later}</h4>
-              <ul class="roadmap-later">
-                {roadmap.later.map((idea) => (
-                  <li lang={textLang(idea)}>
-                    <Code text={tr(idea)} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )
-        }
-        <a class="more mono" href={`${REPO}/blob/main/.spec/roadmap.md`}>{h.roadmapLink}</a>
+        <a class="more mono" href="https://github.com/IFafaa/falog/blob/main/.spec/roadmap.md">{h.roadmapLink}</a>
       </div>
     </div>
   </div>

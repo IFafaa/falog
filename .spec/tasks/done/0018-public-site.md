@@ -35,12 +35,13 @@ screenshots in both themes.
 - [x] All copy in `site/src/i18n/en.ts` and `pt.ts`, written for each language
 - [x] First visit: when the browser's first language is the other one, a banner offers it; the choice
       or a dismissal is remembered, and the site never redirects
+- [x] Copy for people deciding to use Falog: short, about what each thing does for them, never how
+      it is built (no file formats, libraries, languages or setup steps)
 - [x] Home: hero with "Download for <your system>" (Apple silicon or Intel on a Mac when the browser
-      tells), the five views with screenshots, eight features (assistant, local voice, agents with equal
-      weight for Claude Code, Gemini CLI, Codex and any ACP agent, areas, calendar, local and private,
-      three systems, open source), the latest release and the roadmap
-- [x] Calendar described as Falog's own, with Google Calendar as today's provider (iCal link or
-      sign-in) and more providers to come; nothing claimed for providers that are not tested
+      tells), the views with screenshots, eight features (assistant, offline dictation, agents with
+      equal weight for Claude Code, Gemini CLI, Codex and any ACP agent, separate contexts, calendar,
+      data that stays with you, three systems, free and open source), the latest release and the
+      roadmap: next steps and what shipped, never an empty group, without engineering-only tasks
 - [x] Download: cards for Windows, macOS and Linux with the fixed asset URLs, the Linux one-liner with a
       copy button, the SmartScreen and Open Anyway notes, and the newest preview when it is newer than
       the stable release, marked less stable
@@ -72,8 +73,10 @@ screenshots in both themes.
 - **Single sources.** The fonts and the icon are imported from `crates/falog-desktop/assets` and the
   roadmap from `.spec/roadmap.md` (`src/lib/roadmap.ts`) at build time; nothing is copied into the
   repository. The folder of each roadmap task's link (`backlog`, `doing`, `done`) is its stage, and
-  the "Later, unordered:" sentence becomes its own group. The Portuguese copy translates roadmap text
-  keyed by the exact English text, so a row edited later shows in English until translated.
+  the site lists next steps (with their reason) and shipped work (titles only), leaving out work in
+  progress, the "Later" ideas and engineering-only tasks (`BEHIND_THE_SCENES` in `Home.astro`). Each
+  copy file rewrites roadmap text for visitors, keyed by the exact English text of the spec, so a row
+  edited later shows as written until its entry is updated.
 - **No inline code.** The pages carry a Content Security Policy that allows only same-origin scripts,
   styles, fonts and images and connections to the GitHub API. `theme.js` (theme before the first
   paint) and `app.js` (downloads, tabs, language suggestion, releases) are plain files in `public/`;

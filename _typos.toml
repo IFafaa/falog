@@ -35,11 +35,8 @@ PNGs = "PNGs"
 extend-glob = ["pt.ts"]
 
 [type.site-pt.extend-words]
-cliente = "cliente"
 comando = "comando"
-comandos = "comandos"
 fale = "fale"
 inicial = "inicial"
 instale = "instale"
-prefere = "prefere"
 tema = "tema"

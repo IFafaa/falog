@@ -1,5 +1,8 @@
 // English copy. Strings may hold a little inline HTML (<b>, <kbd>, <a>); they are ours, never user
 // input. The Portuguese file (pt.ts) has the same shape.
+//
+// The site is for people deciding whether to use Falog: say what each thing does for them, in as few
+// words as possible, and leave out how it is built.
 
 const REPO = "https://github.com/IFafaa/falog";
 
@@ -11,17 +14,17 @@ const en = {
 
   meta: {
     home: {
-      title: "Falog: a personal organizer you talk to",
+      title: "Falog: a personal organizer you run by voice",
       description:
-        "Falog keeps your tasks, errands and appointments in one place, on your computer. Tell it what you need to do, by voice or text, and it files it for you. Free and open source for Windows, macOS and Linux.",
+        "Say what you need to do and Falog puts it on your list, next to your meetings. Free for Windows, macOS and Linux.",
     },
     download: {
       title: "Download Falog for Windows, macOS and Linux",
-      description: "Get the latest stable Falog for Windows, macOS or Linux, or try a preview build.",
+      description: "Get the latest version of Falog for Windows, macOS or Linux.",
     },
     releases: {
-      title: "Falog releases and release notes",
-      description: "Every Falog release, stable and preview, with its release notes.",
+      title: "Falog releases",
+      description: "Every version of Falog and what changed in it.",
     },
   },
 
@@ -46,60 +49,51 @@ const en = {
   },
 
   home: {
-    eyebrow: "Free and open source",
-    title: "A personal organizer<br>you talk to.",
-    lede:
-      "Tasks, errands and appointments in one place, on your computer. Say what you need to do, by voice or text, and Falog files it with the area, the due date, the priority and who asked.",
+    title: "Get organized<br>just by talking.",
+    lede: "Falog is a personal organizer you run by voice. Say what needs doing and it's on your list, right next to your meetings.",
     download: "Download Falog",
-    source: "View the source",
+    tour: "See what it does",
     also: "Windows · macOS · Linux · ",
     allDownloads: "all downloads",
     heroAlt: {
-      dark: "Falog in dark theme: the board with To do, In progress and Waiting columns, and the assistant dock where one spoken message became two tasks.",
-      light:
-        "Falog in light theme: the board with To do, In progress and Waiting columns, and the assistant dock where one spoken message became two tasks.",
+      dark: "Falog's task board in dark theme, with the assistant turning one spoken message into two tasks.",
+      light: "Falog's task board in light theme, with the assistant turning one spoken message into two tasks.",
     },
 
     featuresLabel: "01 · Features",
-    featuresTitle: "Everything you have to do, in one window",
-    featuresLede:
-      "Work and personal life side by side, never siloed. Five views of the same tasks, each one keystroke away.",
+    featuresTitle: "Everything you have to do, in one place",
+    featuresLede: "Work and personal life side by side. See your tasks as a board, a list, by urgency or on the calendar.",
     viewsLabel: "Views",
     views: [
       {
         id: "board",
         name: "Board",
-        caption:
-          "<b>Board.</b> Columns for To do, In progress, Waiting and Done. Cards show the area, priority, due date and who asked; drag one to change its status, click it to see its notes.",
-        alt: "The board with a task open in the side panel, showing its description and notes.",
+        caption: "<b>Board.</b> Your tasks in columns by status. Drag a card to move it along.",
+        alt: "The board, with a task open on the side.",
       },
       {
         id: "list",
         name: "List",
-        caption:
-          "<b>List.</b> Every open task in one dense table, sorted by urgency, due date or priority, with completed ones a toggle away.",
-        alt: "The list view: one row per task with status, title, area, priority and due date.",
+        caption: "<b>List.</b> Every task in one compact list, sorted the way you need.",
+        alt: "The list: one row per task.",
       },
       {
         id: "focus",
         name: "Focus",
-        caption:
-          "<b>Focus.</b> What needs you now: overdue, due today, due this week, in progress, waiting on others, upcoming and backlog. The answer to “what was I supposed to do?” in seconds.",
-        alt: "The Focus view: open tasks grouped under Overdue, Due today, Due this week and more.",
+        caption: "<b>Focus.</b> What needs you now, from overdue to due this week.",
+        alt: "Focus: open tasks grouped by how soon they are due.",
       },
       {
         id: "calendar",
         name: "Calendar",
-        caption:
-          "<b>Calendar.</b> Your meetings by week or month, colored by area, with the tasks due each day in the same grid.",
-        alt: "The calendar month view: meetings from work and personal calendars and the tasks due each day.",
+        caption: "<b>Calendar.</b> Your meetings and your tasks side by side, by week or month.",
+        alt: "The calendar: a month of meetings and tasks.",
       },
       {
         id: "archive",
         name: "Archive",
-        caption:
-          "<b>Archive.</b> Done tasks put away by the month you finished them, so the board stays short. Restore any of them with one click.",
-        alt: "The Archive view: finished tasks grouped by month of completion.",
+        caption: "<b>Archive.</b> Finished tasks out of the way, one click from coming back.",
+        alt: "The archive: finished tasks grouped by month.",
       },
     ],
     themeAlt: { dark: "Dark theme. ", light: "Light theme. " },
@@ -109,91 +103,90 @@ const en = {
       {
         icon: "sparkle",
         title: "Talk to your tasks",
-        text: "The assistant dock files, updates and reviews tasks from what you say. One message can hold several requests, and each becomes its own task with all the context you gave. Separate threads keep separate conversations.",
+        text: "Tell the assistant what you need, in your own words. It creates, updates and reviews your tasks for you, several at once if you like.",
       },
       {
         icon: "mic",
-        title: "Voice that stays on your computer",
-        text: "Hold <kbd class=\"mod\">Ctrl+Space</kbd> and speak. Speech recognition runs on your machine and the words appear as you talk; your voice is never uploaded. The speech model downloads once, the first time you dictate.",
+        title: "Safe, offline dictation",
+        text: "Hold <kbd class=\"mod\">Ctrl+Space</kbd> and speak. Dictation works without an internet connection and stays on your computer, so it's completely safe.",
       },
       {
         icon: "agents",
-        title: "Works with your agents",
-        text: "Use the agent you already have: Claude Code, Gemini CLI, Codex or any agent that speaks the Agent Client Protocol (ACP), including one you add yourself. Pick the agent, model and effort for each conversation. Any MCP client can file and review your tasks too.",
+        title: "Works with your AI",
+        text: "Use the assistant you prefer: Claude Code, Gemini CLI, Codex or any ACP agent. You can even add your own.",
       },
       {
         icon: "folder",
-        title: "Areas for every part of life",
-        text: "Work, Home, Health, Studies: name your areas and give each a color. Filter everything by area, meetings included, and still see the whole week in one place.",
+        title: "Contexts kept apart",
+        text: "Work, home, studies: each part of your life gets its own area and color. Focus on one, or see them all together.",
       },
       {
         icon: "calendar",
         title: "Calendar",
-        text: "Falog's calendar shows your meetings and the tasks due each day in one week or month view, each in its area's color. Connect Google Calendar today, by pasting a calendar's private link or by signing in, which also lets the assistant book meetings for you. More providers are coming.",
+        text: "Your meetings right next to your tasks, by week or month.",
       },
       {
         icon: "lock",
-        title: "Local and private",
-        text: "Your tasks live in one SQLite file on your computer. No account, no server, works offline. When you use the assistant, the agent you picked reads and writes them through Falog's MCP server, and nothing else does.",
+        title: "Your data stays with you",
+        text: "No account needed. Falog only goes online for the AI assistant you choose and the calendars you connect; everything else stays with you.",
       },
       {
         icon: "monitor",
         title: "Windows, macOS and Linux",
-        text: "A native app on all three, written in Rust. It starts with your computer, opens instantly in a single window and follows your light or dark system theme.",
+        text: "Available on all three. Opens with your computer and follows your light or dark theme.",
       },
       {
         icon: "code",
-        title: "Open source",
-        text: "MIT licensed, with the specs and the roadmap in the repository. Read the code, open an issue, or build it yourself in a few commands.",
+        title: "Free and open source",
+        text: "Free to use, and open for anyone to read and improve.",
       },
     ],
 
     progressLabel: "02 · Progress",
     progressTitle: "Follow along",
-    progressLede: `What shipped, what is being built and what comes next. <a href="${REPO}">Watch the repository</a> to hear about new releases.`,
+    progressLede: `What's new and what's coming next. <a href="${REPO}">Follow Falog on GitHub</a>.`,
     latestTitle: "Latest release",
-    latestLoading: "Asking GitHub for the latest release…",
-    allReleases: "All releases and their notes",
+    latestLoading: "Checking for the latest release…",
+    allReleases: "All releases",
     roadmapTitle: "Roadmap",
-    roadmapLink: "The roadmap in the repository ↗",
-    stages: { doing: "In progress", next: "Next", done: "Shipped", later: "Later" },
+    roadmapLink: "Full roadmap on GitHub ↗",
+    stages: { next: "Next steps", done: "Shipped" },
     moreShipped: (n: number) => `and ${n} more`,
   },
 
   download: {
     label: "Windows · macOS · Linux",
     title: "Get Falog",
-    stableDefault: "Stable channel: the latest release on GitHub.",
-    noRelease: `There is no stable release yet; the first one is on its way. Until then, build Falog from source with the guide for <a href="${REPO}/blob/main/docs/install/windows.md">Windows</a>, <a href="${REPO}/blob/main/docs/install/macos.md">macOS</a> or <a href="${REPO}/blob/main/docs/install/linux.md">Linux</a>.`,
+    stableDefault: "The latest stable version.",
+    noRelease: `The first version is almost here. Until then, you can build Falog yourself on <a href="${REPO}/blob/main/docs/install/windows.md">Windows</a>, <a href="${REPO}/blob/main/docs/install/macos.md">macOS</a> or <a href="${REPO}/blob/main/docs/install/linux.md">Linux</a>.`,
     yourSystem: "Your system",
     windows: {
-      sub: "x64 · installer",
+      sub: "Installer",
       button: "Download .exe",
-      note: "Installs for your user, no administrator rights needed. It is not code-signed yet, so if SmartScreen says it protected your PC, choose <b>More info › Run anyway</b>.",
+      note: "If Windows shows a SmartScreen warning, choose <b>More info › Run anyway</b>.",
     },
     macos: {
-      sub: "Apple silicon and Intel · disk image",
+      sub: "Apple silicon and Intel",
       arm: "Apple silicon",
       intel: "Intel",
-      note: "Not notarized yet. If macOS says it cannot verify Falog, open <b>System Settings › Privacy &amp; Security</b> and click <b>Open Anyway</b>.",
+      note: "If macOS says it can't verify Falog, open <b>System Settings › Privacy &amp; Security</b> and click <b>Open Anyway</b>.",
     },
     linux: {
-      sub: "x86_64 · X11 and Wayland",
+      sub: "One command, or the archive",
       copy: "Copy the install command",
       button: "Download .tar.gz",
-      note: "Run the command in a terminal, or download the archive. Nothing else to set up.",
+      note: "Paste the command in a terminal, or download the archive.",
     },
-    agents: `The assistant talks through an agent: Claude Code, Gemini CLI, Codex or any ACP agent. Install the one you use and sign in once; Falog finds it. Prefer to build Falog yourself? Follow the <a href="${REPO}/tree/main/docs/install">install guides</a>.`,
+    agents: "To talk to Falog, install an AI assistant: Claude Code, Gemini CLI, Codex or any ACP agent.",
     previewBadge: "Preview",
-    previewText:
-      "An early build of what comes next. It is less stable than the release above: expect rough edges, and keep a copy of your data before trying it.",
+    previewText: "An early look at what's next. Less stable, for those who like to try things first.",
     older: "Looking for an older version? See <a href=\"{releases}\">all releases</a>.",
   },
 
   releases: {
     label: "Changelog",
     title: "Releases",
-    lede: "Every Falog release, newest first. Stable releases are the ones the download page offers; previews are early builds of what comes next and less stable.",
+    lede: "Every version of Falog, newest first. Previews are early, less stable versions.",
     onGithub: "Releases on GitHub ↗",
   },
 
@@ -203,31 +196,28 @@ const en = {
     releases: "Releases",
     issues: "Issues",
     specs: "Specs",
-    credits:
-      "Set in IBM Plex Sans and Lilex (SIL Open Font License), in the One Dark and One Light colors. No cookies, no trackers: the only outside request is to GitHub, for the releases.",
+    credits: "No cookies, no trackers.",
   },
 
   // Read by app.js through a JSON block in the page.
   js: {
     downloadFor: "Download for {os}",
     alsoFor: "Also for ",
-    buildFor: "Build for {os}",
+    installOn: "Install on {os}",
     howToInstall: "How to install",
-    versionOut: "{version} is out · stable",
-    comingSoon: "First release coming soon",
-    stableNone: "Stable channel: no release yet.",
+    stableNone: "No stable version yet.",
     stable: "Stable",
     latestStable: "Latest stable",
     preview: "Preview",
-    releaseNotes: "Release notes",
-    releaseNotesLink: "release notes ↗",
+    releaseNotes: "What changed",
+    releaseNotesLink: "what changed ↗",
     releasePage: "Release page ↗",
     missingAsset: "Not in {version} yet; see the release page",
-    loading: "Loading releases from GitHub…",
-    none: "No releases yet. Watch the repository to hear about the first one.",
-    failed: "GitHub did not answer just now. The releases are one click away below.",
-    latestNone: "No release yet: the first one is on its way.",
-    latestFailed: "GitHub did not answer just now.",
+    loading: "Loading releases…",
+    none: "No releases yet. The first one is on its way.",
+    failed: "Releases couldn't be loaded right now. They're one click away below.",
+    latestNone: "The first release is on its way.",
+    latestFailed: "The latest release couldn't be loaded right now.",
     copied: "Copied",
     themeToLight: "Switch to light theme",
     themeToDark: "Switch to dark theme",
@@ -235,9 +225,22 @@ const en = {
     intel: "Intel",
   },
 
-  // Translations of the roadmap's English text (.spec/roadmap.md), keyed by that exact text. Text with
-  // no entry, such as a row edited after the translation, is shown in English.
-  roadmap: {} as Record<string, string>,
+  // How the roadmap's English text (.spec/roadmap.md, written for contributors) reads on the site,
+  // keyed by that exact text. Text with no entry is shown as written.
+  roadmap: {
+    "System tray": "Run in the background",
+    "Keep Falog running without a window in the taskbar": "Close the window and Falog keeps going",
+    "Quick capture hotkey": "Quick capture",
+    "Get a Windows notification before things are late": "A heads-up before something is late",
+    "File a task from anywhere without the assistant": "Add a task from anywhere, in a keystroke",
+    "Release downloads": "Downloads for every system",
+    "Google Calendar through secret iCal links": "Connect Google Calendar with a link",
+    "Assistant agents": "Choose your AI assistant",
+    "Calendar view with Google Calendar": "A calendar with your meetings",
+    "Live transcription": "See your words as you speak",
+    "Assistant threads": "Separate conversations",
+    "Assistant panel with voice": "Talk to Falog",
+  } as Record<string, string>,
 };
 
 export default en;
