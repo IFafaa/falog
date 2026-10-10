@@ -71,7 +71,7 @@ third-party apps cannot connect (then the user has to ask their admin or use ano
 
 In progress. Built and verified with the demo data from `scripts/seed-demo.ps1` (two accounts, three
 calendars, overlapping, all-day and multi-day events): week and month views render as designed
-(`docs/screenshots/calendar-*.png`). Unit tests cover URL encoding, Google error and payload parsing,
+(checked with screenshots). Unit tests cover URL encoding, Google error and payload parsing,
 the PKCE URL, the loopback redirect (including cancel and a denied consent), config and cache files,
 all-day rules, deduplication and the column layout.
 
