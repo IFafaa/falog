@@ -20,7 +20,7 @@ use crate::workspace::{sidebar, tab_bar, toolbar};
 use crate::{fonts, icons::Icon};
 use chrono::NaiveDate;
 use eframe::egui::{self, Frame, Id, Key, Margin, Modifiers, RichText, Vec2, ViewportCommand, vec2};
-use falog_core::domain::{Area, Status, Task, TaskId, TaskPatch};
+use falog_core::domain::{Area, AreaId, Status, Task, TaskId, TaskPatch};
 use falog_core::{Store, date};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,6 +38,11 @@ pub const MIN_WINDOW_SIZE: Vec2 = vec2(820.0, 520.0);
 pub struct FalogApp {
     store: Result<Store, String>,
     tasks: Vec<Task>,
+    /// Bumped on every reload, so the visible tasks know when to refresh.
+    tasks_generation: u64,
+    /// [`Self::visible_tasks`], kept between frames, and what it was computed for.
+    visible: Vec<Task>,
+    visible_for: Option<(u64, Option<AreaId>, String, View)>,
     areas: Vec<Area>,
     data_version: i64,
     last_poll: Instant,
@@ -86,6 +91,9 @@ impl FalogApp {
         let mut app = Self {
             store: store.map_err(|err| err.to_string()),
             tasks: Vec::new(),
+            tasks_generation: 0,
+            visible: Vec::new(),
+            visible_for: None,
             areas: Vec::new(),
             data_version: 0,
             last_poll: Instant::now(),
@@ -120,6 +128,7 @@ impl FalogApp {
         match loaded {
             Ok((tasks, areas)) => {
                 self.tasks = tasks;
+                self.tasks_generation += 1;
                 self.areas = areas;
                 self.calendar.set_area_colors(&self.areas);
                 if let Some(id) = self.prefs.area
@@ -197,6 +206,21 @@ impl FalogApp {
             .filter(|t| t.matches(&self.search))
             .cloned()
             .collect()
+    }
+
+    /// Refreshes [`Self::visible`] when the tasks, the area filter, the search or the view changed,
+    /// instead of filtering and copying every task on every frame.
+    fn refresh_visible(&mut self) {
+        let key = (
+            self.tasks_generation,
+            self.prefs.area,
+            self.search.clone(),
+            self.prefs.view,
+        );
+        if self.visible_for.as_ref() != Some(&key) {
+            self.visible = self.visible_tasks();
+            self.visible_for = Some(key);
+        }
     }
 
     fn scope_label(&self) -> String {
@@ -769,7 +793,7 @@ impl eframe::App for FalogApp {
             toolbar::show(ctx, theme, &mut self.prefs, &mut self.search, &scope);
         }
 
-        let visible = self.visible_tasks();
+        self.refresh_visible();
         let margin = Margin {
             left: 12.0,
             right: 12.0,
@@ -785,7 +809,7 @@ impl eframe::App for FalogApp {
                 let cx = ViewCx {
                     theme,
                     today: self.today,
-                    tasks: &visible,
+                    tasks: &self.visible,
                     areas: &self.areas,
                     prefs: &self.prefs,
                     selected: self.task_panel.as_ref().and_then(|p| p.id),
