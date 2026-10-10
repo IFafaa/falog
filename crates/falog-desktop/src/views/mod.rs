@@ -91,11 +91,11 @@ impl SortOrder {
         match self {
             Self::Urgency => tasks.sort_by(|a, b| by_urgency(a, b)),
             Self::DueDate => tasks.sort_by(|a, b| cmp_due(a.due, b.due).then_with(|| by_urgency(a, b))),
-            Self::Area => tasks.sort_by(|a, b| {
-                fold(a.area_name())
-                    .cmp(&fold(b.area_name()))
-                    .then_with(|| by_urgency(a, b))
-            }),
+            Self::Area => {
+                // Both sorts are stable: by urgency, then by area folded once per task.
+                tasks.sort_by(|a, b| by_urgency(a, b));
+                tasks.sort_by_cached_key(|t| fold(t.area_name()));
+            }
             Self::Newest => tasks.sort_by_key(|t| std::cmp::Reverse(t.id)),
         }
     }
