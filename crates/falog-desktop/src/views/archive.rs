@@ -1,14 +1,14 @@
 //! Done tasks put away from the board, grouped by the month they were completed.
 
-use super::ViewCx;
 use super::board::task_menu;
+use super::{ViewCx, centered_column, section_header};
 use crate::action::{Action, Actions};
-use crate::components::{badge, single_line};
+use crate::components::single_line;
 use crate::fonts;
 use crate::icons::Icon;
 use crate::theme;
 use chrono::{Datelike, NaiveDate, NaiveDateTime};
-use eframe::egui::{Align2, CursorIcon, FontId, Id, Rect, RichText, ScrollArea, Sense, Ui, pos2, vec2};
+use eframe::egui::{Align2, CursorIcon, FontId, Id, Rect, RichText, Sense, Ui, pos2, vec2};
 use falog_core::domain::{Status, Task};
 use std::collections::HashSet;
 
@@ -61,17 +61,7 @@ fn months(tasks: &[Task]) -> Vec<Month<'_>> {
 }
 
 pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut ArchiveState, actions: &mut Actions) {
-    ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let width = ui.available_width().min(MAX_WIDTH);
-        let margin = (ui.available_width() - width) / 2.0;
-        ui.horizontal(|ui| {
-            ui.add_space(margin);
-            ui.vertical(|ui| {
-                ui.set_width(width);
-                content(ui, cx, state, actions);
-            });
-        });
-    });
+    centered_column(ui, MAX_WIDTH, |ui| content(ui, cx, state, actions));
 }
 
 fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut ArchiveState, actions: &mut Actions) {
@@ -123,39 +113,16 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut ArchiveState, actions: &mut
 
 /// A collapsible month header; returns whether the month is expanded.
 fn month_header(ui: &mut Ui, cx: &ViewCx<'_>, month: &Month<'_>, state: &mut ArchiveState) -> bool {
-    let theme = cx.theme;
     let key = (month.year, month.month);
-    ui.add_space(16.0);
-    let expanded = !state.collapsed.contains(&key);
-    let response = ui
-        .horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 6.0;
-            let chevron = if expanded {
-                Icon::ChevronDown
-            } else {
-                Icon::ChevronRight
-            };
-            ui.add(chevron.image(14.0, theme.icon_muted));
-            ui.label(
-                RichText::new(month.title())
-                    .font(fonts::semibold(14.5))
-                    .color(theme.text),
-            );
-            badge(ui, month.tasks.len().to_string());
-        })
-        .response;
-    let response = ui.interact(response.rect, response.id.with("toggle"), Sense::click());
-    if response.on_hover_cursor(CursorIcon::PointingHand).clicked() && !state.collapsed.remove(&key) {
-        state.collapsed.insert(key);
-    }
-    ui.add_space(2.0);
-    ui.painter().hline(
-        ui.min_rect().x_range(),
-        ui.cursor().top(),
-        (1.0, theme.border_variant),
-    );
-    ui.add_space(2.0);
-    expanded
+    section_header(
+        ui,
+        cx.theme,
+        &month.title(),
+        cx.theme.text,
+        month.tasks.len(),
+        key,
+        &mut state.collapsed,
+    )
 }
 
 fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {

@@ -1,13 +1,13 @@
 //! What needs attention now, grouped by urgency: the Monday-morning view.
 
-use super::ViewCx;
+use super::{ViewCx, centered_column};
 use crate::action::{Action, Actions};
-use crate::components::{badge, single_line};
+use crate::components::single_line;
 use crate::fonts;
 use crate::icons::Icon;
 use crate::theme::{self, Theme};
 use eframe::egui::{
-    Align2, Color32, CursorIcon, FontId, Frame, Margin, Rect, RichText, ScrollArea, Sense, Ui, pos2, vec2,
+    Align2, Color32, CursorIcon, FontId, Frame, Margin, Rect, RichText, Sense, Ui, pos2, vec2,
 };
 use falog_core::date;
 use falog_core::domain::{Priority, Task};
@@ -24,17 +24,7 @@ pub struct FocusState {
 }
 
 pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut Actions) {
-    ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let width = ui.available_width().min(MAX_WIDTH);
-        let margin = (ui.available_width() - width) / 2.0;
-        ui.horizontal(|ui| {
-            ui.add_space(margin);
-            ui.vertical(|ui| {
-                ui.set_width(width);
-                content(ui, cx, state, actions);
-            });
-        });
-    });
+    centered_column(ui, MAX_WIDTH, |ui| content(ui, cx, state, actions));
 }
 
 fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut Actions) {
@@ -148,7 +138,7 @@ fn area_chips(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
     });
 }
 
-/// Draws a collapsible section header; returns whether the section is expanded.
+/// A collapsible bucket header; returns whether the bucket is expanded.
 fn section_header(
     ui: &mut Ui,
     theme: &Theme,
@@ -157,33 +147,7 @@ fn section_header(
     color: Color32,
     state: &mut FocusState,
 ) -> bool {
-    ui.add_space(16.0);
-    let expanded = !state.collapsed.contains(title);
-    let response = ui
-        .horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 6.0;
-            let chevron = if expanded {
-                Icon::ChevronDown
-            } else {
-                Icon::ChevronRight
-            };
-            ui.add(chevron.image(14.0, theme.icon_muted));
-            ui.label(RichText::new(title).font(fonts::semibold(14.5)).color(color));
-            badge(ui, count.to_string());
-        })
-        .response;
-    let response = ui.interact(response.rect, response.id.with("toggle"), Sense::click());
-    if response.on_hover_cursor(CursorIcon::PointingHand).clicked() && !state.collapsed.remove(title) {
-        state.collapsed.insert(title);
-    }
-    ui.add_space(2.0);
-    ui.painter().hline(
-        ui.min_rect().x_range(),
-        ui.cursor().top(),
-        (1.0, theme.border_variant),
-    );
-    ui.add_space(2.0);
-    expanded
+    super::section_header(ui, theme, title, color, count, title, &mut state.collapsed)
 }
 
 fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
