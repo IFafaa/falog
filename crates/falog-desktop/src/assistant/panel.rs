@@ -350,7 +350,11 @@ fn user_message(ui: &mut Ui, theme: &Theme, text: &str) {
 
 fn reply(ui: &mut Ui, theme: &Theme, text: &str) {
     // Replies are asked to be plain text; drop stray Markdown emphasis just in case.
-    let text = text.replace("**", "");
+    let text = if text.contains("**") {
+        text.replace("**", "")
+    } else {
+        text.to_owned()
+    };
     ui.add(egui::Label::new(RichText::new(text).size(14.0).color(theme.text)).selectable(true));
 }
 
@@ -423,9 +427,11 @@ fn tool_call(ui: &mut Ui, theme: &Theme, call: &ToolCall, actions: &mut Actions)
             theme.text_muted,
         );
     }
-    // The exact arguments the assistant sent, for when a result looks off.
-    let arguments = serde_json::to_string_pretty(&call.input).unwrap_or_default();
-    let response = response.on_hover_text(RichText::new(arguments).monospace().size(11.5));
+    // The exact arguments the assistant sent, for when a result looks off; built only on hover.
+    let response = response.on_hover_ui(|ui| {
+        let arguments = serde_json::to_string_pretty(&call.input).unwrap_or_default();
+        ui.label(RichText::new(arguments).monospace().size(11.5));
+    });
     if let (true, Some(id)) = (opens_task, task)
         && response.on_hover_cursor(CursorIcon::PointingHand).clicked()
     {
