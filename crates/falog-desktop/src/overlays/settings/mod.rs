@@ -206,6 +206,19 @@ impl SettingsDialog {
                 switch(ui, &mut prefs.show_old_completed);
             },
         );
+
+        section(ui, theme, "About");
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(concat!("Falog ", env!("CARGO_PKG_VERSION")))
+                    .size(13.0)
+                    .color(theme.text_muted),
+            );
+            ui.hyperlink_to(
+                RichText::new("Releases").size(13.0),
+                "https://github.com/IFafaa/falog/releases",
+            );
+        });
     }
 
     fn assistant_tab(&mut self, ui: &mut Ui, theme: &Theme, events: &mut Vec<SettingsEvent>) {

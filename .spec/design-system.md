@@ -162,7 +162,8 @@ copies too. On Linux, install the PNGs and the SVG into the `hicolor` theme and 
 A 780 × 520 modal with a 184 px `panel` column of pages on the left (General, Appearance, Assistant,
 Voice, Calendar, Data; icon + label rows of 30 px, `ghost_selected` for the open page) and the page on
 the right: its title in SemiBold 16, then rows of title, description in `text_muted` and the control on
-the right. Each page is one function in `overlays/settings/` (Calendar in its own file).
+the right. Each page is one function in `overlays/settings/` (Calendar in its own file). General ends
+with an "About" section: "Falog x.y.z" (the crate version) in `text_muted` and a link to the releases.
 `Action::OpenSettingsTab` opens a given page, as the calendar's "Add a calendar link" does.
 
 The Calendar page puts the easy path first: an "Add a calendar link" section with a four-step how-to in
