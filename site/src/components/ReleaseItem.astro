@@ -1,0 +1,34 @@
+---
+// One release: version, stable or preview badge, date, title and its notes.
+import Notes from "./Notes.astro";
+import { COPY, type Lang } from "../i18n";
+import { formatDate } from "../lib/dates";
+import { releases, type Release } from "../lib/releases";
+
+interface Props {
+  lang: Lang;
+  release: Release;
+  /** Show the notes unfolded. */
+  open?: boolean;
+}
+const { lang, release, open = false } = Astro.props;
+const r = COPY[lang].releases;
+const badge = release.prerelease ? r.preview : release.id === releases.stable?.id ? r.latestStable : r.stable;
+---
+
+<li>
+  <div class="release-head">
+    <a href={release.url}>{release.tag}</a>
+    <span class:list={["badge", release.prerelease ? "preview-badge" : "stable"]}>{badge}</span>
+    <time class="release-date" datetime={release.published}>{formatDate(release.published, lang)}</time>
+  </div>
+  {release.title && release.title !== release.tag && <p class="release-title" lang="en">{release.title}</p>}
+  {
+    release.notes.trim() && (
+      <details class="release-notes" open={open}>
+        <summary>{r.notes}</summary>
+        <Notes markdown={release.notes} />
+      </details>
+    )
+  }
+</li>

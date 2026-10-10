@@ -543,7 +543,6 @@ h2, .section-head h1 {
   font-size: 13.5px;
 }
 .platform-note b { color: var(--text); }
-.no-release .platforms { display: none; }
 
 .terminal {
   display: flex;

@@ -1,0 +1,28 @@
+---
+// Release notes as text: Astro escapes every span, and links are https only (see lib/markdown.ts).
+import Spans from "./Spans.astro";
+import { parseNotes } from "../lib/markdown";
+
+interface Props {
+  markdown: string;
+}
+const blocks = parseNotes(Astro.props.markdown);
+---
+
+<div class="notes" lang="en">
+  {
+    blocks.map((block) =>
+      block.kind === "heading" ? (
+        <h4><Spans spans={block.spans} /></h4>
+      ) : block.kind === "list" ? (
+        <ul>
+          {block.items.map((item) => (
+            <li><Spans spans={item} /></li>
+          ))}
+        </ul>
+      ) : (
+        <p><Spans spans={block.spans} /></p>
+      ),
+    )
+  }
+</div>

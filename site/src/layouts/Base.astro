@@ -20,9 +20,10 @@ const meta = t.meta[page];
 const absolute = (path: string) => new URL(path, Astro.site).href;
 const ogImage = absolute(asset("img/hero-dark.webp"));
 const pages: Page[] = ["home", "download", "releases"];
-// Only script-free policies: theme.js and app.js are files, and the strings below are JSON data.
+// Nothing inline and nothing from elsewhere: theme.js and app.js are files, the strings below are JSON
+// data, and releases are read when the site is built.
 const csp =
-  "default-src 'self'; connect-src https://api.github.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'";
+  "default-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'";
 ---
 
 <!doctype html>
@@ -54,7 +55,7 @@ const csp =
     <script is:inline src={asset("app.js")} defer></script>
     <script is:inline type="application/json" id="strings" set:html={JSON.stringify(t.js)} />
   </head>
-  <body data-page={page} data-releases-url={pageUrl(lang, "releases")} data-download-url={pageUrl(lang, "download")}>
+  <body data-page={page} data-download-url={pageUrl(lang, "download")}>
     <a class="skip" href="#main">{t.nav.skip}</a>
 
     <aside class="lang-suggest" id="lang-suggest" lang={COPY[other].htmlLang} hidden>

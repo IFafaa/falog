@@ -1,12 +1,14 @@
 ---
-// Every release with its notes, read from the GitHub API by app.js and rendered as text.
-import { COPY, REPO, type Lang } from "../i18n";
+// Every release with its notes, from the data read when the site was built (lib/releases.ts).
+import ReleaseItem from "./ReleaseItem.astro";
+import { COPY, type Lang } from "../i18n";
+import { RELEASES_PAGE, releases } from "../lib/releases";
 
 interface Props {
   lang: Lang;
 }
-const t = COPY[Astro.props.lang];
-const r = t.releases;
+const { lang } = Astro.props;
+const r = COPY[lang].releases;
 ---
 
 <section class="section page-top" aria-labelledby="releases-title">
@@ -16,9 +18,19 @@ const r = t.releases;
       <h1 id="releases-title">{r.title}</h1>
       <p class="section-lede">{r.lede}</p>
     </header>
-    <ol class="releases full" id="release-list" aria-live="polite">
-      <li class="muted">{t.js.loading}</li>
-    </ol>
-    <a class="more mono" href={`${REPO}/releases`}>{r.onGithub}</a>
+    {
+      !releases.known ? (
+        <p class="notice" set:html={r.unknown} />
+      ) : releases.all.length === 0 ? (
+        <p class="muted">{r.none}</p>
+      ) : (
+        <ol class="releases full">
+          {releases.all.map((release, i) => (
+            <ReleaseItem lang={lang} release={release} open={i === 0} />
+          ))}
+        </ol>
+      )
+    }
+    <a class="more mono" href={RELEASES_PAGE}>{r.onGithub}</a>
   </div>
 </section>

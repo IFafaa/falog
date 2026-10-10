@@ -3,7 +3,9 @@
 import Icon from "./Icon.astro";
 import Shot from "./Shot.astro";
 import Code from "./Code.astro";
+import ReleaseItem from "./ReleaseItem.astro";
 import { COPY, pageUrl, type Lang } from "../i18n";
+import { releases } from "../lib/releases";
 import { roadmap, type RoadmapTask } from "../lib/roadmap";
 
 interface Props {
@@ -12,6 +14,8 @@ interface Props {
 const { lang } = Astro.props;
 const t = COPY[lang];
 const h = t.home;
+const { stable } = releases;
+const noRelease = releases.known && !stable;
 const tr = (text: string) => t.roadmap[text] ?? text;
 // Roadmap text with no Portuguese entry stays English; say so to screen readers.
 const textLang = (text: string) => (lang === "en" || t.roadmap[text] ? undefined : "en");
@@ -34,7 +38,14 @@ const groups: { stage: "next" | "done"; items: RoadmapTask[]; why: boolean }[] =
     <h1 set:html={h.title} />
     <p class="lede">{h.lede}</p>
     <div class="cta">
-      <a class="btn primary" id="hero-download" href={pageUrl(lang, "download")}>
+      <a
+        class="btn primary"
+        id="hero-download"
+        href={pageUrl(lang, "download")}
+        data-no-release={noRelease ? "" : undefined}
+        data-assets={stable?.assets.map((asset) => asset.name).join(" ")}
+        data-release-url={stable?.url}
+      >
         <Icon name="download" />
         <span id="hero-download-label">{h.download}</span>
         <span class="btn-meta mono" id="hero-download-meta"></span>
@@ -108,9 +119,17 @@ const groups: { stage: "next" | "done"; items: RoadmapTask[]; why: boolean }[] =
     <div class="progress">
       <div class="column">
         <h3 class="column-title">{h.latestTitle}</h3>
-        <div id="latest-release" aria-live="polite">
-          <p class="muted">{h.latestLoading}</p>
-        </div>
+        {
+          !releases.known ? (
+            <p class="muted" set:html={t.releases.unknown} />
+          ) : stable ? (
+            <ol class="releases">
+              <ReleaseItem lang={lang} release={stable} />
+            </ol>
+          ) : (
+            <p class="muted">{h.latestNone}</p>
+          )
+        }
         <a class="more mono" href={pageUrl(lang, "releases")}>{h.allReleases} →</a>
       </div>
 

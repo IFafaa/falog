@@ -46,9 +46,11 @@ screenshots in both themes.
       copy button, the SmartScreen and Open Anyway notes, and the newest preview when it is newer than
       the stable release, marked less stable
 - [x] Releases: every release with version, date, stable/preview badge and notes rendered as text (a
-      small markdown subset built with DOM nodes; no HTML from GitHub is ever injected)
-- [x] No release yet, GitHub unreachable or rate limited, or an asset missing from the latest
-      release: the pages still work and never link to a 404 they know about
+      small markdown subset parsed into data; no HTML from GitHub is ever injected)
+- [x] Releases are baked in when the site is built, so a visitor's page never waits on or fails
+      with the GitHub API; the site is rebuilt when a release is published and daily
+- [x] No release yet, GitHub unreachable at build time, or an asset missing from the latest
+      release: the pages still work, never show a spinner, and never link to a 404 they know about
 - [x] Light and dark themes, responsive down to 360 px, keyboard-accessible tabs, visible focus, alt
       text on every screenshot, text contrast at least 4.5:1
 - [x] `pages.yml` builds on pull requests that touch the site and deploys on pushes to `main`, with
@@ -78,12 +80,18 @@ screenshots in both themes.
   copy file rewrites roadmap text for visitors, keyed by the exact English text of the spec, so a row
   edited later shows as written until its entry is updated.
 - **No inline code.** The pages carry a Content Security Policy that allows only same-origin scripts,
-  styles, fonts and images and connections to the GitHub API. `theme.js` (theme before the first
-  paint) and `app.js` (downloads, tabs, language suggestion, releases) are plain files in `public/`;
-  their localized strings are a JSON block in each page. Astro is set never to inline stylesheets.
-- **Releases at runtime.** Home and Download ask `GET /repos/IFafaa/falog/releases/latest`; Download
-  and Releases ask `/releases?per_page=100`. The unauthenticated limit is 60 requests an hour per
-  visitor IP. The download links work without JavaScript. Release notes stay in English.
+  styles, fonts and images, nothing from elsewhere. `theme.js` (theme before the first paint) and
+  `app.js` (download button for the visitor's system, tabs, language suggestion) are plain files in
+  `public/`; their localized strings are a JSON block in each page. Astro is set never to inline
+  stylesheets.
+- **Releases at build time** (`src/lib/releases.ts`). The build reads `/releases?per_page=100` and
+  `/releases/latest` once and renders the stable version, the download links, the preview and the
+  release list into the HTML; the pages make no request to GitHub. In CI, `GITHUB_TOKEN` (5,000
+  requests an hour) is set and a failed read fails the build, so the last good site stays up. A local
+  build without a token reads the API anonymously and, if that fails, builds pages that link to the
+  releases on GitHub instead. `release.yml` starts `pages.yml` with `gh workflow run` after
+  publishing (a release made with `GITHUB_TOKEN` starts no workflow by itself), and `pages.yml` also
+  runs daily. Release notes stay in English.
 - **Screenshots**: 12 WebP files (6 views × 2 themes, 2040 × 1260, about 60 KB each) in
   `site/public/img`. To refresh them, seed demo data, capture the demo window and keep the same names
   and size.

@@ -1,0 +1,23 @@
+---
+// Inline release-note text (see lib/markdown.ts); Astro escapes all of it.
+import type { Span } from "../lib/markdown";
+
+interface Props {
+  spans: Span[];
+}
+const { spans } = Astro.props;
+---
+
+{
+  spans.map((s) =>
+    s.kind === "code" ? (
+      <code>{s.text}</code>
+    ) : s.kind === "strong" ? (
+      <strong>{s.text}</strong>
+    ) : s.kind === "link" ? (
+      <a href={s.href} rel="nofollow">{s.text}</a>
+    ) : (
+      s.text
+    ),
+  )
+}
