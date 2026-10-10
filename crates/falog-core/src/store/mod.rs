@@ -41,6 +41,7 @@ impl Store {
     pub fn open_default() -> Result<Self> {
         if override_path().is_none() {
             paths::migrate_legacy_data()?;
+            paths::protect_data_home();
         }
         Self::open(default_path())
     }
@@ -54,7 +55,7 @@ impl Store {
         })?;
         let path = path.as_path();
         if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
-            std::fs::create_dir_all(dir).map_err(|source| Error::DataDir {
+            paths::create_private_dir(dir).map_err(|source| Error::DataDir {
                 path: dir.to_path_buf(),
                 source,
             })?;

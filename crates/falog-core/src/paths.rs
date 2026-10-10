@@ -88,6 +88,29 @@ impl Legacy {
     }
 }
 
+/// Creates `dir` and its parents. On Unix the folders it creates are private to the user (0700): they
+/// hold the database and calendar tokens, and the default umask would let other users read them.
+pub fn create_private_dir(dir: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)
+    }
+    #[cfg(not(unix))]
+    {
+        fs::create_dir_all(dir)
+    }
+}
+
+/// Makes Falog's own data folder private on Unix, for folders created before [`create_private_dir`].
+pub fn protect_data_home() {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(data_home(), fs::Permissions::from_mode(0o700));
+    }
+}
+
 /// Moves the files of older versions into [`data_home`], once. See [`migrate`].
 pub fn migrate_legacy_data() -> Result<()> {
     migrate(&data_home(), &Legacy::for_this_platform(), LOCK_WAIT)
@@ -109,7 +132,7 @@ pub fn migrate(home: &Path, legacy: &Legacy, wait: Duration) -> Result<()> {
         path: home.to_path_buf(),
         source,
     };
-    fs::create_dir_all(home).map_err(failed)?;
+    create_private_dir(home).map_err(failed)?;
     let lock = home.join(LOCK_FILE);
     let deadline = SystemTime::now() + wait;
     loop {
@@ -391,6 +414,19 @@ mod tests {
             assert!(results.iter().all(Result::is_ok), "round {round}: {results:?}");
             assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Work"]);
             assert!(home.join("models").join("model.bin").exists());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn data_folders_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = TempDir::new("private");
+        let dir = root.0.join("a").join("b");
+        create_private_dir(&dir).unwrap();
+        for folder in [root.0.join("a"), dir] {
+            let mode = fs::metadata(&folder).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700, "{}", folder.display());
         }
     }
 
