@@ -1,6 +1,6 @@
 # 0010: Calendar view with Google Calendar
 
-**Status:** doing
+**Status:** done
 **Area:** desktop
 
 ## Goal
@@ -39,12 +39,12 @@ read-only scope; Google shows an "unverified app" warning once).
 
 ## Acceptance criteria
 
-- [ ] With a client configured, "Connect Google account" opens the browser, and after consenting the
+- [x] With a client configured, "Connect Google account" opens the browser, and after consenting the
       account and its calendars appear without restarting
 - [x] Two or more accounts can be connected; each calendar can be hidden from the sidebar
 - [x] The week view places timed events by hour (overlaps side by side) and all-day events on top;
       the month view lists each day's events with "+N more"
-- [ ] Clicking an event shows its details with join and open links
+- [x] Clicking an event shows its details with join and open links
 - [x] Events survive a restart offline (cache) and refresh in the background
 - [x] Refresh tokens are stored outside the repo and the prefs file, and removing an account deletes
       its token
@@ -69,7 +69,9 @@ third-party apps cannot connect (then the user has to ask their admin or use ano
 
 ## Outcome
 
-In progress. Built and verified with the demo data from `scripts/seed-demo.ps1` (two accounts, three
+Shipped: the user confirmed on 2026-10-10 that it is delivered.
+
+Notes from development: Built and verified with the demo data from `scripts/seed-demo.ps1` (two accounts, three
 calendars, overlapping, all-day and multi-day events): week and month views render as designed
 (checked with screenshots). Unit tests cover URL encoding, Google error and payload parsing,
 the PKCE URL, the loopback redirect (including cancel and a denied consent), config and cache files,

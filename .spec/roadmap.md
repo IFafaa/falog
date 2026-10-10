@@ -14,12 +14,12 @@ starts; move it to `tasks/done` when shipped.
 | 0007 | [Assistant threads](tasks/done/0007-assistant-threads.md) | Several conversations with their own context |
 | 0008 | [Live transcription](tasks/done/0008-live-transcription.md) | See the words while dictating |
 | 0009 | [Areas for every part of life](tasks/done/0009-areas.md) | Personal tasks and appointments next to work |
-| 0010 | [Calendar view with Google Calendar](tasks/doing/0010-google-calendar.md) | Meetings from several Google accounts next to the tasks |
+| 0010 | [Calendar view with Google Calendar](tasks/done/0010-google-calendar.md) | Meetings from several Google accounts next to the tasks |
 | 0011 | [Assistant agents](tasks/done/0011-assistant-agents.md) | Claude Code, Gemini, Codex or any ACP agent; model, effort, mode, context and slash commands per thread |
 | 0012 | [macOS and Linux](tasks/done/0012-macos-and-linux.md) | The same board on the Mac and the Linux machine |
 | 0013 | [Data folder outside AppData](tasks/done/0013-data-outside-appdata.md) | Claude desktop's sandbox must not hide tasks from Falog |
 | 0014 | [Google Calendar through secret iCal links](tasks/done/0014-ical-links.md) | Connect a calendar by pasting a link instead of creating an OAuth client |
-| 0015 | [Calendars by area, events by voice](tasks/doing/0015-calendar-areas-and-events.md) | Which meetings belong to which job, and booking them through the assistant |
+| 0015 | [Calendars by area, events by voice](tasks/done/0015-calendar-areas-and-events.md) | Which meetings belong to which job, and booking them through the assistant |
 | 0016 | [CI quality gate](tasks/done/0016-ci-quality-gate.md) | One required check that says the code is correct before it lands on `main` |
 | 0018 | [Public site](tasks/done/0018-public-site.md) | Three pages, in English and Portuguese: what Falog does, downloads and releases |
 | 0019 | [Release downloads](tasks/done/0019-release-downloads.md) | Install from a download on every OS, no build needed |
