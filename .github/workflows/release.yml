@@ -1,6 +1,10 @@
 # Publishes a GitHub Release when a version tag is pushed (git tag v0.2.0 && git push origin v0.2.0).
 # How to cut a release: .spec/releases.md. Normal pushes only run CI (ci.yml).
 #
+# Two channels, chosen by the tag: vX.Y.Z publishes a Stable release, the one releases/latest serves;
+# vX.Y.Z-beta.N or -rc.N publishes the same assets as a Preview, a GitHub pre-release. The release body
+# is scripts/release-notes.sh: the Conventional Commits since the previous release.
+#
 # The assets keep the same names in every release, so
 # https://github.com/IFafaa/falog/releases/latest/download/<name> always points at the newest one:
 #   Falog-Setup-x64.exe                                Windows installer (CPU voice)
@@ -154,6 +158,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The release notes need the previous tags and the commits since.
+          fetch-depth: 0
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: dist
@@ -171,19 +177,25 @@ jobs:
           sha256sum Falog-Setup-x64.exe Falog-macOS-arm64.dmg Falog-macOS-x64.dmg \
             falog-linux-x86_64.tar.gz install.sh > SHA256SUMS
           cat SHA256SUMS
+      - name: Release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          sh scripts/release-notes.sh "$TAG" > notes.md
+          cat notes.md
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          # A version with a suffix (0.3.0-rc.1) is a pre-release: releases/latest keeps pointing at
-          # the last stable one.
+          # Channels: vX.Y.Z is Stable (releases/latest); a suffix (v0.3.0-beta.1, -rc.1) is Preview,
+          # a GitHub pre-release that never becomes latest.
           case "$VERSION" in
             *-*) kind=--prerelease ;;
             *) kind=--latest ;;
           esac
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag "$kind" \
-            --title "Falog $VERSION" --generate-notes \
+            --title "Falog $VERSION" --notes-file notes.md \
             dist/Falog-Setup-x64.exe dist/Falog-macOS-arm64.dmg dist/Falog-macOS-x64.dmg \
             dist/falog-linux-x86_64.tar.gz dist/install.sh dist/SHA256SUMS

@@ -19,7 +19,8 @@ separate workflow. How it works now: [releases.md](../../releases.md).
 ## Scope
 
 - In: `.github/workflows/release.yml`; packaging scripts for the three platforms; the Linux installer
-  with checksums and `--uninstall`; the version in Settings; install guides with the download first.
+  with checksums and `--uninstall` and `--preview`; Stable and Preview channels; release notes from
+  the commits; the version in Settings; install guides with the download first.
 - Out: code signing and notarization, Linux packages (`.deb`, Flatpak), ARM Linux, automatic updates.
 
 ## Acceptance criteria
@@ -30,6 +31,8 @@ separate workflow. How it works now: [releases.md](../../releases.md).
 - [x] `install.sh` from a release installs that release, refuses an archive that does not match
       `SHA256SUMS`, and `--uninstall` removes what it installed
 - [x] Settings › General shows the version
+- [x] Two channels by tag: `vX.Y.Z` is Stable (latest), `vX.Y.Z-beta.N`/`-rc.N` is Preview (pre-release);
+      release notes grouped from the Conventional Commits; `install.sh --preview`
 - [x] Specs and install guides updated; shellcheck and actionlint clean
 
 ## Outcome
