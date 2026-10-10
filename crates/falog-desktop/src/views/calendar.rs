@@ -44,11 +44,16 @@ pub fn show(
 
     let (from, to) = range(mode, cal.anchor);
     cal.ensure(from, to);
-    let mut events = cal.events(from, to);
+    let all = cal.events(from, to);
     // The sidebar's area filter applies to meetings too, through the calendars linked to the area.
-    if let Some(area) = cx.prefs.area {
-        events.retain(|e| cal.config.area_of(e) == Some(area.0));
-    }
+    let events: Vec<&Event> = all
+        .iter()
+        .filter(|e| {
+            cx.prefs
+                .area
+                .is_none_or(|area| cal.config.area_of(e) == Some(area.0))
+        })
+        .collect();
     let tasks: Vec<&Task> = cx
         .tasks
         .iter()
@@ -293,7 +298,7 @@ fn week(
     ui: &mut Ui,
     cx: &ViewCx<'_>,
     cal: &mut CalendarState,
-    events: &[Event],
+    events: &[&Event],
     tasks: &[&Task],
     first_day: NaiveDate,
     clicked: &mut bool,
@@ -461,6 +466,7 @@ fn week(
         for (index, day) in days.iter().enumerate() {
             let timed: Vec<&Event> = events
                 .iter()
+                .copied()
                 .filter(|e| !e.in_all_day_row() && e.touches(*day))
                 .collect();
             let minutes: Vec<(u32, u32)> = timed.iter().map(|e| e.minutes_on(*day)).collect();
@@ -667,7 +673,7 @@ fn month(
     ui: &mut Ui,
     cx: &ViewCx<'_>,
     cal: &mut CalendarState,
-    events: &[Event],
+    events: &[&Event],
     tasks: &[&Task],
     from: NaiveDate,
     to: NaiveDate,
@@ -731,7 +737,7 @@ fn month_cell(
     ui: &mut Ui,
     cx: &ViewCx<'_>,
     cal: &mut CalendarState,
-    events: &[Event],
+    events: &[&Event],
     tasks: &[&Task],
     day: NaiveDate,
     cell: Rect,
@@ -768,7 +774,7 @@ fn month_cell(
         actions.push(Action::SetCalendarMode(CalendarMode::Week));
     }
 
-    let day_events: Vec<&Event> = events.iter().filter(|e| e.touches(day)).collect();
+    let day_events: Vec<&Event> = events.iter().copied().filter(|e| e.touches(day)).collect();
     let day_tasks: Vec<&&Task> = tasks.iter().filter(|t| t.due == Some(day)).collect();
     let total = day_events.len() + day_tasks.len();
     let line_height = 18.0;

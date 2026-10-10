@@ -13,11 +13,18 @@ use falog_calendar::{
     Account, Calendar, CalendarConfig, Client, Error, Event, EventCache, Link, google, model,
 };
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
+
+/// What [`CalendarState::events`] was computed for: the range, the cache revision and which calendars
+/// were shown.
+type EventsKey = (NaiveDate, NaiveDate, u64, u64);
 
 /// Events are fetched again after this long, while the calendar is on screen.
 const REFRESH_EVERY: Duration = Duration::from_secs(5 * 60);
@@ -73,6 +80,10 @@ pub struct CalendarState {
     files: Option<Files>,
     pub config: CalendarConfig,
     cache: EventCache,
+    /// Bumped by every change to `cache`, through [`Self::cache_mut`].
+    cache_revision: u64,
+    /// The last [`Self::events`], with what it was computed for: the view asks every frame.
+    events_memo: RefCell<Option<(EventsKey, Rc<Vec<Event>>)>>,
     tokens: Arc<Tokens>,
     sender: Sender<Update>,
     receiver: Receiver<Update>,
@@ -124,6 +135,8 @@ impl CalendarState {
             files,
             config,
             cache,
+            cache_revision: 0,
+            events_memo: RefCell::new(None),
             tokens: Arc::default(),
             sender,
             receiver,
@@ -164,8 +177,15 @@ impl CalendarState {
         self.refreshing || self.connecting.is_some() || self.adding_link
     }
 
-    /// Visible events touching `from..to`, deduplicated and sorted.
-    pub fn events(&self, from: NaiveDate, to: NaiveDate) -> Vec<Event> {
+    /// Visible events touching `from..to`, deduplicated and sorted. Kept until the range, the events
+    /// or which calendars are shown change, so drawing a frame copies nothing.
+    pub fn events(&self, from: NaiveDate, to: NaiveDate) -> Rc<Vec<Event>> {
+        let key = (from, to, self.cache_revision, self.visibility());
+        if let Some((memo_key, events)) = self.events_memo.borrow().as_ref()
+            && *memo_key == key
+        {
+            return Rc::clone(events);
+        }
         let mut events: Vec<Event> = self
             .cache
             .events
@@ -178,7 +198,30 @@ impl CalendarState {
             .cloned()
             .collect();
         model::sort_and_dedupe(&mut events);
+        let events = Rc::new(events);
+        *self.events_memo.borrow_mut() = Some((key, Rc::clone(&events)));
         events
+    }
+
+    /// Which calendars are shown, as a number that changes whenever one is shown, hidden, added or
+    /// removed.
+    fn visibility(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        for calendar in self.config.links.iter().map(|link| &link.calendar) {
+            ("", &calendar.id, calendar.visible).hash(&mut hasher);
+        }
+        for account in &self.config.accounts {
+            for calendar in &account.calendars {
+                (&account.email, &calendar.id, calendar.visible).hash(&mut hasher);
+            }
+        }
+        hasher.finish()
+    }
+
+    /// The event cache, for changing it: the events shown are computed again afterwards.
+    fn cache_mut(&mut self) -> &mut EventCache {
+        self.cache_revision += 1;
+        &mut self.cache
     }
 
     /// Keeps the area colors in step with the database (the app calls it after every reload).
@@ -249,7 +292,7 @@ impl CalendarState {
             std::thread::spawn(move || oauth::revoke(&account.refresh_token));
         }
         self.tokens.forget(email);
-        self.cache.events.retain(|e| e.account != email);
+        self.cache_mut().events.retain(|e| e.account != email);
         self.save_config();
         self.save_cache();
     }
@@ -273,7 +316,7 @@ impl CalendarState {
     /// Forgets the link and its events. The address stays valid in Google until the user resets it.
     pub fn remove_link(&mut self, id: &str) {
         self.config.remove_link(id);
-        self.cache
+        self.cache_mut()
             .events
             .retain(|e| !(e.account.is_empty() && e.calendar_id == id));
         self.save_config();
@@ -354,7 +397,7 @@ impl CalendarState {
         self.save_config();
         // Show its events right away for the range already on screen; the next refresh widens it.
         if let (Some(from), Some(to)) = (self.cache.from, self.cache.to) {
-            self.cache.events.extend(feed.events(&id, from, to));
+            self.cache_mut().events.extend(feed.events(&id, from, to));
             self.save_cache();
         } else {
             self.last_fetch = None;
@@ -588,7 +631,7 @@ impl CalendarState {
             events.extend(self.cache.events.iter().filter(|e| e.account == email).cloned());
         }
         self.save_config();
-        self.cache = EventCache {
+        *self.cache_mut() = EventCache {
             from: Some(from),
             to: Some(to),
             events,
@@ -717,6 +760,42 @@ mod tests {
             state.error.as_deref(),
             Some("Home: the calendar link answered 500")
         );
+    }
+
+    #[test]
+    fn shown_events_follow_the_cache_and_visibility() {
+        let mut state = CalendarState::new(None);
+        state.config.upsert(Account {
+            email: "me@work.example".into(),
+            refresh_token: "t".into(),
+            calendars: vec![Calendar {
+                id: "team".into(),
+                name: "Team".into(),
+                color: "#039be5".into(),
+                primary: true,
+                visible: true,
+            }],
+            needs_sign_in: false,
+            can_write: false,
+            area: None,
+        });
+        let titles = |state: &CalendarState| -> Vec<String> {
+            state
+                .events(day(1), day(20))
+                .iter()
+                .map(|e| e.title.clone())
+                .collect()
+        };
+        assert!(titles(&state).is_empty());
+
+        state
+            .cache_mut()
+            .events
+            .push(event("me@work.example", "team", "Standup"));
+        assert_eq!(titles(&state), ["Standup"]);
+
+        state.config.set_visible("me@work.example", "team", false);
+        assert!(titles(&state).is_empty(), "hidden calendar");
     }
 
     #[test]
