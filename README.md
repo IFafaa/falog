@@ -14,9 +14,13 @@ important, by Friday"* and the task exists, with area, due date and priority.
 
 ## Install
 
-- [Windows](docs/install/windows.md): installer, or build from source
-- [macOS](docs/install/macos.md)
-- [Linux](docs/install/linux.md)
+Download the [latest release](https://github.com/IFafaa/falog/releases/latest):
+
+- [Windows](docs/install/windows.md): `Falog-Setup-x64.exe`
+- [macOS](docs/install/macos.md): `Falog-macOS-arm64.dmg` (Apple silicon) or `Falog-macOS-x64.dmg` (Intel)
+- [Linux](docs/install/linux.md): `curl -fsSL https://github.com/IFafaa/falog/releases/latest/download/install.sh | sh`
+
+Each guide also explains how to build from source.
 
 ## Development
 
