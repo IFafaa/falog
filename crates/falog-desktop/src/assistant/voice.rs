@@ -628,7 +628,7 @@ mod tests {
             copy_verified(bytes, &mut out, size, sha, |_| {}).map(|()| out)
         };
         assert_eq!(copy(b"abc", 3).unwrap(), b"abc");
-        assert!(copy(b"abd", 3).is_err(), "tampered");
+        assert!(copy(b"abx", 3).is_err(), "tampered");
         assert!(copy(b"ab", 3).is_err(), "truncated");
         assert!(copy(b"abcd", 3).is_err(), "too long");
     }

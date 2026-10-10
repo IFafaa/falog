@@ -11,7 +11,7 @@ appointments live next to work in one organizer.
 ## Context
 
 Falog's grouping only fit work. The user also wants to track personal tasks and appointments, so the
-grouping becomes "area", which follows Things 3 and the PARA method: an ongoing sphere of
+grouping becomes "area": an ongoing sphere of
 responsibility. It leaves room for projects inside an area later.
 
 ## Scope

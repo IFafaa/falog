@@ -113,7 +113,7 @@ apply here too; the toolbar has no sort or completed toggle.
 
 ### Calendar view
 
-Modeled on Google Calendar, painted with the theme tokens. Header: `Today` (filled), previous/next, the
+A week and month calendar painted with the theme tokens. Header: `Today` (filled), previous/next, the
 range title (SemiBold 16), then the refresh button, status ("Updated 10:32" or the error in `warning`)
 and a Week/Month `segmented`. Weeks start on Sunday. Week: 52 px hour gutter, 48 px per hour, day names over the day number
 (today in a `text_accent` circle), an all-day row with lanes for all-day and multi-day events and for
