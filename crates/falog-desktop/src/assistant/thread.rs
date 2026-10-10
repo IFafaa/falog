@@ -206,7 +206,7 @@ impl Thread {
     }
 
     pub fn from_record(record: ThreadRecord) -> Self {
-        Self {
+        let mut thread = Self {
             items: record.items,
             draft: record.draft,
             created_at: record.created_at,
@@ -215,7 +215,10 @@ impl Thread {
             settings: record.settings,
             usage: record.usage,
             ..Self::new(record.id)
-        }
+        };
+        // Saved by an older build in the middle of a turn that never finished.
+        thread.end_pending_calls();
+        thread
     }
 
     pub fn to_record(&self) -> ThreadRecord {
@@ -371,6 +374,7 @@ impl Thread {
                     self.session = None;
                 }
                 self.flush_streaming();
+                self.end_pending_calls();
                 if is_error {
                     let message = message.unwrap_or_else(|| "The assistant stopped with an error.".into());
                     self.items.push(Item::Error(message));
@@ -386,6 +390,7 @@ impl Thread {
                 if self.busy {
                     self.busy = false;
                     self.flush_streaming();
+                    self.end_pending_calls();
                     self.items
                         .push(Item::Error(explain_exit(&self.agent_name, &stderr)));
                 }
@@ -398,6 +403,21 @@ impl Thread {
             Item::Tool(call) if call.id == id => Some(call),
             _ => None,
         })
+    }
+
+    /// Marks the calls still waiting for a result as interrupted: the turn is over and no result will
+    /// come, and a pending call shows a spinner that would keep redrawing the window forever.
+    fn end_pending_calls(&mut self) {
+        for item in &mut self.items {
+            if let Item::Tool(call) = item
+                && call.result.is_none()
+            {
+                call.result = Some(ToolOutcome {
+                    text: "Interrupted".into(),
+                    is_error: true,
+                });
+            }
+        }
     }
 
     fn flush_streaming(&mut self) {
@@ -415,6 +435,7 @@ impl Thread {
             }
             self.busy = false;
             self.flush_streaming();
+            self.end_pending_calls();
             self.items.push(Item::Notice("Stopped.".into()));
         }
     }
@@ -533,6 +554,27 @@ mod tests {
             && call.result.as_ref().is_some_and(|r| r.text == "Created #7"))
         );
         assert!(matches!(&thread.items[1], Item::Reply(text) if text == "Done."));
+    }
+
+    #[test]
+    fn a_stopped_turn_leaves_no_call_waiting() {
+        let mut thread = Thread::new(ThreadId(1));
+        thread.busy = true;
+        thread.apply(AgentEvent::ToolUse {
+            id: "t1".into(),
+            name: "create_task".into(),
+            input: serde_json::Value::Null,
+        });
+        thread.stop();
+        assert!(matches!(&thread.items[0], Item::Tool(call)
+            if call.result.as_ref().is_some_and(|r| r.is_error && r.text == "Interrupted")));
+
+        let mut saved = thread.to_record();
+        if let Item::Tool(call) = &mut saved.items[0] {
+            call.result = None;
+        }
+        let loaded = Thread::from_record(saved);
+        assert!(matches!(&loaded.items[0], Item::Tool(call) if call.result.is_some()));
     }
 
     #[test]
