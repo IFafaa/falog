@@ -1,0 +1,9 @@
+{
+  "threshold": 1,
+  "format": ["rust"],
+  "minLines": 8,
+  "minTokens": 70,
+  "ignore": ["**/target/**"],
+  "reporters": ["console"],
+  "absolute": false
+}

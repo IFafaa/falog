@@ -201,8 +201,71 @@ jobs:
           toolchain: stable
       - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
-          tool: cargo-deny
+          tool: cargo-deny,cargo-machete
       - run: cargo deny --locked check
+      - name: Unused dependencies
+        run: cargo machete
+
+  # Copy-pasted code: fails above the threshold in .jscpd.json (1% of lines).
+  duplication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: npx --yes jscpd@5.4.1 crates tools
+
+  # Static analysis for bugs and vulnerabilities (CodeQL's security-and-quality queries for Rust).
+  # Every error or warning it reports fails the gate; the full results are in the Security tab.
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: rust
+          build-mode: none
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: rust
+          output: codeql-results
+      - name: No errors or warnings
+        run: |
+          findings=$(jq '[.runs[].results[] | select(.level == "error" or .level == "warning")] | length' codeql-results/*.sarif)
+          jq -r '.runs[].results[] | select(.level == "error" or .level == "warning")
+            | "\(.level): \(.ruleId) \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine) \(.message.text)"' \
+            codeql-results/*.sarif
+          echo "$findings findings"
+          test "$findings" -eq 0
+
+  # SonarQube Cloud (free for public projects): bugs, code smells, duplication and coverage on its
+  # dashboard, with its own quality gate. Runs once the SONAR_TOKEN secret exists; until then the
+  # job passes without scanning. Setup: .spec/conventions.md#ci.
+  sonar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - if: env.SONAR_TOKEN == ''
+        run: echo "SONAR_TOKEN is not set; skipping the SonarQube Cloud scan."
+      - if: env.SONAR_TOKEN != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        with:
+          args: -Dsonar.qualitygate.wait=true
 
   # Secrets, design-model app names and conflict markers; spelling; shell scripts; workflows.
   policy:
@@ -250,7 +313,7 @@ jobs:
   # The one check branch protection requires.
   quality-gate:
     if: always()
-    needs: [format, lint, docs, test, coverage, msrv, dependencies, policy, commits]
+    needs: [format, lint, docs, test, coverage, msrv, dependencies, duplication, codeql, sonar, policy, commits]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

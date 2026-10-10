@@ -69,11 +69,19 @@ when installed: `cargo install --locked cargo-deny typos-cli`).
 | `test` | `cargo test --workspace` on the three OSes, with and without default features | Reproduce with the same features locally; on another OS, read the test's assertion in the log |
 | `coverage` | `cargo llvm-cov` on Ubuntu without default features; the lcov report is the `lcov` artifact of the run; fails under `MIN_LINE_COVERAGE` (42%, set at 44.9% measured on 2026-10-07) | Add tests for the code you changed. The minimum only goes up: raise it when coverage grows, never lower it to let a change pass |
 | `msrv` | `cargo check --workspace --all-targets` with the `rust-version` of `Cargo.toml` (1.88: let chains) | Avoid the newer API or language feature, or raise `rust-version` on purpose in its own commit |
-| `dependencies` | `cargo deny check` with [`deny.toml`](../deny.toml): advisories (vulnerabilities, yanked, unmaintained direct dependencies), licenses compatible with MIT distribution, wildcard versions, sources other than crates.io; duplicate versions are warnings | Update the crate (`cargo update -p name`). An advisory that does not apply goes in `ignore` with the reason; a new license only after checking it allows shipping Falog under MIT |
+| `dependencies` | `cargo machete` (unused dependencies) and `cargo deny check` with [`deny.toml`](../deny.toml): advisories (vulnerabilities, yanked, unmaintained direct dependencies), licenses compatible with MIT distribution, wildcard versions, sources other than crates.io; duplicate versions are warnings | Update the crate (`cargo update -p name`). An advisory that does not apply goes in `ignore` with the reason; a new license only after checking it allows shipping Falog under MIT |
+| `duplication` | [jscpd](https://github.com/kucherenko/jscpd) over `crates` and `tools` with [`.jscpd.json`](../.jscpd.json): blocks of 8+ lines repeated anywhere; fails above 1% of the lines | Move the shared code into one function or module; tests repeating a setup can share a helper |
+| `codeql` | [CodeQL](https://codeql.github.com) static analysis of the Rust code with the `security-and-quality` queries (likely bugs, vulnerabilities, dead or suspicious code); fails on any result of level error or warning, listed in the log and in the repository's Security tab | Fix the code. A false positive is excluded by its rule id under `query-filters` in a `.github/codeql/codeql-config.yml` (passed to the init step as `config-file`), with a comment saying why |
+| `sonar` | [SonarQube Cloud](https://sonarcloud.io) with [`sonar-project.properties`](../sonar-project.properties): bugs, code smells, duplication and its own quality gate, on its dashboard. Skipped (passing) until the `SONAR_TOKEN` secret exists | Read the issue on the dashboard and fix it |
 | `policy` | [`scripts/check-policy.sh`](../scripts/check-policy.sh): secrets (Google client secrets, OAuth tokens and secret iCal addresses, private keys, GitHub, Anthropic, AWS and Slack tokens), database and credential files, other apps named as design models ([Naming other products](#naming-other-products)), merge conflict markers; typos with [`_typos.toml`](../_typos.toml); shellcheck; actionlint | Remove the secret and rotate it (it is public once pushed); rephrase the text on Falog's own terms; for a word typos gets wrong on purpose (a Portuguese parsing word), add it to `_typos.toml` with the reason |
 | `commits` | Pull requests only: [`scripts/check-commits.sh`](../scripts/check-commits.sh) on the commits the PR adds ([Commits](#commits)) | `git rebase -i` and reword the commit |
 
-Coverage, the minimum Rust version and the operating systems other than yours run only in CI.
+Coverage, the minimum Rust version and the operating systems other than yours run only in CI. So do CodeQL and SonarQube Cloud.
+
+To turn on SonarQube Cloud (free for public repositories): sign in at [sonarcloud.io](https://sonarcloud.io) with
+GitHub, import the repository (organization `ifafaa`, project `IFafaa_falog`; if the keys differ, update
+`sonar-project.properties`), turn off its *Automatic Analysis* (CI runs the scan), create a token under
+*My Account › Security*, and add it to the GitHub repository as the Actions secret `SONAR_TOKEN`.
 
 ## Workflow for a task
 

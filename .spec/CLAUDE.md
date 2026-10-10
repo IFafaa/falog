@@ -36,8 +36,8 @@ On macOS and Linux the scripts are `./scripts/seed-demo.sh`, `./scripts/install.
 
 CI (`.github/workflows/ci.yml`) is a strict quality gate: fmt; clippy and tests on Windows, macOS and
 Ubuntu with and without voice, and clippy with `--features falog-desktop/gpu` on macOS (Metal) and
-Ubuntu (Vulkan); rustdoc; coverage; the minimum Rust version; cargo-deny; secrets, naming and spelling;
-commit messages. Code behind `cfg(windows)`/`cfg(target_os = ...)` must stay warning-free on all
+Ubuntu (Vulkan); rustdoc; coverage; the minimum Rust version; cargo-deny and unused dependencies; duplicated code; CodeQL static
+analysis; SonarQube Cloud (once its token is set); secrets, naming and spelling; commit messages. Code behind `cfg(windows)`/`cfg(target_os = ...)` must stay warning-free on all
 three. What each job checks and how to fix it: [conventions.md](conventions.md#ci).
 
 ## Rules that always apply

@@ -73,6 +73,16 @@ if cargo deny --version >/dev/null 2>&1; then
 else
     skip dependencies 'install it with: cargo install --locked cargo-deny'
 fi
+if cargo machete --version >/dev/null 2>&1; then
+    step unused-dependencies cargo machete
+else
+    skip unused-dependencies 'install it with: cargo install --locked cargo-machete'
+fi
+if have npx; then
+    step duplication npx --yes jscpd@5.4.1 crates tools
+else
+    skip duplication 'needs Node.js (npx)'
+fi
 if have typos; then
     step typos typos
 else

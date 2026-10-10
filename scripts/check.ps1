@@ -77,6 +77,17 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Skip 'dependencies' 'install it with: cargo install --locked cargo-deny'
 }
+cargo machete --version *> $null
+if ($LASTEXITCODE -eq 0) {
+    Step 'unused-dependencies' { cargo machete }
+} else {
+    Skip 'unused-dependencies' 'install it with: cargo install --locked cargo-machete'
+}
+if (Get-Command npx -ErrorAction SilentlyContinue) {
+    Step 'duplication' { npx --yes jscpd@5.4.1 crates tools }
+} else {
+    Skip 'duplication' 'needs Node.js (npx)'
+}
 if (Get-Command typos -ErrorAction SilentlyContinue) {
     Step 'typos' { typos }
 } else {
