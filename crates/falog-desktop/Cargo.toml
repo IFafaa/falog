@@ -16,7 +16,6 @@ path = "src/main.rs"
 falog-calendar.workspace = true
 falog-core.workspace = true
 
-anyhow.workspace = true
 chrono.workspace = true
 cpal.workspace = true
 dirs.workspace = true
