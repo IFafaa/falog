@@ -12,15 +12,15 @@ status=0
 # This file lists every pattern, so it would match itself.
 self=':(exclude)scripts/check-policy.sh'
 
-# check DESCRIPTION PATTERN [GIT GREP FLAGS] [EXCLUDED PATHSPEC]: reports the lines matching the
+# check DESCRIPTION PATTERN [GIT GREP FLAGS] [EXCLUDED PATHSPEC...]: reports the lines matching the
 # extended regular expression PATTERN and fails the run.
 check() {
     description=$1
     pattern=$2
     flags=${3:-}
-    exclude=${4:-$self}
+    if [ "$#" -gt 3 ]; then shift 3; else set --; fi
     # shellcheck disable=SC2086 # FLAGS is a list of options.
-    hits=$(git grep --untracked -n -I -E $flags -e "$pattern" -- . "$self" "$exclude")
+    hits=$(git grep --untracked -n -I -E $flags -e "$pattern" -- . "$self" "$@")
     code=$?
     if [ "$code" -eq 0 ]; then
         printf '%s:\n%s\n\n' "$description" "$hits" >&2
@@ -53,9 +53,12 @@ fi
 # Other apps named as the model for a design (conventions.md, "Naming other products"). Credits
 # required by a license stay in the notices next to the assets.
 credits=':(exclude)crates/falog-desktop/assets/THIRD-PARTY-NOTICES.md'
+# npm lockfiles list third-party package names as published (the site's Astro depends on
+# @shikijs/vscode-textmate); a package name is not a design model.
+lockfiles=':(exclude,glob)**/package-lock.json'
 check 'another app named as a design model' \
     'zed|vs ?code|visual studio code|sublime text|notion|todoist|trello|obsidian|raycast|ticktick|things 3' \
-    "-i -w" "$credits"
+    "-i -w" "$credits" "$lockfiles"
 check 'a design described as copied from somewhere else' \
     '(modeled|modelled|styled|patterned) (on|after)|[a-z]-inspired|inspired by|in the style of' \
     -i "$credits"
