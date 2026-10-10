@@ -13,8 +13,8 @@ shortcut and, if you keep the box ticked, launch at sign-in. When
 recognition runs on the CPU (it needs a processor with AVX2, from 2013 on) and downloads its model
 (~574 MB) the first time you dictate. To update, download and run the newest installer.
 
-Uninstall from Windows Settings › Apps; your tasks stay in `%USERPROFILE%\.falog`. Other versions and
-release notes: [releases](https://github.com/IFafaa/falog/releases).
+Uninstall from Windows Settings › Apps; your tasks stay in `%USERPROFILE%\.falog`. Other versions,
+release notes and Preview builds (pre-releases, to follow progress): [releases](https://github.com/IFafaa/falog/releases).
 
 ## Build from source
 

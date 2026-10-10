@@ -8,15 +8,16 @@ On x86-64 (glibc 2.35 or newer: Ubuntu 22.04, Debian 12, Fedora 36 and later), r
 curl -fsSL https://github.com/IFafaa/falog/releases/latest/download/install.sh | sh
 ```
 
-It downloads the latest release, checks it against the release's `SHA256SUMS` and installs, for your
-user only: `falog` and `falog-mcp` in `~/.local/bin`, an app menu entry and icon, launch at sign-in, the
-MCP server registered with [Claude Code](https://claude.com/claude-code) when `claude` is installed, and
-the assistant workspace in `~/falog-assistant`. Then it starts Falog. Run it again to update.
+It downloads the latest Stable release, checks it against the release's `SHA256SUMS` and installs,
+for your user only: `falog` and `falog-mcp` in `~/.local/bin`, an app menu entry and icon, launch at
+sign-in, the MCP server registered with [Claude Code](https://claude.com/claude-code) when `claude` is
+installed, and the assistant workspace in `~/falog-assistant`. Then it starts Falog. Run it again to update.
 
 Options go after `sh -s --`, for example `… | sh -s -- --no-start`:
 
 | Option | Does |
 |---|---|
+| `--preview` | install the Preview channel: the newest release, pre-releases included |
 | `--version X.Y.Z` | install that release |
 | `--assistant-dir DIR` | put the assistant workspace somewhere else |
 | `--no-start` | do not start Falog afterwards |

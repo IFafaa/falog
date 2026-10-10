@@ -19,8 +19,8 @@ Metal. Turn on launch at sign-in in Falog's Settings › General. To use Falog f
 terminal. To update, download the newest image and replace the app.
 
 Uninstall by moving Falog from Applications to the Trash; your tasks stay in
-`~/Library/Application Support/Falog/falog.db`. Other versions and release notes:
-[releases](https://github.com/IFafaa/falog/releases).
+`~/Library/Application Support/Falog/falog.db`. Other versions, release notes and Preview builds
+(pre-releases, to follow progress): [releases](https://github.com/IFafaa/falog/releases).
 
 ## Build from source
 

@@ -10,7 +10,9 @@
 #   - an app menu entry and icon, and launch at sign-in (~/.config/autostart)
 #   - the MCP server registered with Claude Code (user scope), if the `claude` CLI is available
 #   - the assistant workspace in ~/falog-assistant
-# and starts Falog. Running it again updates Falog. Options (piped, pass them after `sh -s --`):
+# and starts Falog. Running it again updates Falog. Without options it installs the Stable channel.
+# Options (piped, pass them after `sh -s --`):
+#   --preview             the Preview channel: the newest release, pre-releases included
 #   --version X.Y.Z       install that release instead of this one
 #   --assistant-dir DIR   assistant workspace folder (default ~/falog-assistant)
 #   --archive FILE        install from a falog-linux-x86_64.tar.gz you already have (not checked)
@@ -38,6 +40,7 @@ Installs Falog on Linux from a GitHub release.
 
   curl -fsSL https://github.com/$repo/releases/latest/download/install.sh | sh -s -- [options]
 
+  --preview             the Preview channel: the newest release, pre-releases included
   --version X.Y.Z       install that release instead of this one
   --assistant-dir DIR   assistant workspace folder (default ~/falog-assistant)
   --archive FILE        install from a $name.tar.gz you already have (not checked)
@@ -102,6 +105,8 @@ uninstall() {
 
 main() {
     assistant_dir="$HOME/falog-assistant"
+    version_tag=""
+    preview=0
     archive=""
     start=1
     action=install
@@ -110,7 +115,7 @@ main() {
         case "$1" in
             --version)
                 [ $# -ge 2 ] || die "--version needs a version, like 0.2.0"
-                release_tag="v${2#v}"
+                version_tag="v${2#v}"
                 shift 2
                 ;;
             --assistant-dir)
@@ -123,6 +128,7 @@ main() {
                 archive=$2
                 shift 2
                 ;;
+            --preview) preview=1; shift ;;
             --no-start) start=0; shift ;;
             --uninstall) action=uninstall; shift ;;
             --remove-data) remove_data=1; shift ;;
@@ -152,6 +158,18 @@ main() {
     trap 'rm -rf "$tmp"' EXIT
 
     if [ -z "$archive" ]; then
+        if [ -n "$version_tag" ]; then
+            release_tag=$version_tag
+        elif [ "$preview" = 1 ]; then
+            # Newest first; drafts are not listed. The newest release is a pre-release while a preview
+            # is ahead of Stable, and the stable release itself once it ships, so Preview never goes
+            # back to an older build.
+            api="https://api.github.com/repos/$repo/releases?per_page=5"
+            download "$api" "$tmp/releases.json" || die "could not list the releases at $api"
+            release_tag=$(grep -o '"tag_name": *"[^"]*"' "$tmp/releases.json" | head -n 1 |
+                sed 's/.*"\([^"]*\)"$/\1/')
+            [ -n "$release_tag" ] || die "no release found at $api"
+        fi
         if [ -n "$release_tag" ]; then
             base="https://github.com/$repo/releases/download/$release_tag"
             step "Downloading Falog ${release_tag#v}"
