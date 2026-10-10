@@ -15,6 +15,10 @@
 #ifndef CrtDir
   #error Pass /DCrtDir=<Microsoft.VC143.CRT folder>
 #endif
+; Release builds pass a name without the version (Falog-Setup-x64), so download links stay stable.
+#ifndef OutputName
+  #define OutputName "Falog-Setup-" + AppVersion
+#endif
 
 [Setup]
 AppId={{98711603-C8E6-4494-B1CA-4563E061D7DB}
@@ -31,7 +35,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir=..\target\installer
-OutputBaseFilename=Falog-Setup-{#AppVersion}
+OutputBaseFilename={#OutputName}
 SetupIconFile=..\crates\falog-desktop\assets\icon\falog.ico
 UninstallDisplayIcon={app}\falog.exe
 UninstallDisplayName=Falog

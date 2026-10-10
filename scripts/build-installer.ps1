@@ -1,13 +1,16 @@
 # Builds the Windows installer, target\installer\Falog-Setup-<version>.exe, with Inno Setup 6.
 #
-#   powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+#   powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1 [-OutputName Falog-Setup-x64]
 #
 # The installer carries a CPU build (speech recognition included, no GPU): the GPU build needs the
 # Vulkan runtime, which not every PC has. Requirements: the MSVC build tools (with CMake), LLVM for
 # voice (`winget install LLVM.LLVM`) and Inno Setup (`winget install JRSoftware.InnoSetup`).
+# The release workflow (.github/workflows/release.yml) runs it with -OutputName Falog-Setup-x64.
 param(
     # Build without speech recognition (no CMake/LLVM needed).
-    [switch]$NoVoice
+    [switch]$NoVoice,
+    # File name of the installer, without .exe (default: Falog-Setup-<version>).
+    [string]$OutputName
 )
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -40,12 +43,13 @@ $targetDir = Join-Path $root 'target\dist'
 $features = if ($NoVoice) { @('--no-default-features') } else { @() }
 
 Write-Host "==> Building Falog $version (release)"
-cargo build --release --workspace @features --target-dir $targetDir --manifest-path "$root\Cargo.toml"
+cargo build --release --workspace --locked @features --target-dir $targetDir --manifest-path "$root\Cargo.toml"
 if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
 
 Write-Host '==> Packaging'
-& $iscc /Q "/DAppVersion=$version" "/DBinDir=$targetDir\release" "/DCrtDir=$($crt.FullName)" "$root\installer\falog.iss"
+if (-not $OutputName) { $OutputName = "Falog-Setup-$version" }
+& $iscc /Q "/DAppVersion=$version" "/DOutputName=$OutputName" "/DBinDir=$targetDir\release" "/DCrtDir=$($crt.FullName)" "$root\installer\falog.iss"
 if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
 
-$setup = Join-Path $root "target\installer\Falog-Setup-$version.exe"
+$setup = Join-Path $root "target\installer\$OutputName.exe"
 Write-Host "Done: $setup ($([math]::Round((Get-Item $setup).Length / 1MB, 1)) MB)"
