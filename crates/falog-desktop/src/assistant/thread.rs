@@ -8,6 +8,7 @@ use super::agent::{
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::path::PathBuf;
 
 const SYSTEM_PROMPT: &str = include_str!("../../assets/assistant-prompt.md");
@@ -129,15 +130,15 @@ impl Settings {
     }
 }
 
-/// What is saved to disk for each thread.
+/// What is saved to disk for each thread. Saving borrows the messages instead of copying them.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ThreadRecord {
+pub struct ThreadRecord<'a> {
     pub id: ThreadId,
     pub created_at: i64,
     pub updated_at: i64,
     /// The agent's session to resume, so the conversation keeps its context after a restart.
     pub session_id: Option<String>,
-    pub items: Vec<Item>,
+    pub items: Cow<'a, [Item]>,
     #[serde(default)]
     pub draft: String,
     #[serde(default)]
@@ -163,6 +164,8 @@ pub struct Thread {
     /// Text of the reply being streamed.
     pub streaming: String,
     pub draft: String,
+    /// The draft as last saved, to tell when typing needs a save.
+    pub saved_draft: String,
     pub busy: bool,
     pub model_name: Option<String>,
     /// What the agent accepts as `/name` messages, as last reported.
@@ -190,6 +193,7 @@ impl Thread {
             items: Vec::new(),
             streaming: String::new(),
             draft: String::new(),
+            saved_draft: String::new(),
             busy: false,
             model_name: None,
             commands: Vec::new(),
@@ -205,9 +209,10 @@ impl Thread {
         }
     }
 
-    pub fn from_record(record: ThreadRecord) -> Self {
+    pub fn from_record(record: ThreadRecord<'_>) -> Self {
         let mut thread = Self {
-            items: record.items,
+            items: record.items.into_owned(),
+            saved_draft: record.draft.clone(),
             draft: record.draft,
             created_at: record.created_at,
             updated_at: record.updated_at,
@@ -221,13 +226,13 @@ impl Thread {
         thread
     }
 
-    pub fn to_record(&self) -> ThreadRecord {
+    pub fn to_record(&self) -> ThreadRecord<'_> {
         ThreadRecord {
             id: self.id,
             created_at: self.created_at,
             updated_at: self.updated_at,
             session_id: self.session_id.clone(),
-            items: self.items.clone(),
+            items: Cow::Borrowed(&self.items),
             draft: self.draft.clone(),
             settings: self.settings.clone(),
             usage: self.usage,
@@ -570,7 +575,7 @@ mod tests {
             if call.result.as_ref().is_some_and(|r| r.is_error && r.text == "Interrupted")));
 
         let mut saved = thread.to_record();
-        if let Item::Tool(call) = &mut saved.items[0] {
+        if let Item::Tool(call) = &mut saved.items.to_mut()[0] {
             call.result = None;
         }
         let loaded = Thread::from_record(saved);

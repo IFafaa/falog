@@ -9,7 +9,7 @@ pub const MAX_THREADS: usize = 100;
 
 /// Loads saved threads. A missing file means no history; an unreadable one is set aside as
 /// `threads.json.bak` instead of being overwritten.
-pub fn load(path: &Path) -> Vec<ThreadRecord> {
+pub fn load(path: &Path) -> Vec<ThreadRecord<'static>> {
     let Ok(text) = std::fs::read_to_string(path) else {
         return Vec::new();
     };
@@ -23,7 +23,7 @@ pub fn load(path: &Path) -> Vec<ThreadRecord> {
 }
 
 /// Writes atomically (temporary file, then rename), newest threads first.
-pub fn save(path: &Path, records: &mut Vec<ThreadRecord>) -> io::Result<()> {
+pub fn save(path: &Path, records: &mut Vec<ThreadRecord<'_>>) -> io::Result<()> {
     records.sort_by_key(|record| std::cmp::Reverse(record.updated_at));
     records.truncate(MAX_THREADS);
     if let Some(dir) = path.parent() {
@@ -39,13 +39,13 @@ mod tests {
     use super::*;
     use crate::assistant::thread::{Item, ThreadId};
 
-    fn record(id: u64, updated_at: i64) -> ThreadRecord {
+    fn record(id: u64, updated_at: i64) -> ThreadRecord<'static> {
         ThreadRecord {
             id: ThreadId(id),
             created_at: updated_at,
             updated_at,
             session_id: Some(format!("session-{id}")),
-            items: vec![Item::User(format!("message {id}"))],
+            items: vec![Item::User(format!("message {id}"))].into(),
             draft: String::new(),
             settings: Default::default(),
             usage: None,

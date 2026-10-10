@@ -286,16 +286,25 @@ impl Assistant {
         self.save();
     }
 
+    /// Writes what changed since the last save: the threads (with their drafts) and the agents.
     pub fn save(&mut self) {
-        let mut records: Vec<_> = self
-            .threads
-            .iter()
-            .filter(|t| t.has_messages())
-            .map(Thread::to_record)
-            .collect();
-        match history::save(&self.history_path, &mut records) {
-            Ok(()) => self.unsaved = false,
-            Err(err) => eprintln!("falog: could not save assistant threads: {err}"),
+        let drafts_changed = self.threads.iter().any(|t| t.draft != t.saved_draft);
+        if self.unsaved || drafts_changed {
+            let mut records: Vec<_> = self
+                .threads
+                .iter()
+                .filter(|t| t.has_messages())
+                .map(Thread::to_record)
+                .collect();
+            match history::save(&self.history_path, &mut records) {
+                Ok(()) => {
+                    self.unsaved = false;
+                    for thread in &mut self.threads {
+                        thread.saved_draft.clone_from(&thread.draft);
+                    }
+                }
+                Err(err) => eprintln!("falog: could not save assistant threads: {err}"),
+            }
         }
         if self.agents_unsaved {
             match self.saved_agents.save(&self.agents_path) {
@@ -520,8 +529,27 @@ mod tests {
         )
     }
 
+    /// A message in the active thread, marked unsaved like a sent one.
     fn say(assistant: &mut Assistant, text: &str) {
         assistant.active_mut().items.push(Item::User(text.into()));
+        assistant.unsaved = true;
+    }
+
+    #[test]
+    fn saves_only_what_changed() {
+        let (mut assistant, path) = assistant("unchanged");
+        say(&mut assistant, "hello");
+        assistant.save();
+        assert!(path.is_file());
+
+        std::fs::remove_file(&path).unwrap();
+        assistant.save();
+        assert!(!path.exists(), "nothing changed, nothing written");
+
+        assistant.active_mut().draft = "half a thought".into();
+        assistant.save();
+        assert!(path.is_file(), "a new draft is saved");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
     #[test]
