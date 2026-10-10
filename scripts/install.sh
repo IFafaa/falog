@@ -103,53 +103,7 @@ if [ "$os" = macos ]; then
 
     step "Installing to $app"
     pkill -x falog 2> /dev/null || true
-    mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-    install_file "$release/falog" "$exe" 755
-    install_file "$release/falog-mcp" "$mcp" 755
-
-    icon_key=""
-    if [ -f "$icons/falog.icns" ]; then
-        install_file "$icons/falog.icns" "$app/Contents/Resources/falog.icns" 644
-        icon_key="    <key>CFBundleIconFile</key>
-    <string>falog</string>"
-    fi
-
-    # NSMicrophoneUsageDescription is required: without it macOS ends the app when it opens the
-    # microphone.
-    cat > "$app/Contents/Info.plist" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key>
-    <string>Falog</string>
-    <key>CFBundleDisplayName</key>
-    <string>Falog</string>
-    <key>CFBundleIdentifier</key>
-    <string>app.falog.Falog</string>
-    <key>CFBundleExecutable</key>
-    <string>falog</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>$version</string>
-    <key>CFBundleVersion</key>
-    <string>$version</string>
-$icon_key
-    <key>LSMinimumSystemVersion</key>
-    <string>11.0</string>
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.productivity</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Falog listens while you dictate to the assistant. Speech is transcribed on this Mac.</string>
-</dict>
-</plist>
-EOF
-    # Ad hoc signature for the whole bundle: Apple silicon only runs signed code, and stripping or
-    # adding Info.plist after linking invalidates the linker's signature.
-    codesign --force --deep --sign - "$app" > /dev/null 2>&1 || warn "codesign failed; macOS may refuse to open Falog."
+    sh "$root/scripts/macos-app.sh" "$release" "$app" "$version"
     # Make Launchpad and Spotlight notice the new bundle right away.
     lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
     [ -x "$lsregister" ] && "$lsregister" -f "$app" || true
