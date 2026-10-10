@@ -223,12 +223,13 @@ pub fn find_mcp_server() -> Option<PathBuf> {
     candidate.is_file().then_some(candidate)
 }
 
-/// Default working directory for assistant sessions: `<data dir>/Falog/assistant`.
+/// Default working directory for assistant sessions: `assistant` next to the database, or in Falog's
+/// data folder when there is none. Never the temp dir: on Linux it is shared by every user, and the
+/// folder holds `agents.json`, whose commands Falog runs.
 pub fn default_workdir(database: Option<&Path>) -> PathBuf {
     database
         .and_then(Path::parent)
-        .map(Path::to_path_buf)
-        .unwrap_or_else(std::env::temp_dir)
+        .map_or_else(falog_core::paths::data_home, Path::to_path_buf)
         .join("assistant")
 }
 
@@ -283,4 +284,18 @@ impl StderrLog {
 
 fn missing(what: &str) -> io::Error {
     io::Error::other(format!("no {what}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_workdir_is_never_the_shared_temp_dir() {
+        assert_eq!(
+            default_workdir(Some(Path::new("/data/falog.db"))),
+            Path::new("/data/assistant")
+        );
+        assert!(!default_workdir(None).starts_with(std::env::temp_dir()));
+    }
 }
