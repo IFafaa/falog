@@ -45,7 +45,8 @@ use Falog. Edit the body on the release page to add a summary.
 
 ## Cutting a release
 
-1. `main` is green in CI.
+1. `main` is green in CI. To try the downloads first, run the Release workflow from the Actions tab
+   (*Run workflow* on `main`): it builds all of them and publishes nothing.
 2. Bump `version` in the root `Cargo.toml`, then run `cargo update --workspace` so `Cargo.lock` follows
    (release builds use `--locked`).
 3. Commit both as `chore: release vX.Y.Z` and land it on `main` like any change.

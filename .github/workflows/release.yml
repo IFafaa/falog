@@ -19,6 +19,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # A dry run from the Actions tab: builds every download from the chosen branch and publishes nothing.
+  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -53,7 +55,8 @@ jobs:
         run: |
           # The first version line is [workspace.package]'s.
           version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
-          if [ "$TAG" != "v$version" ]; then
+          # Dry runs (workflow_dispatch) build whatever version the branch has.
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$TAG" != "v$version" ]; then
             echo "::error::Tag $TAG does not match version = \"$version\" in Cargo.toml; bump it in a 'chore: release v<version>' commit and tag that commit."
             exit 1
           fi
@@ -158,6 +161,7 @@ jobs:
 
   publish:
     needs: [version, windows, macos, linux]
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
