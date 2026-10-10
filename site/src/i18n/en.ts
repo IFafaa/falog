@@ -150,7 +150,7 @@ const en = {
     allReleases: "All releases",
     roadmapTitle: "Roadmap",
     roadmapLink: "Full roadmap on GitHub ↗",
-    stages: { next: "Next steps", done: "Shipped" },
+    stages: { doing: "In progress", next: "Next steps", done: "Shipped" },
     moreShipped: (n: number) => `and ${n} more`,
   },
 

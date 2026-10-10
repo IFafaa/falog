@@ -148,7 +148,7 @@ const pt: Copy = {
     allReleases: "Todas as versões",
     roadmapTitle: "Roadmap",
     roadmapLink: "Roadmap completo no GitHub ↗",
-    stages: { next: "Próximos passos", done: "Já entregue" },
+    stages: { doing: "Em andamento", next: "Próximos passos", done: "Já entregue" },
     moreShipped: (n: number) => `e mais ${n}`,
   },
 
@@ -220,6 +220,8 @@ const pt: Copy = {
   },
 
   roadmap: {
+    "Accounts and sync across devices": "Conta e sincronização entre dispositivos",
+    "Sign in with your email and keep the same tasks on every device": "Entre com o seu e-mail e tenha as mesmas tarefas em todos os seus dispositivos",
     "System tray": "Rodar em segundo plano",
     "Keep Falog running without a window in the taskbar": "Feche a janela e o Falog continua funcionando",
     "Due date reminders": "Lembretes de prazo",

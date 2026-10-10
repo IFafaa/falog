@@ -24,13 +24,15 @@ const textLang = (text: string) => (lang === "en" || t.roadmap[text] ? undefined
 const BEHIND_THE_SCENES = new Set(["0013", "0016", "0018"]);
 const SHIPPED_SHOWN = 5;
 const visible = roadmap.tasks.filter((task) => !BEHIND_THE_SCENES.has(task.num));
+const doing = visible.filter((task) => task.stage === "doing");
 const next = visible.filter((task) => task.stage === "next");
 const shipped = visible.filter((task) => task.stage === "done").reverse();
-// Work in progress is not shown: the page lists what is next and what shipped.
-const groups: { stage: "next" | "done"; items: RoadmapTask[]; why: boolean }[] = [
+// Groups with nothing in them are left out.
+const groups: { stage: "doing" | "next" | "done"; items: RoadmapTask[]; why: boolean }[] = [
+  { stage: "doing", items: doing, why: true },
   { stage: "next", items: next, why: true },
   { stage: "done", items: shipped.slice(0, SHIPPED_SHOWN), why: false },
-];
+].filter((group) => group.items.length > 0);
 ---
 
 <section class="hero" id="top">

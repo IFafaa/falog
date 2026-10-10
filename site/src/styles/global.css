@@ -668,6 +668,7 @@ h2, .section-head h1 {
   border-radius: 50%;
   background: var(--dot, var(--text-muted));
 }
+.roadmap-group.doing { --dot: var(--accent); }
 .roadmap-group.next { --dot: var(--warning); }
 .roadmap-group.done { --dot: var(--success); }
 .roadmap-group ul { margin: 0; padding: 0; list-style: none; }
