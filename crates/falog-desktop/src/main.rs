@@ -7,6 +7,7 @@ mod app;
 mod assistant;
 mod calendar;
 mod components;
+mod download;
 mod fonts;
 mod icons;
 mod overlays;

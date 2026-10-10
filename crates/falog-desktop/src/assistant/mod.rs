@@ -18,11 +18,12 @@ use agent::{OptionKind, claude_code};
 use agents::SavedAgents;
 use eframe::egui;
 
+use crate::download::Download;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use thread::Launcher;
 pub use thread::{Item, Settings, Thread, ThreadId, ToolCall};
-use voice::{Clip, Download, Recorder, Transcriber, VoiceLanguage};
+use voice::{Clip, Recorder, Transcriber, VoiceLanguage};
 
 /// How often the live preview is refreshed while dictating, and when the first one starts.
 const PARTIAL_EVERY: Duration = Duration::from_millis(1000);
@@ -496,7 +497,12 @@ impl Assistant {
     }
 
     pub fn download_model(&mut self, ctx: &egui::Context) {
-        self.voice = VoiceState::Downloading(Download::start(voice::model_path(), ctx.clone()));
+        self.voice = VoiceState::Downloading(Download::start(
+            voice::MODEL_URL.into(),
+            voice::model_path(),
+            voice::model_download(),
+            ctx.clone(),
+        ));
     }
 }
 

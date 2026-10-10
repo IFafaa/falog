@@ -1,15 +1,13 @@
 //! Push-to-talk: microphone capture, local Whisper transcription and the model download.
 
+use crate::download::Expected;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::fmt;
-use std::fs::File;
-use std::io::{self, Read, Write};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -502,136 +500,17 @@ pub fn model_path() -> PathBuf {
     falog_core::paths::data_home().join("models").join(MODEL_FILE)
 }
 
-#[derive(Debug)]
-pub struct Download {
-    received: Arc<AtomicU64>,
-    total: Arc<AtomicU64>,
-    done: Receiver<Result<(), String>>,
-}
-
-impl Download {
-    pub fn start(destination: PathBuf, ctx: egui::Context) -> Self {
-        let received = Arc::new(AtomicU64::new(0));
-        let total = Arc::new(AtomicU64::new(0));
-        let (tx, done) = mpsc::channel();
-        let (r, t) = (Arc::clone(&received), Arc::clone(&total));
-        thread::spawn(move || {
-            let result = download(&destination, &r, &t, &ctx).map_err(|e| format!("Download failed: {e}"));
-            let _ = tx.send(result);
-            ctx.request_repaint();
-        });
-        Self {
-            received,
-            total,
-            done,
-        }
-    }
-
-    /// 0.0–1.0, or `None` until the size is known.
-    pub fn progress(&self) -> Option<f32> {
-        let total = self.total.load(Ordering::Relaxed);
-        (total > 0).then(|| self.received.load(Ordering::Relaxed) as f32 / total as f32)
-    }
-
-    pub fn received_mb(&self) -> u64 {
-        self.received.load(Ordering::Relaxed) / 1_000_000
-    }
-
-    pub fn try_finish(&self) -> Option<Result<(), String>> {
-        self.done.try_recv().ok()
-    }
-}
-
-fn download(
-    destination: &Path,
-    received: &AtomicU64,
-    total: &AtomicU64,
-    ctx: &egui::Context,
-) -> io::Result<()> {
-    if let Some(dir) = destination.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let response = ureq::get(MODEL_URL).call().map_err(io::Error::other)?;
-    if let Some(length) = response.header("Content-Length").and_then(|l| l.parse().ok()) {
-        total.store(length, Ordering::Relaxed);
-    }
-    let partial = destination.with_extension("part");
-    let mut file = File::create(&partial)?;
-    let mut last_repaint = Instant::now();
-    let copied = copy_verified(
-        response.into_reader(),
-        &mut file,
-        MODEL_BYTES,
-        MODEL_SHA256,
-        |read| {
-            received.fetch_add(read as u64, Ordering::Relaxed);
-            if last_repaint.elapsed() > Duration::from_millis(100) {
-                ctx.request_repaint();
-                last_repaint = Instant::now();
-            }
-        },
-    );
-    if let Err(err) = copied {
-        drop(file);
-        let _ = std::fs::remove_file(&partial);
-        return Err(err);
-    }
-    file.sync_all()?;
-    drop(file);
-    std::fs::rename(&partial, destination)
-}
-
-/// Copies `reader` into `writer`, failing unless it is exactly `size` bytes with SHA-256 `sha256`.
-/// `progress` gets the size of each chunk.
-fn copy_verified(
-    mut reader: impl Read,
-    writer: &mut impl Write,
-    size: u64,
-    sha256: &str,
-    mut progress: impl FnMut(usize),
-) -> io::Result<()> {
-    let corrupted = || io::Error::other("The voice model download was damaged; try again");
-    let mut hasher = Sha256::new();
-    let mut buffer = vec![0u8; 1 << 16];
-    let mut total = 0u64;
-    loop {
-        let read = reader.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        total += read as u64;
-        if total > size {
-            return Err(corrupted());
-        }
-        hasher.update(&buffer[..read]);
-        writer.write_all(&buffer[..read])?;
-        progress(read);
-    }
-    let digest: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
-    if total == size && digest == sha256 {
-        Ok(())
-    } else {
-        Err(corrupted())
+/// The model, as [`crate::download::Download`] must find it.
+pub fn model_download() -> Expected {
+    Expected {
+        sha256: MODEL_SHA256.into(),
+        size: Some(MODEL_BYTES),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn keeps_only_the_expected_model() {
-        // SHA-256 of "abc".
-        let sha = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
-        let copy = |bytes: &[u8], size| {
-            let mut out = Vec::new();
-            copy_verified(bytes, &mut out, size, sha, |_| {}).map(|()| out)
-        };
-        assert_eq!(copy(b"abc", 3).unwrap(), b"abc");
-        assert!(copy(b"abx", 3).is_err(), "tampered");
-        assert!(copy(b"ab", 3).is_err(), "truncated");
-        assert!(copy(b"abcd", 3).is_err(), "too long");
-    }
 
     #[test]
     fn resampling_keeps_duration() {
