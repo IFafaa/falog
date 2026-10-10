@@ -22,6 +22,7 @@ starts; move it to `tasks/done` when shipped.
 | 0015 | [Calendars by area, events by voice](tasks/doing/0015-calendar-areas-and-events.md) | Which meetings belong to which job, and booking them through the assistant |
 | 0016 | [CI quality gate](tasks/done/0016-ci-quality-gate.md) | One required check that says the code is correct before it lands on `main` |
 | 0018 | [Public site](tasks/done/0018-public-site.md) | Three pages, in English and Portuguese: what Falog does, downloads and releases |
+| 0019 | [Release downloads](tasks/done/0019-release-downloads.md) | Install from a download on every OS, no build needed |
 
 Later, unordered: tags/labels, manual ordering within a column, weekly report export (Markdown),
 undo for destructive actions, signed macOS builds and Linux packages (Flatpak, `.deb`).
