@@ -11,7 +11,7 @@ use crate::{Error, Result};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -128,19 +128,23 @@ impl Pending {
         exchange(client, &code, &self.redirect_uri, &self.verifier)
     }
 
-    /// Reads one browser request. `None` for requests that are not the redirect (the favicon).
+    /// Reads one browser request. `None` for requests that are not this sign-in's redirect: the
+    /// favicon, or anything without its `state`, which another local process could send to cut it short.
     fn answer(&self, mut stream: TcpStream) -> Option<Result<String>> {
         stream.set_nonblocking(false).ok()?;
         stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
         let mut line = String::new();
-        BufReader::new(&stream).read_line(&mut line).ok()?;
+        BufReader::new((&stream).take(8192)).read_line(&mut line).ok()?;
         let target = line.split_whitespace().nth(1)?;
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         if path != "/" {
             let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
             return None;
         }
-        let result = read_redirect(query, &self.state);
+        let Some(result) = read_redirect(query, &self.state) else {
+            let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+            return None;
+        };
         let message = match &result {
             Ok(_) => "Falog can now read your Google calendars. You can close this tab.",
             Err(_) => "Falog could not connect to Google Calendar. Go back to Falog for details.",
@@ -160,23 +164,26 @@ impl Pending {
     }
 }
 
-/// The authorization code from the redirect's query, after checking `state`.
-fn read_redirect(query: &str, state: &str) -> Result<String> {
+/// The authorization code from the redirect's query; `None` when its `state` is not this sign-in's
+/// (Google sends it back with errors too).
+fn read_redirect(query: &str, state: &str) -> Option<Result<String>> {
     let pairs = query_pairs(query);
     let get = |key: &str| pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str());
+    if get("state") != Some(state) {
+        return None;
+    }
     if let Some(error) = get("error") {
-        return Err(Error::Denied(match error {
+        return Some(Err(Error::Denied(match error {
             "access_denied" => "access was not granted".to_owned(),
             other => other.to_owned(),
-        }));
+        })));
     }
-    if get("state") != Some(state) {
-        return Err(Error::Denied("the answer did not match this sign-in".into()));
-    }
-    get("code")
-        .filter(|code| !code.is_empty())
-        .map(str::to_owned)
-        .ok_or_else(|| Error::Denied("Google sent no authorization code".into()))
+    Some(
+        get("code")
+            .filter(|code| !code.is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| Error::Denied("Google sent no authorization code".into())),
+    )
 }
 
 fn exchange(client: &Client, code: &str, redirect_uri: &str, verifier: &str) -> Result<Grant> {
@@ -318,16 +325,16 @@ mod tests {
     #[test]
     fn reads_the_redirect() {
         assert_eq!(
-            read_redirect("state=s1&code=4%2Fabc&scope=x", "s1").unwrap(),
+            read_redirect("state=s1&code=4%2Fabc&scope=x", "s1")
+                .unwrap()
+                .unwrap(),
             "4/abc"
         );
-        assert!(matches!(
-            read_redirect("state=other&code=c", "s1"),
-            Err(Error::Denied(_))
-        ));
+        assert!(read_redirect("state=other&code=c", "s1").is_none());
+        assert!(read_redirect("error=access_denied", "s1").is_none());
         assert!(matches!(
             read_redirect("error=access_denied&state=s1", "s1"),
-            Err(Error::Denied(message)) if message == "access was not granted"
+            Some(Err(Error::Denied(message))) if message == "access was not granted"
         ));
     }
 
@@ -339,6 +346,11 @@ mod tests {
         let browser = std::thread::spawn(move || {
             let mut favicon = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
             favicon.write_all(b"GET /favicon.ico HTTP/1.1\r\n\r\n").unwrap();
+            // Another local process trying to cut the sign-in short is ignored.
+            let mut forged = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+            forged
+                .write_all(b"GET /?error=access_denied HTTP/1.1\r\n\r\n")
+                .unwrap();
             let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
             write!(stream, "GET /?error=access_denied&state={state} HTTP/1.1\r\n\r\n").unwrap();
             let mut answer = String::new();
