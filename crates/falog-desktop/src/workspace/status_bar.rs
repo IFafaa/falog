@@ -1,5 +1,6 @@
 use crate::action::{Action, Actions};
 use crate::components::{icon_button, icon_toggle};
+use crate::i18n::{tr, trf};
 use crate::icons::Icon;
 use crate::theme::Theme;
 use eframe::egui::{
@@ -56,21 +57,33 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
         .show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                if icon_toggle(ui, Icon::SidebarLeft, bar.sidebar_open, "Toggle sidebar (Ctrl+B)").clicked() {
+                if icon_toggle(
+                    ui,
+                    Icon::SidebarLeft,
+                    bar.sidebar_open,
+                    tr("Toggle sidebar (Ctrl+B)"),
+                )
+                .clicked()
+                {
                     actions.push(Action::ToggleSidebar);
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if icon_toggle(ui, Icon::Sparkle, bar.assistant_open, "Assistant (Ctrl+Shift+A)")
-                        .clicked()
+                    if icon_toggle(
+                        ui,
+                        Icon::Sparkle,
+                        bar.assistant_open,
+                        tr("Assistant (Ctrl+Shift+A)"),
+                    )
+                    .clicked()
                     {
                         actions.push(Action::ToggleAssistant);
                     }
                     match &bar.update {
                         Some(UpdateBadge::Available(version)) => {
-                            let label = format!("Update to {version}");
+                            let label = trf("Update to {version}", &[("version", version)]);
                             let clicked = item(ui, theme, Icon::ArrowDown, theme.text_accent, &label)
-                                .on_hover_text("Download the new version of Falog")
+                                .on_hover_text(tr("Download the new version of Falog"))
                                 .clicked();
                             if clicked {
                                 actions.push(Action::DownloadUpdate);
@@ -78,29 +91,40 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
                         }
                         Some(UpdateBadge::Downloading(progress)) => {
                             let label = match progress {
-                                Some(done) => format!("Downloading update {:.0}%", done * 100.0),
-                                None => "Downloading update…".to_owned(),
+                                Some(done) => {
+                                    let percent = format!("{:.0}", done * 100.0);
+                                    trf("Downloading update {percent}%", &[("percent", &percent)])
+                                }
+                                None => tr("Downloading update…").to_owned(),
                             };
                             item(ui, theme, Icon::ArrowDown, theme.icon_muted, &label);
                         }
                         Some(UpdateBadge::Ready(version)) => {
-                            let clicked =
-                                item(ui, theme, Icon::Refresh, theme.text_accent, "Restart to update")
-                                    .on_hover_text(format!("Install Falog {version} and start it again"))
-                                    .clicked();
+                            let clicked = item(
+                                ui,
+                                theme,
+                                Icon::Refresh,
+                                theme.text_accent,
+                                tr("Restart to update"),
+                            )
+                            .on_hover_text(trf(
+                                "Install Falog {version} and start it again",
+                                &[("version", version)],
+                            ))
+                            .clicked();
                             if clicked {
                                 actions.push(Action::InstallUpdate);
                             }
                         }
                         None => {}
                     }
-                    if bar.listening && item(ui, theme, Icon::Mic, theme.error, "Listening").clicked() {
+                    if bar.listening && item(ui, theme, Icon::Mic, theme.error, tr("Listening")).clicked() {
                         actions.push(Action::ToggleDictation);
                     }
-                    if icon_button(ui, Icon::Settings, "Settings (Ctrl+,)").clicked() {
+                    if icon_button(ui, Icon::Settings, tr("Settings (Ctrl+,)")).clicked() {
                         actions.push(Action::OpenSettings);
                     }
-                    if icon_button(ui, Icon::Command, "Command palette (Ctrl+Shift+P)").clicked() {
+                    if icon_button(ui, Icon::Command, tr("Command palette (Ctrl+Shift+P)")).clicked() {
                         actions.push(Action::OpenCommandPalette);
                     }
                     item(ui, theme, Icon::Reader, theme.icon_muted, &bar.date);

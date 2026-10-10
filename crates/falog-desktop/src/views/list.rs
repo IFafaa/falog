@@ -4,12 +4,12 @@ use super::ViewCx;
 use super::board::task_menu;
 use crate::action::{Action, Actions};
 use crate::components::single_line;
+use crate::i18n::{self, area_name, priority_label, tr};
 use crate::icons::Icon;
 use crate::theme;
 use eframe::egui::{
     Align2, CursorIcon, FontId, Id, Rect, RichText, ScrollArea, Sense, Stroke, Ui, pos2, vec2,
 };
-use falog_core::date;
 use falog_core::domain::{Status, Task};
 
 const ROW_HEIGHT: f32 = 30.0;
@@ -91,7 +91,15 @@ pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
 fn header(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), HEADER_HEIGHT), Sense::hover());
     let edges = columns.edges(rect.left());
-    let labels = ["", "#", "Task", "Area", "Priority", "Due", "Requested by"];
+    let labels = [
+        "",
+        "#",
+        tr("Task"),
+        tr("Area"),
+        tr("Priority"),
+        tr("Due"),
+        tr("Requested by"),
+    ];
     for (edge, label) in edges.iter().zip(labels) {
         ui.painter().text(
             pos2(edge + 6.0, rect.center().y),
@@ -138,7 +146,11 @@ fn row(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns, task: &Task, actions: &m
     let status_rect = cell(0, columns.status);
     let status_response = ui
         .interact(status_rect, Id::new(("list-status", task.id)), Sense::click())
-        .on_hover_text(if task.is_open() { "Mark as done" } else { "Reopen" })
+        .on_hover_text(if task.is_open() {
+            tr("Mark as done")
+        } else {
+            tr("Reopen")
+        })
         .on_hover_cursor(CursorIcon::PointingHand);
     Icon::for_status(task.status).paint(ui, status_rect, 15.0, theme.status_color(task.status));
     if status_response.clicked() {
@@ -181,7 +193,7 @@ fn row(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns, task: &Task, actions: &m
         .circle_filled(pos2(edges[3] + 10.0, y), 4.0, area_color);
     let galley = single_line(
         ui,
-        task.area_name(),
+        area_name(task),
         FontId::proportional(13.0),
         theme.text_muted,
         columns.area - 28.0,
@@ -198,7 +210,7 @@ fn row(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns, task: &Task, actions: &m
     Icon::for_priority(task.priority).paint(ui, priority_icon, 12.0, priority_color);
     let galley = single_line(
         ui,
-        task.priority.label(),
+        priority_label(task.priority),
         FontId::proportional(13.0),
         priority_color,
         columns.priority - 30.0,
@@ -217,7 +229,13 @@ fn row(ui: &mut Ui, cx: &ViewCx<'_>, columns: &Columns, task: &Task, actions: &m
             } else {
                 theme.text_placeholder
             };
-            text_at(5, columns.due, &date::describe_due(due, cx.today), color, false);
+            text_at(
+                5,
+                columns.due,
+                &i18n::date::describe_due(due, cx.today),
+                color,
+                false,
+            );
         }
         None => text_at(5, columns.due, "—", theme.text_placeholder, false),
     }
@@ -236,13 +254,13 @@ fn empty_state(ui: &mut Ui, cx: &ViewCx<'_>) {
     ui.vertical_centered(|ui| {
         let (title, hint) = if cx.has_any_task {
             (
-                "No matching tasks",
-                "Clear the search or pick another area in the sidebar.",
+                tr("No matching tasks"),
+                tr("Clear the search or pick another area in the sidebar."),
             )
         } else {
             (
-                "No tasks yet",
-                "Tell your assistant about a request, or press Ctrl+N.",
+                tr("No tasks yet"),
+                tr("Tell your assistant about a request, or press Ctrl+N."),
             )
         };
         ui.label(RichText::new(title).size(15.0).color(cx.theme.text_muted));

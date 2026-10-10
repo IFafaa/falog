@@ -1,6 +1,7 @@
 use super::BAR_HEIGHT;
 use crate::action::{Action, Actions};
 use crate::components::icon_button;
+use crate::i18n::tr;
 use crate::icons::Icon;
 use crate::theme::Theme;
 use crate::views::View;
@@ -37,10 +38,10 @@ pub fn show(ctx: &egui::Context, theme: &Theme, current: View, actions: &mut Act
                     .show(ui, |ui| {
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             ui.spacing_mut().item_spacing.x = 2.0;
-                            if icon_button(ui, Icon::Plus, "New task (Ctrl+N)").clicked() {
+                            if icon_button(ui, Icon::Plus, tr("New task (Ctrl+N)")).clicked() {
                                 actions.push(Action::NewTask(Default::default()));
                             }
-                            if icon_button(ui, Icon::Search, "Find task (Ctrl+P)").clicked() {
+                            if icon_button(ui, Icon::Search, tr("Find task (Ctrl+P)")).clicked() {
                                 actions.push(Action::OpenTaskFinder);
                             }
                         });

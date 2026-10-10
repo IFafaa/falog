@@ -3,6 +3,7 @@
 //! over a channel that [`CalendarState::poll`] drains each frame, like the assistant does with
 //! Claude Code.
 
+use crate::i18n::tr;
 use chrono::{Datelike, Days, Local, NaiveDate};
 use eframe::egui;
 use falog_calendar::config::Files;
@@ -39,10 +40,10 @@ pub enum CalendarMode {
 impl CalendarMode {
     pub const ALL: [Self; 2] = [Self::Week, Self::Month];
 
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Week => "Week",
-            Self::Month => "Month",
+            Self::Week => tr("Week"),
+            Self::Month => tr("Month"),
         }
     }
 }
@@ -358,7 +359,7 @@ impl CalendarState {
         }
         let url = url.trim().to_owned();
         if self.config.has_link(&url) {
-            self.link_error = Some("This calendar is already linked".into());
+            self.link_error = Some(tr("This calendar is already linked").into());
             return;
         }
         self.adding_link = true;

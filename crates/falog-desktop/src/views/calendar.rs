@@ -6,6 +6,7 @@ use crate::action::{Action, Actions};
 use crate::calendar::{CalendarMode, CalendarState, Selected};
 use crate::components::{ButtonStyle, button, icon_button, segmented, single_line};
 use crate::fonts;
+use crate::i18n::{self, area_name, tr, trf};
 use crate::icons::Icon;
 use crate::overlays::settings::SettingsTab;
 use crate::theme::{self, Theme};
@@ -133,16 +134,16 @@ fn keyboard(ui: &Ui, cal: &mut CalendarState, mode: CalendarMode, actions: &mut 
 fn header(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, mode: CalendarMode, actions: &mut Actions) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
-        if button(ui, ButtonStyle::Filled, None, "Today")
-            .on_hover_text("Go to today (T)")
+        if button(ui, ButtonStyle::Filled, None, tr("Today"))
+            .on_hover_text(tr("Go to today (T)"))
             .clicked()
         {
             cal.anchor = Local::now().date_naive();
         }
-        if icon_button(ui, Icon::ChevronLeft, "Previous (K)").clicked() {
+        if icon_button(ui, Icon::ChevronLeft, tr("Previous (K)")).clicked() {
             cal.anchor = step(mode, cal.anchor, false);
         }
-        if icon_button(ui, Icon::ChevronRight, "Next (J)").clicked() {
+        if icon_button(ui, Icon::ChevronRight, tr("Next (J)")).clicked() {
             cal.anchor = step(mode, cal.anchor, true);
         }
         ui.add_space(6.0);
@@ -162,7 +163,7 @@ fn header(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, mode: CalendarMod
             ui.add_space(6.0);
             if cal.is_busy() {
                 ui.add(Spinner::new().size(14.0).color(theme.text_muted));
-            } else if cal.has_calendars() && icon_button(ui, Icon::Refresh, "Refresh").clicked() {
+            } else if cal.has_calendars() && icon_button(ui, Icon::Refresh, tr("Refresh")).clicked() {
                 cal.refresh();
             }
             status(ui, theme, cal);
@@ -173,20 +174,34 @@ fn header(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, mode: CalendarMod
 fn title(mode: CalendarMode, anchor: NaiveDate) -> String {
     let (from, to) = range(mode, anchor);
     match mode {
-        CalendarMode::Month => anchor.format("%B %Y").to_string(),
+        CalendarMode::Month => i18n::date::month_year(anchor),
         CalendarMode::Week => {
             let last = to - Days::new(1);
             if from.month() == last.month() {
-                format!("{} – {}, {}", from.format("%b %-d"), last.day(), last.year())
+                trf(
+                    "{month} {from} – {to}, {year}",
+                    &[
+                        ("month", &i18n::date::month_short(from)),
+                        ("from", &from.day()),
+                        ("to", &last.day()),
+                        ("year", &last.year()),
+                    ],
+                )
             } else if from.year() == last.year() {
-                format!(
-                    "{} – {}, {}",
-                    from.format("%b %-d"),
-                    last.format("%b %-d"),
-                    last.year()
+                trf(
+                    "{from} – {to}, {year}",
+                    &[
+                        ("from", &i18n::date::short(from)),
+                        ("to", &i18n::date::short(last)),
+                        ("year", &last.year()),
+                    ],
                 )
             } else {
-                format!("{} – {}", from.format("%b %-d, %Y"), last.format("%b %-d, %Y"))
+                format!(
+                    "{} – {}",
+                    i18n::date::short_with_year(from),
+                    i18n::date::short_with_year(last)
+                )
             }
         }
     }
@@ -200,7 +215,7 @@ fn status(ui: &mut Ui, theme: &Theme, cal: &CalendarState) {
         response.on_hover_text(error.as_str());
     } else if let Some(at) = cal.updated_at {
         ui.label(
-            RichText::new(format!("Updated {}", at.format("%H:%M")))
+            RichText::new(trf("Updated {time}", &[("time", &at.format("%H:%M"))]))
                 .size(12.5)
                 .color(theme.text_placeholder),
         );
@@ -217,21 +232,21 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
             ui.horizontal(|ui| {
                 ui.add(Icon::Calendar.image(16.0, theme.text_accent));
                 ui.label(
-                    RichText::new("See your Google Calendar meetings here: paste each calendar's secret link in Settings.")
+                    RichText::new(tr("See your Google Calendar meetings here: paste each calendar's secret link in Settings."))
                         .size(13.0)
                         .color(theme.text_muted),
                 );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if cal.is_connecting() {
-                        if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {
+                        if button(ui, ButtonStyle::Ghost, None, tr("Cancel")).clicked() {
                             cal.cancel_connect();
                         }
                         ui.label(
-                            RichText::new("Finish signing in in your browser…")
+                            RichText::new(tr("Finish signing in in your browser…"))
                                 .size(12.5)
                                 .color(theme.text_placeholder),
                         );
-                    } else if button(ui, ButtonStyle::Accent, Some(Icon::Plus), "Add a calendar link").clicked() {
+                    } else if button(ui, ButtonStyle::Accent, Some(Icon::Plus), tr("Add a calendar link")).clicked() {
                         actions.push(Action::OpenSettingsTab(SettingsTab::Calendar));
                     }
                 });
@@ -270,16 +285,20 @@ fn time_range(event: &Event) -> String {
         (EventTime::At(start), EventTime::At(end)) => {
             format!(
                 "{} – {}",
-                start.format("%a %b %-d, %H:%M"),
-                end.format("%a %b %-d, %H:%M")
+                i18n::date::with_weekday_time(start),
+                i18n::date::with_weekday_time(end)
             )
         }
         _ => {
             let (first, last) = event.first_and_last_day();
             if first == last {
-                format!("{}, all day", first.format("%a, %b %-d"))
+                trf("{date}, all day", &[("date", &i18n::date::with_weekday(first))])
             } else {
-                format!("{} – {}", first.format("%a, %b %-d"), last.format("%a, %b %-d"))
+                format!(
+                    "{} – {}",
+                    i18n::date::with_weekday(first),
+                    i18n::date::with_weekday(last)
+                )
             }
         }
     }
@@ -323,7 +342,7 @@ fn week(
         ui.painter().text(
             pos2(x, head.top() + 9.0),
             Align2::CENTER_CENTER,
-            day.format("%a").to_string().to_uppercase(),
+            i18n::date::weekday_short(*day).to_uppercase(),
             fonts::semibold(11.0),
             name_color,
         );
@@ -371,7 +390,7 @@ fn week(
     ui.painter().text(
         pos2(all_day.left() + GUTTER - 8.0, all_day.top() + 12.0),
         Align2::RIGHT_CENTER,
-        "all-day",
+        tr("all-day"),
         FontId::proportional(10.5),
         theme.text_placeholder,
     );
@@ -626,7 +645,7 @@ fn task_chip(ui: &mut Ui, cx: &ViewCx<'_>, rect: Rect, task: &Task) -> egui::Res
     let response = ui
         .interact(rect, Id::new(("calendar-task", task.id)), Sense::click())
         .on_hover_cursor(CursorIcon::PointingHand)
-        .on_hover_text(format!("#{} {} · {}", task.id, task.title, task.area_name()));
+        .on_hover_text(format!("#{} {} · {}", task.id, task.title, area_name(task)));
     let area = task
         .area
         .as_ref()
@@ -690,7 +709,7 @@ fn month(
         ui.painter().text(
             pos2(head.left() + column * (i as f32 + 0.5), head.center().y),
             Align2::CENTER_CENTER,
-            day.format("%a").to_string().to_uppercase(),
+            i18n::date::weekday_short(day).to_uppercase(),
             fonts::semibold(11.0),
             theme.text_muted,
         );
@@ -767,7 +786,7 @@ fn month_cell(
     if ui
         .interact(number_hit, Id::new(("month-day", day)), Sense::click())
         .on_hover_cursor(CursorIcon::PointingHand)
-        .on_hover_text("Open this week")
+        .on_hover_text(tr("Open this week"))
         .clicked()
     {
         cal.anchor = day;
@@ -836,7 +855,7 @@ fn month_cell(
         ui.painter().text(
             pos2(rect.left() + 6.0, rect.center().y),
             Align2::LEFT_CENTER,
-            format!("+{} more", total - shown),
+            trf("+{n} more", &[("n", &(total - shown))]),
             fonts::semibold(11.5),
             color,
         );
@@ -929,7 +948,7 @@ fn popover(ctx: &egui::Context, theme: &Theme, areas: &[Area], cal: &mut Calenda
                             .wrap(),
                         );
                         ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-                            if icon_button(ui, Icon::Close, "Close (Esc)").clicked() {
+                            if icon_button(ui, Icon::Close, tr("Close (Esc)")).clicked() {
                                 close = true;
                             }
                         });
@@ -989,7 +1008,7 @@ fn popover(ctx: &egui::Context, theme: &Theme, areas: &[Area], cal: &mut Calenda
                     ui.horizontal(|ui| {
                         // Cached events from older builds may hold other schemes.
                         if let Some(link) = event.join_link.as_deref().filter(|link| is_web_link(link))
-                            && button(ui, ButtonStyle::Accent, Some(Icon::Video), "Join").clicked()
+                            && button(ui, ButtonStyle::Accent, Some(Icon::Video), tr("Join")).clicked()
                         {
                             ui.ctx().open_url(egui::OpenUrl::new_tab(link));
                         }
@@ -998,7 +1017,7 @@ fn popover(ctx: &egui::Context, theme: &Theme, areas: &[Area], cal: &mut Calenda
                                 ui,
                                 ButtonStyle::Ghost,
                                 Some(Icon::ArrowUpRight),
-                                "Open in Google Calendar",
+                                tr("Open in Google Calendar"),
                             )
                             .clicked()
                         {

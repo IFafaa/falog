@@ -4,6 +4,7 @@
 use super::{SettingsDialog, SettingsEvent, section};
 use crate::calendar::CalendarState;
 use crate::components::{ButtonStyle, area_picker, button};
+use crate::i18n::tr;
 use crate::icons::Icon;
 use crate::theme::Theme;
 use eframe::egui::{
@@ -64,33 +65,33 @@ impl SettingsDialog {
             ui.label(RichText::new(text).size(12.5).color(theme.text_muted));
         };
         ui.label(
-            RichText::new("See your Google calendars next to your tasks. The assistant can also book meetings in signed-in accounts.")
+            RichText::new(tr("See your Google calendars next to your tasks. The assistant can also book meetings in signed-in accounts."))
                 .size(13.0)
                 .color(theme.text_muted),
         );
 
         areas_section(ui, theme, calendar, areas, events);
 
-        section(ui, theme, "Add a calendar link");
+        section(ui, theme, tr("Add a calendar link"));
         ui.horizontal_wrapped(|ui| {
-            muted(ui, "1. Open");
+            muted(ui, tr("1. Open"));
             ui.hyperlink_to(
                 RichText::new("Google Calendar").size(12.5),
                 "https://calendar.google.com/calendar/r/settings",
             );
-            muted(ui, "settings (the gear, then Settings).");
+            muted(ui, tr("settings (the gear, then Settings)."));
         });
         muted(
             ui,
-            "2. On the left, under \"Settings for my calendars\", click the calendar.",
+            tr("2. On the left, under \"Settings for my calendars\", click the calendar."),
         );
         muted(
             ui,
-            "3. In \"Integrate calendar\", copy the \"Secret address in iCal format\".",
+            tr("3. In \"Integrate calendar\", copy the \"Secret address in iCal format\"."),
         );
         muted(
             ui,
-            "4. Paste it here and click Add. Do the same for each account (work, personal…).",
+            tr("4. Paste it here and click Add. Do the same for each account (work, personal…)."),
         );
         ui.add_space(6.0);
 
@@ -102,15 +103,15 @@ impl SettingsDialog {
             self.calendar.name.clear();
             self.calendar.url.clear();
         }
-        field(ui, theme, "Name", |ui| {
+        field(ui, theme, tr("Name"), |ui| {
             ui.add(
                 TextEdit::singleline(&mut self.calendar.name)
-                    .hint_text("Work, Personal… (optional)")
+                    .hint_text(tr("Work, Personal… (optional)"))
                     .desired_width(ui.available_width()),
             );
         });
         let mut submitted = false;
-        field(ui, theme, "Secret address", |ui| {
+        field(ui, theme, tr("Secret address"), |ui| {
             let response = ui.add(
                 TextEdit::singleline(&mut self.calendar.url)
                     .password(true)
@@ -124,12 +125,12 @@ impl SettingsDialog {
             ui.add_space(LABEL_WIDTH + ui.spacing().item_spacing.x);
             if calendar.is_adding_link() {
                 ui.add(Spinner::new().size(14.0).color(theme.text_muted));
-                muted(ui, "Checking the link…");
+                muted(ui, tr("Checking the link…"));
             } else {
                 let ready = !self.calendar.url.trim().is_empty();
                 let add = ui
                     .add_enabled_ui(ready, |ui| {
-                        button(ui, ButtonStyle::Accent, Some(Icon::Plus), "Add")
+                        button(ui, ButtonStyle::Accent, Some(Icon::Plus), tr("Add"))
                     })
                     .inner;
                 if ready && (add.clicked() || submitted) {
@@ -144,16 +145,15 @@ impl SettingsDialog {
             ui.label(RichText::new(error).size(12.5).color(theme.warning));
         }
         ui.label(
-            RichText::new(
-                "The address works like a password: whoever has it can read the calendar. Falog keeps it \
-                 on this computer only. Falog reads the calendars again every five minutes.",
-            )
+            RichText::new(tr(
+                "The address works like a password: whoever has it can read the calendar. Falog keeps it on this computer only. Falog reads the calendars again every five minutes.",
+            ))
             .size(12.0)
             .color(theme.text_placeholder),
         );
 
         if !calendar.config.links.is_empty() {
-            section(ui, theme, "Linked calendars");
+            section(ui, theme, tr("Linked calendars"));
             for link in &calendar.config.links {
                 let id = &link.calendar.id;
                 ui.horizontal(|ui| {
@@ -186,7 +186,7 @@ impl SettingsDialog {
                         });
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if button(ui, ButtonStyle::Danger, None, "Remove").clicked() {
+                        if button(ui, ButtonStyle::Danger, None, tr("Remove")).clicked() {
                             events.push(SettingsEvent::RemoveCalendarLink(id.clone()));
                         }
                     });
@@ -208,7 +208,7 @@ impl SettingsDialog {
         if disclosure(
             ui,
             theme,
-            "Sign in with Google instead (advanced)",
+            tr("Sign in with Google instead (advanced)"),
             self.calendar.show_oauth,
         )
         .clicked()
@@ -234,43 +234,44 @@ impl SettingsDialog {
         };
         muted(
             ui,
-            "For accounts whose admin turned off secret addresses. Events show up right away, but you \
-             need your own Google OAuth client:",
+            tr(
+                "For accounts whose admin turned off secret addresses. Events show up right away, but you need your own Google OAuth client:",
+            ),
         );
         ui.horizontal_wrapped(|ui| {
-            muted(ui, "1. In Google Cloud, create a project and enable the");
+            muted(ui, tr("1. In Google Cloud, create a project and enable the"));
             ui.hyperlink_to(
                 RichText::new("Google Calendar API").size(12.5),
                 "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com",
             );
         });
         ui.horizontal_wrapped(|ui| {
-            muted(ui, "2. In the");
+            muted(ui, tr("2. In the"));
             ui.hyperlink_to(
-                RichText::new("OAuth consent screen").size(12.5),
+                RichText::new(tr("OAuth consent screen")).size(12.5),
                 "https://console.cloud.google.com/auth/overview",
             );
             muted(
                 ui,
-                "pick External, then publish the app (testing logins expire every 7 days).",
+                tr("pick External, then publish the app (testing logins expire every 7 days)."),
             );
         });
         ui.horizontal_wrapped(|ui| {
-            muted(ui, "3. In");
+            muted(ui, tr("3. In"));
             ui.hyperlink_to(
-                RichText::new("Credentials").size(12.5),
+                RichText::new(tr("Credentials")).size(12.5),
                 "https://console.cloud.google.com/apis/credentials",
             );
             muted(
                 ui,
-                "create an OAuth client ID of type Desktop app and paste it here.",
+                tr("create an OAuth client ID of type Desktop app and paste it here."),
             );
         });
         ui.add_space(6.0);
-        field(ui, theme, "Client ID", |ui| {
+        field(ui, theme, tr("Client ID"), |ui| {
             ui.add(TextEdit::singleline(&mut self.google_id).desired_width(ui.available_width()));
         });
-        field(ui, theme, "Client secret", |ui| {
+        field(ui, theme, tr("Client secret"), |ui| {
             ui.add(
                 TextEdit::singleline(&mut self.google_secret)
                     .password(true)
@@ -284,21 +285,21 @@ impl SettingsDialog {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             let changed = edited != calendar.config.client;
-            if changed && button(ui, ButtonStyle::Filled, None, "Save client").clicked() {
+            if changed && button(ui, ButtonStyle::Filled, None, tr("Save client")).clicked() {
                 events.push(SettingsEvent::SaveGoogleClient(edited.clone()));
             }
             if calendar.is_connecting() {
-                if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {
+                if button(ui, ButtonStyle::Ghost, None, tr("Cancel")).clicked() {
                     events.push(SettingsEvent::CancelGoogleConnect);
                 }
-                muted(ui, "Finish signing in in your browser…");
+                muted(ui, tr("Finish signing in in your browser…"));
             } else if calendar.has_client()
                 && !changed
                 && button(
                     ui,
                     ButtonStyle::Accent,
                     Some(Icon::Plus),
-                    "Connect Google account",
+                    tr("Connect Google account"),
                 )
                 .clicked()
             {
@@ -311,16 +312,17 @@ impl SettingsDialog {
                 ui.label(RichText::new(&account.email).size(13.0).color(theme.text));
                 if account.needs_sign_in {
                     ui.label(
-                        RichText::new("needs to sign in again")
+                        RichText::new(tr("needs to sign in again"))
                             .size(12.5)
                             .color(theme.warning),
                     );
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if button(ui, ButtonStyle::Danger, None, "Remove").clicked() {
+                    if button(ui, ButtonStyle::Danger, None, tr("Remove")).clicked() {
                         events.push(SettingsEvent::RemoveGoogleAccount(account.email.clone()));
                     }
-                    if account.needs_sign_in && button(ui, ButtonStyle::Filled, None, "Sign in").clicked() {
+                    if account.needs_sign_in && button(ui, ButtonStyle::Filled, None, tr("Sign in")).clicked()
+                    {
                         events.push(SettingsEvent::ConnectGoogle);
                     }
                 });
@@ -356,11 +358,13 @@ fn areas_section(
     if sources.is_empty() || areas.is_empty() {
         return;
     }
-    section(ui, theme, "Area of each account");
+    section(ui, theme, tr("Area of each account"));
     ui.label(
-        RichText::new("Pick the area each email belongs to. An area can have several emails.")
-            .size(12.5)
-            .color(theme.text_muted),
+        RichText::new(tr(
+            "Pick the area each email belongs to. An area can have several emails.",
+        ))
+        .size(12.5)
+        .color(theme.text_muted),
     );
     ui.add_space(4.0);
     for (source, label, area, read_only) in sources {
@@ -380,10 +384,10 @@ fn areas_section(
                 });
             }
             if read_only {
-                ui.label(RichText::new("read only").size(12.0).color(theme.warning)).on_hover_text(
-                    "Connected before Falog could create events. Reconnect it (Sign in with Google, below) to let the assistant book meetings here.",
+                ui.label(RichText::new(tr("read only")).size(12.0).color(theme.warning)).on_hover_text(
+                    tr("Connected before Falog could create events. Reconnect it (Sign in with Google, below) to let the assistant book meetings here."),
                 );
-                if button(ui, ButtonStyle::Ghost, None, "Reconnect").clicked() {
+                if button(ui, ButtonStyle::Ghost, None, tr("Reconnect")).clicked() {
                     events.push(SettingsEvent::ConnectGoogle);
                 }
             }

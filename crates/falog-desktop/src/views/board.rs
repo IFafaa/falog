@@ -4,13 +4,13 @@ use super::ViewCx;
 use crate::action::{Action, Actions};
 use crate::components::{badge, icon_button, meta};
 use crate::fonts;
+use crate::i18n::{self, area_name, priority_label, status_label, tr, trf};
 use crate::icons::Icon;
 use crate::theme::{self, Theme};
 use eframe::egui::{
     self, Align, CursorIcon, FontId, Frame, Id, Layout, Margin, Pos2, Rect, RichText, ScrollArea, Sense,
     Stroke, Ui, vec2,
 };
-use falog_core::date;
 use falog_core::domain::{Priority, Status, Task, TaskId};
 
 const COLUMN_GAP: f32 = 12.0;
@@ -109,18 +109,18 @@ fn column(
                     ui.add_space(8.0);
                     ui.vertical_centered(|ui| {
                         ui.label(
-                            RichText::new("No tasks")
+                            RichText::new(tr("No tasks"))
                                 .size(12.5)
                                 .color(cx.theme.text_placeholder),
                         );
                     });
                 }
                 if hidden > 0 {
-                    ui.label(
-                        RichText::new(format!("{hidden} completed more than a week ago"))
-                            .size(12.0)
-                            .color(cx.theme.text_placeholder),
-                    );
+                    let text = match hidden {
+                        1 => tr("1 completed more than a week ago").to_owned(),
+                        n => trf("{n} completed more than a week ago", &[("n", &n)]),
+                    };
+                    ui.label(RichText::new(text).size(12.0).color(cx.theme.text_placeholder));
                 }
             });
     })
@@ -142,20 +142,21 @@ fn column_header(
         ui.add_space(4.0);
         ui.add(Icon::for_status(status).image(14.0, theme.status_color(status)));
         ui.label(
-            RichText::new(status.label())
+            RichText::new(status_label(status))
                 .font(fonts::semibold(13.5))
                 .color(theme.text),
         );
         badge(ui, count.to_string());
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if status != Status::Done {
-                if icon_button(ui, Icon::Plus, &format!("New task in {}", status.label())).clicked() {
+                let tooltip = trf("New task in {status}", &[("status", &status_label(status))]);
+                if icon_button(ui, Icon::Plus, &tooltip).clicked() {
                     actions.push(Action::NewTask(status));
                 }
             } else if done > 0 {
                 let tooltip = match done {
-                    1 => "Archive the done task".to_owned(),
-                    n => format!("Archive the {n} done tasks"),
+                    1 => tr("Archive the done task").to_owned(),
+                    n => trf("Archive the {n} done tasks", &[("n", &n)]),
                 };
                 if icon_button(ui, Icon::Archive, &tooltip).clicked() {
                     actions.push(Action::ArchiveDone);
@@ -191,7 +192,7 @@ fn card(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut BoardState, task: &Task, actio
             ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
             ui.horizontal(|ui| {
                 ui.add(Icon::Folder.image(12.0, area_color));
-                ui.label(RichText::new(task.area_name()).size(12.0).color(theme.text_muted));
+                ui.label(RichText::new(area_name(task)).size(12.0).color(theme.text_muted));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
                         RichText::new(format!("#{}", task.id))
@@ -240,7 +241,7 @@ fn card_meta(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task) {
             meta(
                 ui,
                 Icon::for_priority(task.priority),
-                task.priority.label(),
+                priority_label(task.priority),
                 theme.priority_color(task.priority),
             );
         }
@@ -250,43 +251,47 @@ fn card_meta(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task) {
             } else {
                 theme.text_placeholder
             };
-            meta(ui, Icon::Clock, date::describe_due(due, cx.today), color);
+            meta(ui, Icon::Clock, i18n::date::describe_due(due, cx.today), color);
         }
         if !task.requester.is_empty() {
             meta(ui, Icon::Person, &task.requester, theme.text_muted);
         }
         if task.note_count > 0 {
-            meta(ui, Icon::Notepad, task.note_count.to_string(), theme.text_muted)
-                .on_hover_text(format!("{} notes in the activity log", task.note_count));
+            meta(ui, Icon::Notepad, task.note_count.to_string(), theme.text_muted).on_hover_text(match task
+                .note_count
+            {
+                1 => tr("1 note in the activity log").to_owned(),
+                n => trf("{n} notes in the activity log", &[("n", &n)]),
+            });
         }
     });
 }
 
 /// Right-click menu shared by board cards and list rows.
 pub fn task_menu(ui: &mut Ui, task: &Task, actions: &mut Actions) {
-    if ui.button("Open").clicked() {
+    if ui.button(tr("Open")).clicked() {
         actions.push(Action::OpenTask(task.id));
         ui.close_menu();
     }
-    ui.menu_button("Move to", |ui| {
+    ui.menu_button(tr("Move to"), |ui| {
         for status in Status::ALL.into_iter().filter(|s| *s != task.status) {
-            if ui.button(status.label()).clicked() {
+            if ui.button(status_label(status)).clicked() {
                 actions.push(Action::MoveTask(task.id, status));
                 ui.close_menu();
             }
         }
     });
     if task.is_archived() {
-        if ui.button("Restore to the board").clicked() {
+        if ui.button(tr("Restore to the board")).clicked() {
             actions.push(Action::RestoreTask(task.id));
             ui.close_menu();
         }
-    } else if task.status == Status::Done && ui.button("Archive").clicked() {
+    } else if task.status == Status::Done && ui.button(tr("Archive|verb")).clicked() {
         actions.push(Action::ArchiveTask(task.id));
         ui.close_menu();
     }
     ui.separator();
-    if ui.button("Delete…").clicked() {
+    if ui.button(tr("Delete…")).clicked() {
         actions.push(Action::DeleteTask(task.id));
         ui.close_menu();
     }

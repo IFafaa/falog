@@ -2,6 +2,7 @@
 //! size, when known) it was published with: the voice model and app updates are both run by Falog,
 //! so a truncated or tampered file must never be used.
 
+use crate::i18n::{tr, trf};
 use eframe::egui;
 use sha2::{Digest, Sha256};
 use std::fs::File;
@@ -38,7 +39,7 @@ impl Download {
         let (r, t) = (Arc::clone(&received), Arc::clone(&total));
         thread::spawn(move || {
             let result = download(&url, &destination, &expected, &r, &t, &ctx)
-                .map_err(|e| format!("Download failed: {e}"));
+                .map_err(|e| trf("Download failed: {err}", &[("err", &e)]));
             let _ = tx.send(result);
             ctx.request_repaint();
         });
@@ -107,7 +108,7 @@ pub fn copy_verified(
     expected: &Expected,
     mut progress: impl FnMut(usize),
 ) -> io::Result<()> {
-    let damaged = || io::Error::other("the file was damaged on the way; try again");
+    let damaged = || io::Error::other(tr("the file was damaged on the way; try again"));
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; 1 << 16];
     let mut total = 0u64;

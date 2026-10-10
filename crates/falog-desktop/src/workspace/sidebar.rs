@@ -5,6 +5,7 @@ use crate::action::{Action, Actions};
 use crate::calendar::CalendarState;
 use crate::components::{ButtonStyle, button, icon_button, single_line};
 use crate::fonts;
+use crate::i18n::tr;
 use crate::icons::Icon;
 use crate::overlays::settings::SettingsTab;
 use crate::theme::{self, Theme};
@@ -47,7 +48,7 @@ pub fn show(
                     theme,
                     Icon::FolderOpen,
                     theme.icon_muted,
-                    "All areas",
+                    tr("All areas"),
                     open(None),
                     selected.is_none(),
                 );
@@ -70,7 +71,7 @@ pub fn show(
                         actions.push(Action::FilterArea(Some(area.id)));
                     }
                     response.context_menu(|ui| {
-                        if ui.button("Manage areas…").clicked() {
+                        if ui.button(tr("Manage areas…")).clicked() {
                             actions.push(Action::ManageAreas);
                             ui.close_menu();
                         }
@@ -96,7 +97,7 @@ fn header(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
     ui.painter().text(
         pos2(rect.left() + 12.0, rect.center().y),
         Align2::LEFT_CENTER,
-        "Areas",
+        tr("Areas"),
         fonts::semibold(13.0),
         theme.text_muted,
     );
@@ -107,7 +108,7 @@ fn header(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
             .layout(Layout::right_to_left(Align::Center)),
         |ui| {
             ui.add_space(6.0);
-            if icon_button(ui, Icon::Plus, "Add area").clicked() {
+            if icon_button(ui, Icon::Plus, tr("Add area")).clicked() {
                 actions.push(Action::ManageAreas);
             }
         },
@@ -171,9 +172,13 @@ fn empty_state(ui: &mut Ui, theme: &Theme, actions: &mut Actions) {
     Frame::none()
         .inner_margin(Margin::symmetric(12.0, 12.0))
         .show(ui, |ui| {
-            ui.label(RichText::new("No areas yet.").size(13.0).color(theme.text_muted));
+            ui.label(
+                RichText::new(tr("No areas yet."))
+                    .size(13.0)
+                    .color(theme.text_muted),
+            );
             ui.add_space(6.0);
-            if button(ui, ButtonStyle::Filled, Some(Icon::Plus), "Add area").clicked() {
+            if button(ui, ButtonStyle::Filled, Some(Icon::Plus), tr("Add area")).clicked() {
                 actions.push(Action::ManageAreas);
             }
         });
@@ -186,7 +191,7 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
     ui.painter().text(
         pos2(rect.left() + 12.0, rect.center().y),
         Align2::LEFT_CENTER,
-        "Calendars",
+        tr("Calendars"),
         fonts::semibold(13.0),
         theme.text_muted,
     );
@@ -197,7 +202,7 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
             .layout(Layout::right_to_left(Align::Center)),
         |ui| {
             ui.add_space(6.0);
-            if icon_button(ui, Icon::Plus, "Add a calendar").clicked() {
+            if icon_button(ui, Icon::Plus, tr("Add a calendar")).clicked() {
                 actions.push(Action::OpenSettingsTab(SettingsTab::Calendar));
             }
         },
@@ -211,9 +216,9 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
             });
     };
     if calendars.is_connecting() {
-        hint(ui, "Finish signing in in your browser…");
+        hint(ui, tr("Finish signing in in your browser…"));
     } else if !calendars.has_calendars() {
-        hint(ui, "No calendars yet.");
+        hint(ui, tr("No calendars yet."));
     }
     // Links have no account to group them under; they come first, as the usual way to add one.
     for (l, link) in calendars.config.links.iter().enumerate() {
@@ -252,7 +257,9 @@ fn calendar_section(ui: &mut Ui, theme: &Theme, calendars: &CalendarState, actio
             let icon = Rect::from_center_size(pos2(rect.right() - 20.0, rect.center().y), vec2(13.0, 13.0));
             Icon::Warning.paint(ui, icon, 13.0, theme.warning);
             if response
-                .on_hover_text("Google asked this account to sign in again. Click to reconnect.")
+                .on_hover_text(tr(
+                    "Google asked this account to sign in again. Click to reconnect.",
+                ))
                 .on_hover_cursor(CursorIcon::PointingHand)
                 .clicked()
             {

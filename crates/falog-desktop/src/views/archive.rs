@@ -5,6 +5,7 @@ use super::{ViewCx, centered_column, section_header};
 use crate::action::{Action, Actions};
 use crate::components::single_line;
 use crate::fonts;
+use crate::i18n::{self, area_name, tr, trf};
 use crate::icons::Icon;
 use crate::theme;
 use chrono::{Datelike, NaiveDate, NaiveDateTime};
@@ -31,8 +32,7 @@ struct Month<'a> {
 
 impl Month<'_> {
     fn title(&self) -> String {
-        NaiveDate::from_ymd_opt(self.year, self.month, 1)
-            .map_or_else(String::new, |first| first.format("%B %Y").to_string())
+        NaiveDate::from_ymd_opt(self.year, self.month, 1).map_or_else(String::new, i18n::date::month_year)
     }
 }
 
@@ -68,7 +68,7 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut ArchiveState, actions: &mut
     let theme = cx.theme;
     ui.add_space(20.0);
     ui.label(
-        RichText::new("Archive")
+        RichText::new(tr("Archive"))
             .font(fonts::semibold(22.0))
             .color(theme.text),
     );
@@ -76,13 +76,13 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut ArchiveState, actions: &mut
     if cx.tasks.is_empty() {
         let (title, hint) = if cx.has_any_task {
             (
-                "No matching archived tasks",
-                "Clear the search or pick another area in the sidebar.",
+                tr("No matching archived tasks"),
+                tr("Clear the search or pick another area in the sidebar."),
             )
         } else {
             (
-                "Nothing archived yet",
-                "Archive finished tasks from the board's Done column, or right-click a done task.",
+                tr("Nothing archived yet"),
+                tr("Archive finished tasks from the board's Done column, or right-click a done task."),
             )
         };
         ui.add_space(32.0);
@@ -91,15 +91,14 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut ArchiveState, actions: &mut
         return;
     }
 
-    let count = cx.tasks.len();
-    ui.label(
-        RichText::new(format!(
-            "{count} archived {} · restore one to put it back in Done",
-            if count == 1 { "task" } else { "tasks" }
-        ))
-        .size(13.0)
-        .color(theme.text_muted),
-    );
+    let summary = match cx.tasks.len() {
+        1 => tr("1 archived task · restore one to put it back in Done").to_owned(),
+        count => trf(
+            "{count} archived tasks · restore one to put it back in Done",
+            &[("count", &count)],
+        ),
+    };
+    ui.label(RichText::new(summary).size(13.0).color(theme.text_muted));
 
     for month in months(cx.tasks) {
         if month_header(ui, cx, &month, state) {
@@ -148,7 +147,7 @@ fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
         let button = Rect::from_center_size(pos2(right - 12.0, y), vec2(24.0, 24.0));
         let restore = ui
             .interact(button, Id::new(("archive-restore", task.id)), Sense::click())
-            .on_hover_text("Restore to the board")
+            .on_hover_text(tr("Restore to the board"))
             .on_hover_cursor(CursorIcon::PointingHand);
         if restore.hovered() {
             ui.painter().rect_filled(button, 4.0, theme.ghost_selected);
@@ -160,7 +159,7 @@ fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
         right = button.left() - 10.0;
     } else if let Some(at) = finished_at(task) {
         let galley = ui.painter().layout_no_wrap(
-            at.format("%b %-d").to_string(),
+            i18n::date::short(at.date()),
             FontId::proportional(12.5),
             theme.text_placeholder,
         );
@@ -173,7 +172,7 @@ fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
         right -= 14.0;
     }
     let area = ui.painter().layout_no_wrap(
-        task.area_name().to_owned(),
+        area_name(task).to_owned(),
         FontId::proportional(12.5),
         theme.text_muted,
     );

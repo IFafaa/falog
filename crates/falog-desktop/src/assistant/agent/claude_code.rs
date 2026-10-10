@@ -9,6 +9,7 @@ use super::{
     AgentEvent, Choice, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
     StderrLog, Usage, hide_console, missing,
 };
+use crate::i18n::{tr, trf};
 use eframe::egui;
 use serde_json::{Value, json};
 use std::io::{self, BufRead, BufReader, Write};
@@ -93,12 +94,12 @@ pub fn options() -> Vec<ConfigOption> {
 /// Why Claude Code turned fast mode off, in words (the codes are `fast_mode_disabled_reason`).
 fn fast_mode_unavailable(reason: &str) -> Option<&'static str> {
     Some(match reason {
-        "free" => "it is not available on the free plan",
-        "extra_usage_disabled" => "it needs extra usage to be enabled for this account",
-        "model_not_allowed" => "it is not available for this model (Opus only)",
-        "not_first_party" => "it is not available on this API provider",
-        "disabled_by_env" => "it is disabled by the environment",
-        "network_error" => "eligibility could not be checked (network error)",
+        "free" => tr("it is not available on the free plan"),
+        "extra_usage_disabled" => tr("it needs extra usage to be enabled for this account"),
+        "model_not_allowed" => tr("it is not available for this model (Opus only)"),
+        "not_first_party" => tr("it is not available on this API provider"),
+        "disabled_by_env" => tr("it is disabled by the environment"),
+        "network_error" => tr("eligibility could not be checked (network error)"),
         _ => return None,
     })
 }
@@ -175,7 +176,10 @@ impl ClaudeSession {
                 // Say once why fast mode was asked for but not used.
                 if let (true, false, Some(reason)) = (fast, fast_refused, fast_mode_refusal(&line)) {
                     fast_refused = true;
-                    parsed.push(AgentEvent::Notice(format!("Fast mode is off: {reason}.")));
+                    parsed.push(AgentEvent::Notice(trf(
+                        "Fast mode is off: {reason}.",
+                        &[("reason", &reason)],
+                    )));
                 }
                 for event in parsed {
                     if sender.send(event).is_err() {

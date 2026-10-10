@@ -3,7 +3,7 @@
 use crate::action::{Action, Actions};
 use crate::assistant::{self, Assistant};
 use crate::calendar::CalendarState;
-use crate::i18n::{self, Language, trf};
+use crate::i18n::{self, Language, status_label, tr, trf};
 use crate::overlays::areas::{AreaEvent, AreasDialog};
 use crate::overlays::command_palette::{CommandPalette, Mode, Outcome};
 use crate::overlays::confirm::{Answer, Confirm};
@@ -145,7 +145,10 @@ impl FalogApp {
                     self.prefs.area = None;
                 }
             }
-            Err(err) => self.notify(format!("Could not load tasks: {err}"), ToastKind::Error),
+            Err(err) => self.notify(
+                trf("Could not load tasks: {err}", &[("err", &err)]),
+                ToastKind::Error,
+            ),
         }
     }
 
@@ -235,7 +238,7 @@ impl FalogApp {
         self.prefs
             .area
             .and_then(|id| self.areas.iter().find(|a| a.id == id))
-            .map_or_else(|| "All areas".to_owned(), |a| a.name.clone())
+            .map_or_else(|| tr("All areas").to_owned(), |a| a.name.clone())
     }
 
     // ---- task panel ------------------------------------------------------------------------
@@ -283,7 +286,7 @@ impl FalogApp {
             None => store.create_task(&new),
         });
         if let Some(task) = saved {
-            self.notify(format!("Saved #{}", task.id), ToastKind::Success);
+            self.notify(trf("Saved #{id}", &[("id", &task.id)]), ToastKind::Success);
             self.open_task(task.id);
         }
     }
@@ -444,7 +447,7 @@ impl FalogApp {
             }
             Action::Reload => {
                 self.reload();
-                self.notify("Reloaded", ToastKind::Success);
+                self.notify(tr("Reloaded"), ToastKind::Success);
             }
             Action::ToggleAssistant => {
                 self.prefs.assistant_open = !self.prefs.assistant_open;
@@ -490,7 +493,10 @@ impl FalogApp {
         if self.calendar.has_client() {
             self.calendar.connect();
         } else {
-            self.notify("Add your Google OAuth client in Settings first", ToastKind::Error);
+            self.notify(
+                tr("Add your Google OAuth client in Settings first"),
+                ToastKind::Error,
+            );
             self.apply(ctx, Action::OpenSettingsTab(SettingsTab::Calendar));
         }
     }
@@ -501,7 +507,10 @@ impl FalogApp {
         }
         if let Some(task) = self.write(|store| store.set_status(id, status)) {
             self.notify(
-                format!("#{} moved to {}", task.id, status.label()),
+                trf(
+                    "#{id} moved to {status}",
+                    &[("id", &task.id), ("status", &status_label(status))],
+                ),
                 ToastKind::Success,
             );
             let panel_shows_it = self
@@ -516,7 +525,7 @@ impl FalogApp {
 
     fn archive_tasks(&mut self, ids: &[TaskId]) {
         if ids.is_empty() {
-            self.notify("No done tasks to archive", ToastKind::Error);
+            self.notify(tr("No done tasks to archive"), ToastKind::Error);
             return;
         }
         let Some(count) = self.write(|store| store.archive_tasks(ids)) else {
@@ -535,7 +544,7 @@ impl FalogApp {
 
     fn restore_task(&mut self, id: TaskId) {
         if self.write(|store| store.restore_task(id)).is_some() {
-            self.notify(format!("Restored #{id} to Done"), ToastKind::Success);
+            self.notify(trf("Restored #{id} to Done", &[("id", &id)]), ToastKind::Success);
             self.refresh_panel(&[id]);
         }
     }
@@ -543,7 +552,10 @@ impl FalogApp {
     /// Installs the downloaded update and quits, so the new version can start.
     fn install_update(&mut self, ctx: &egui::Context) {
         if self.task_panel.as_ref().is_some_and(TaskPanel::is_dirty) {
-            self.notify("Save or discard the open task before updating", ToastKind::Error);
+            self.notify(
+                tr("Save or discard the open task before updating"),
+                ToastKind::Error,
+            );
             return;
         }
         match self.updater.install() {
@@ -643,7 +655,7 @@ impl FalogApp {
             match event {
                 AreaEvent::Create { name, color } => {
                     if let Some(area) = self.write(|store| store.create_area(&name, Some(color))) {
-                        self.notify(format!("Added {}", area.name), ToastKind::Success);
+                        self.notify(trf("Added {name}", &[("name", &area.name)]), ToastKind::Success);
                         let count = self.areas.len();
                         if let Some(dialog) = &mut self.areas_dialog {
                             dialog.reset_new(count);
@@ -652,7 +664,7 @@ impl FalogApp {
                 }
                 AreaEvent::Update { id, name, color } => {
                     if let Some(area) = self.write(|store| store.update_area(id, &name, color)) {
-                        self.notify(format!("Saved {}", area.name), ToastKind::Success);
+                        self.notify(trf("Saved {name}", &[("name", &area.name)]), ToastKind::Success);
                         if let Some(dialog) = &mut self.areas_dialog {
                             dialog.forget(id);
                         }
@@ -668,15 +680,15 @@ impl FalogApp {
             SettingsEvent::SetAutostart(enabled) => match autostart::set_enabled(enabled) {
                 Ok(()) => {
                     let message = if enabled {
-                        "Falog will open at startup"
+                        tr("Falog will open at startup")
                     } else {
-                        "Launch at startup disabled"
+                        tr("Launch at startup disabled")
                     };
                     self.notify(message, ToastKind::Success);
                 }
                 Err(err) => {
                     self.notify(
-                        format!("Could not change launch at startup: {err}"),
+                        trf("Could not change launch at startup: {err}", &[("err", &err)]),
                         ToastKind::Error,
                     );
                     if let Some(dialog) = &mut self.settings {
@@ -687,16 +699,16 @@ impl FalogApp {
             SettingsEvent::SetTheme(mode) => theme::set_mode(ctx, mode),
             SettingsEvent::VoiceEngineChanged => self.assistant.reset_voice_engine(),
             SettingsEvent::AgentsChanged(agents) => self.assistant.set_custom_agents(agents),
-            SettingsEvent::Copied => self.notify("Copied to clipboard", ToastKind::Success),
+            SettingsEvent::Copied => self.notify(tr("Copied to clipboard"), ToastKind::Success),
             SettingsEvent::SaveGoogleClient(client) => {
                 self.calendar.set_client(client);
-                self.notify("Saved the Google client", ToastKind::Success);
+                self.notify(tr("Saved the Google client"), ToastKind::Success);
             }
             SettingsEvent::ConnectGoogle => self.calendar.connect(),
             SettingsEvent::CancelGoogleConnect => self.calendar.cancel_connect(),
             SettingsEvent::RemoveGoogleAccount(email) => {
                 self.calendar.remove_account(&email);
-                self.notify(format!("Removed {email}"), ToastKind::Success);
+                self.notify(trf("Removed {name}", &[("name", &email)]), ToastKind::Success);
             }
             SettingsEvent::AddCalendarLink(link) => self.calendar.add_link(&link.name, &link.url),
             SettingsEvent::RenameCalendarLink { id, name } => self.calendar.rename_link(&id, &name),
@@ -705,7 +717,7 @@ impl FalogApp {
                 let name = self.calendar.config.calendar("", &id).map(|c| c.name.clone());
                 self.calendar.remove_link(&id);
                 if let Some(name) = name {
-                    self.notify(format!("Removed {name}"), ToastKind::Success);
+                    self.notify(trf("Removed {name}", &[("name", &name)]), ToastKind::Success);
                 }
             }
             SettingsEvent::SetCalendarArea { source, area } => self.calendar.set_area(&source, area),
@@ -719,7 +731,7 @@ impl FalogApp {
         match confirm {
             Confirm::DeleteTask { id, .. } => {
                 if let Some(task) = self.write(|store| store.delete_task(id)) {
-                    self.notify(format!("Deleted #{}", task.id), ToastKind::Success);
+                    self.notify(trf("Deleted #{id}", &[("id", &task.id)]), ToastKind::Success);
                     if self.task_panel.as_ref().is_some_and(|p| p.id == Some(id)) {
                         self.task_panel = None;
                     }
@@ -727,7 +739,7 @@ impl FalogApp {
             }
             Confirm::DeleteArea { id, name } => {
                 if self.write(|store| store.delete_area(id)).is_some() {
-                    self.notify(format!("Deleted {name}"), ToastKind::Success);
+                    self.notify(trf("Deleted {name}", &[("name", &name)]), ToastKind::Success);
                     self.calendar.forget_area(id);
                     if let Some(dialog) = &mut self.areas_dialog {
                         dialog.forget(id);
@@ -746,6 +758,7 @@ impl FalogApp {
 
 impl eframe::App for FalogApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        i18n::set(self.prefs.language.unwrap_or_default());
         let theme = Theme::current(ctx);
         if self.title_bar_dark != Some(theme.dark) {
             title_bar::apply(frame, theme);
@@ -768,7 +781,6 @@ impl eframe::App for FalogApp {
             // A tool just ran: show its effect now instead of waiting for the next poll.
             self.sync();
         }
-        i18n::set(self.prefs.language.unwrap_or_default());
         self.updater
             .poll(ctx, self.prefs.check_updates, self.prefs.update_preview);
         if self.calendar.poll(ctx) {
@@ -799,7 +811,7 @@ impl eframe::App for FalogApp {
         }
 
         let bar = StatusBar {
-            date: self.today.format("%a, %b %-d").to_string(),
+            date: i18n::date::with_weekday(self.today),
             sidebar_open: self.prefs.sidebar_open,
             assistant_open: self.prefs.assistant_open,
             listening: self.assistant.is_recording(),
@@ -900,7 +912,7 @@ fn startup_error(ctx: &egui::Context, theme: &Theme, error: &str) {
             ui.horizontal(|ui| {
                 ui.add(Icon::Warning.image(18.0, theme.error));
                 ui.label(
-                    RichText::new("Falog could not open its database")
+                    RichText::new(tr("Falog could not open its database"))
                         .font(fonts::semibold(18.0))
                         .color(theme.text),
                 );
@@ -908,7 +920,10 @@ fn startup_error(ctx: &egui::Context, theme: &Theme, error: &str) {
             ui.add_space(8.0);
             ui.label(RichText::new(error).monospace().color(theme.text_muted));
             ui.add_space(8.0);
-            let hint = format!("Set {} to use another location.", falog_core::store::DB_PATH_ENV);
+            let hint = trf(
+                "Set {variable} to use another location.",
+                &[("variable", &falog_core::store::DB_PATH_ENV)],
+            );
             ui.label(RichText::new(hint).color(theme.text_placeholder));
         });
 }

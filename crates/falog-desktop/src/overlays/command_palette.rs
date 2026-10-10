@@ -2,6 +2,7 @@
 
 use crate::action::Action;
 use crate::components::{Placement, modal, paint_keybinding, single_line};
+use crate::i18n::{area_name, tr, trf};
 use crate::icons::Icon;
 use crate::overlays::settings::SettingsTab;
 use crate::theme::{self, Theme, ThemeMode};
@@ -102,8 +103,8 @@ impl CommandPalette {
 
     fn input(&mut self, ui: &mut Ui, theme: &Theme) {
         let hint = match self.mode {
-            Mode::Commands => "Execute a command…",
-            Mode::Tasks => "Search tasks by title, #id, area or requester…",
+            Mode::Commands => tr("Execute a command…"),
+            Mode::Tasks => tr("Search tasks by title, #id, area or requester…"),
         };
         let response = ui.add(
             TextEdit::singleline(&mut self.query)
@@ -130,7 +131,7 @@ impl CommandPalette {
                 if items.is_empty() {
                     ui.add_space(6.0);
                     ui.label(
-                        egui::RichText::new("  No matches")
+                        egui::RichText::new(format!("  {}", tr("No matches")))
                             .size(13.5)
                             .color(theme.text_placeholder),
                     );
@@ -176,19 +177,19 @@ impl CommandPalette {
         let mut items = vec![
             command(
                 Icon::Plus,
-                "task: new".into(),
+                tr("task: new").into(),
                 Some("Ctrl+N"),
                 Action::NewTask(Status::Todo),
             ),
             command(
                 Icon::Search,
-                "file finder: find task".into(),
+                tr("file finder: find task").into(),
                 Some("Ctrl+P"),
                 Action::OpenTaskFinder,
             ),
         ];
         for view in View::ALL {
-            let label = format!("view: {}", view.label().to_lowercase());
+            let label = trf("view: {view}", &[("view", &view.label().to_lowercase())]);
             items.push(command(
                 view.icon(),
                 label,
@@ -198,73 +199,73 @@ impl CommandPalette {
         }
         items.push(command(
             Icon::Archive,
-            "task: archive done tasks".into(),
+            tr("task: archive done tasks").into(),
             None,
             Action::ArchiveDone,
         ));
         items.push(command(
             Icon::SidebarLeft,
-            "workspace: toggle sidebar".into(),
+            tr("workspace: toggle sidebar").into(),
             Some("Ctrl+B"),
             Action::ToggleSidebar,
         ));
         items.push(command(
             Icon::Sparkle,
-            "assistant: toggle panel".into(),
+            tr("assistant: toggle panel").into(),
             Some("Ctrl+Shift+A"),
             Action::ToggleAssistant,
         ));
         items.push(command(
             Icon::Maximize,
-            "assistant: toggle zoom".into(),
+            tr("assistant: toggle zoom").into(),
             Some("Shift+Esc"),
             Action::ToggleAssistantZoom,
         ));
         items.push(command(
             Icon::Mic,
-            "assistant: dictate".into(),
+            tr("assistant: dictate").into(),
             Some("Ctrl+Space"),
             Action::ToggleDictation,
         ));
         items.push(command(
             Icon::Plus,
-            "assistant: new thread".into(),
+            tr("assistant: new thread").into(),
             None,
             Action::NewAssistantThread,
         ));
         items.push(command(
             Icon::Clock,
-            "assistant: show history".into(),
+            tr("assistant: show history").into(),
             None,
             Action::ShowAssistantHistory,
         ));
         items.push(command(
             Icon::Calendar,
-            "calendar: add calendar link".into(),
+            tr("calendar: add calendar link").into(),
             None,
             Action::OpenSettingsTab(SettingsTab::Calendar),
         ));
         items.push(command(
             Icon::Calendar,
-            "calendar: connect google account".into(),
+            tr("calendar: connect google account").into(),
             None,
             Action::ConnectGoogle,
         ));
         items.push(command(
             Icon::Refresh,
-            "calendar: refresh".into(),
+            tr("calendar: refresh").into(),
             None,
             Action::RefreshCalendar,
         ));
         items.push(command(
             Icon::Search,
-            "workspace: focus search".into(),
+            tr("workspace: focus search").into(),
             Some("Ctrl+F"),
             Action::FocusSearch,
         ));
         items.push(command(
             Icon::FolderOpen,
-            "areas: show all".into(),
+            tr("areas: show all").into(),
             None,
             Action::FilterArea(None),
         ));
@@ -272,7 +273,7 @@ impl CommandPalette {
             items.push(Item {
                 icon: Icon::Folder,
                 icon_color: theme::color(area.color),
-                label: format!("areas: filter by {}", area.name),
+                label: trf("areas: filter by {name}", &[("name", &area.name)]),
                 detail: None,
                 keys: None,
                 action: Action::FilterArea(Some(area.id)),
@@ -280,23 +281,23 @@ impl CommandPalette {
         }
         items.push(command(
             Icon::Settings,
-            "areas: manage".into(),
+            tr("areas: manage").into(),
             None,
             Action::ManageAreas,
         ));
         for mode in ThemeMode::ALL {
-            let label = format!("theme: {}", mode.label().to_lowercase());
+            let label = trf("theme: {theme}", &[("theme", &mode.label().to_lowercase())]);
             items.push(command(Icon::Settings, label, None, Action::SetTheme(mode)));
         }
         items.push(command(
             Icon::Settings,
-            "settings: open".into(),
+            tr("settings: open").into(),
             Some("Ctrl+,"),
             Action::OpenSettings,
         ));
         items.push(command(
             Icon::Database,
-            "data: reload".into(),
+            tr("data: reload").into(),
             Some("F5"),
             Action::Reload,
         ));
@@ -316,7 +317,7 @@ impl CommandPalette {
                 icon: Icon::for_status(task.status),
                 icon_color: theme.status_color(task.status),
                 label: format!("#{}  {}", task.id, task.title),
-                detail: Some(task.area_name().to_owned()),
+                detail: Some(area_name(task).to_owned()),
                 keys: None,
                 action: Action::OpenTask(task.id),
             })

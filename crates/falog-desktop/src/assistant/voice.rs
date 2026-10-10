@@ -1,6 +1,7 @@
 //! Push-to-talk: microphone capture, local Whisper transcription and the model download.
 
 use crate::download::Expected;
+use crate::i18n::{tr, trf};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample};
 use eframe::egui;
@@ -51,9 +52,9 @@ impl Default for VoiceLanguage {
 impl VoiceLanguage {
     pub const ALL: [Self; 3] = [Self::Portuguese, Self::English, Self::Auto];
 
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Auto => "Auto (slower)",
+            Self::Auto => tr("Auto (slower)"),
             Self::Portuguese => "Português",
             Self::English => "English",
         }
@@ -93,10 +94,10 @@ impl Recorder {
     pub fn start() -> Result<Self, String> {
         let device = cpal::default_host()
             .default_input_device()
-            .ok_or("No microphone was found.")?;
+            .ok_or(tr("No microphone was found."))?;
         let supported = device
             .default_input_config()
-            .map_err(|e| format!("Microphone unavailable: {e}"))?;
+            .map_err(|e| trf("Microphone unavailable: {err}", &[("err", &e)]))?;
         let sample_rate = supported.sample_rate();
         let channels = usize::from(supported.channels());
         let config = supported.config();
@@ -108,12 +109,18 @@ impl Recorder {
             SampleFormat::I16 => build::<i16>(&device, config, channels, &samples, &level),
             SampleFormat::U16 => build::<u16>(&device, config, channels, &samples, &level),
             SampleFormat::I32 => build::<i32>(&device, config, channels, &samples, &level),
-            other => return Err(format!("Unsupported microphone format {other:?}.")),
+            other => {
+                let format = format!("{other:?}");
+                return Err(trf(
+                    "Unsupported microphone format {format}.",
+                    &[("format", &format)],
+                ));
+            }
         }
-        .map_err(|e| format!("Could not open the microphone: {e}"))?;
+        .map_err(|e| trf("Could not open the microphone: {err}", &[("err", &e)]))?;
         stream
             .play()
-            .map_err(|e| format!("Could not start the microphone: {e}"))?;
+            .map_err(|e| trf("Could not start the microphone: {err}", &[("err", &e)]))?;
 
         Ok(Self {
             _stream: stream,
@@ -420,6 +427,7 @@ fn audio_context(samples: usize) -> i32 {
 #[cfg(feature = "whisper")]
 mod engine {
     use super::audio_context;
+    use crate::i18n::trf;
     use std::path::Path;
     use std::sync::Arc;
     use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
@@ -435,7 +443,7 @@ mod engine {
         parameters.use_gpu(use_gpu && cfg!(feature = "gpu"));
         WhisperContext::new_with_params(path, parameters)
             .map(Arc::new)
-            .map_err(|e| format!("Could not load the Whisper model: {e}"))
+            .map_err(|e| trf("Could not load the Whisper model: {err}", &[("err", &e)]))
     }
 
     pub fn transcribe(
@@ -446,7 +454,7 @@ mod engine {
     ) -> Result<String, String> {
         let mut state = model
             .create_state()
-            .map_err(|e| format!("Whisper failed to start: {e}"))?;
+            .map_err(|e| trf("Whisper failed to start: {err}", &[("err", &e)]))?;
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some(language));
         params.set_n_threads(threads as i32);
@@ -464,7 +472,7 @@ mod engine {
 
         state
             .full(params, audio)
-            .map_err(|e| format!("Transcription failed: {e}"))?;
+            .map_err(|e| trf("Transcription failed: {err}", &[("err", &e)]))?;
         let text: Vec<String> = state
             .as_iter()
             .filter_map(|segment| segment.to_str_lossy().ok().map(|s| s.trim().to_owned()))
@@ -476,6 +484,7 @@ mod engine {
 
 #[cfg(not(feature = "whisper"))]
 mod engine {
+    use crate::i18n::tr;
     use std::path::Path;
 
     /// Never constructed: [`load`] always fails without the `whisper` feature.
@@ -485,11 +494,14 @@ mod engine {
     pub fn init() {}
 
     pub fn load(_: &Path, _: bool) -> Result<Model, String> {
-        Err("This build of Falog has no speech recognition (compiled without the `whisper` feature).".into())
+        Err(
+            tr("This build of Falog has no speech recognition (compiled without the `whisper` feature).")
+                .into(),
+        )
     }
 
     pub fn transcribe(_: &Model, _: &[f32], _: &str, _: usize) -> Result<String, String> {
-        Err("This build of Falog has no speech recognition.".into())
+        Err(tr("This build of Falog has no speech recognition.").into())
     }
 }
 

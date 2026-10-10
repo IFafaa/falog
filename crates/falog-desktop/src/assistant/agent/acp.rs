@@ -14,6 +14,7 @@ use super::{
     AgentEvent, Choice, ConfigOption, Environment, OptionKind, Session, SlashCommand, StartOptions,
     StderrLog, Usage, hide_console, missing,
 };
+use crate::i18n::{tr, trf};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
@@ -462,7 +463,7 @@ impl Connection {
                     _ => self.state().setup.options.resume.clone(),
                 };
                 let Some(session_id) = session_id else {
-                    return vec![failure("The agent did not open a session.".into())];
+                    return vec![failure(tr("The agent did not open a session.").into())];
                 };
                 self.opened(kind, session_id, result)
             }
@@ -489,23 +490,30 @@ impl Connection {
             Request::ResumeSession | Request::LoadSession => {
                 self.state().replaying = false;
                 self.new_session();
-                vec![AgentEvent::Notice(format!(
-                    "{agent} could not reopen the earlier conversation, so this one starts fresh."
+                vec![AgentEvent::Notice(trf(
+                    "{agent} could not reopen the earlier conversation, so this one starts fresh.",
+                    &[("agent", &agent)],
                 ))]
             }
-            _ if error["code"].as_i64() == Some(AUTH_REQUIRED) => vec![failure(format!(
-                "{agent} is not signed in. Run it once in a terminal to sign in, then try again."
+            _ if error["code"].as_i64() == Some(AUTH_REQUIRED) => vec![failure(trf(
+                "{agent} is not signed in. Run it once in a terminal to sign in, then try again.",
+                &[("agent", &agent)],
             ))],
-            Request::SetOption | Request::SetMode => vec![AgentEvent::Notice(format!(
-                "{agent} did not accept that setting: {message}"
+            Request::SetOption | Request::SetMode => vec![AgentEvent::Notice(trf(
+                "{agent} did not accept that setting: {err}",
+                &[("agent", &agent), ("err", &message)],
             ))],
             Request::Prompt => {
                 self.state().cancelling = false;
-                vec![failure(format!("{agent} failed: {message}"))]
+                vec![failure(trf(
+                    "{agent} failed: {err}",
+                    &[("agent", &agent), ("err", &message)],
+                ))]
             }
-            Request::Initialize | Request::NewSession => {
-                vec![failure(format!("Could not start {agent}: {message}"))]
-            }
+            Request::Initialize | Request::NewSession => vec![failure(trf(
+                "Could not start {agent}: {err}",
+                &[("agent", &agent), ("err", &message)],
+            ))],
         }
     }
 
@@ -746,9 +754,9 @@ fn failure(message: String) -> AgentEvent {
 
 fn turn_end(stop_reason: &str) -> AgentEvent {
     let message = match stop_reason {
-        "max_tokens" => Some("The reply was cut off: it reached the agent's length limit."),
-        "max_turn_requests" => Some("The agent stopped after too many steps in one turn."),
-        "refusal" => Some("The agent declined to continue."),
+        "max_tokens" => Some(tr("The reply was cut off: it reached the agent's length limit.")),
+        "max_turn_requests" => Some(tr("The agent stopped after too many steps in one turn.")),
+        "refusal" => Some(tr("The agent declined to continue.")),
         _ => None,
     };
     AgentEvent::TurnFinished {

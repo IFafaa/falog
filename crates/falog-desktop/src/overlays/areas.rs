@@ -1,4 +1,5 @@
 use crate::components::{ButtonStyle, Placement, button, icon_button, modal, modal_header};
+use crate::i18n::tr;
 use crate::icons::Icon;
 use crate::theme::Theme;
 use eframe::egui::{self, Align, Frame, Key, Layout, Margin, RichText, TextEdit, Ui};
@@ -46,12 +47,12 @@ impl AreasDialog {
         let theme = Theme::current(ctx);
         let mut events = Vec::new();
         let (closed, dismissed) = modal(ctx, "areas", 460.0, Placement::Center, |ui| {
-            let closed = modal_header(ui, "Areas");
+            let closed = modal_header(ui, tr("Areas"));
             Frame::none()
                 .inner_margin(Margin::symmetric(16.0, 12.0))
                 .show(ui, |ui| {
                     ui.label(
-                        RichText::new("The parts of your life you organize: work, personal, health, home... The color marks their tasks everywhere.")
+                        RichText::new(tr("The parts of your life you organize: work, personal, health, home... The color marks their tasks everywhere."))
                             .size(13.0)
                             .color(theme.text_muted),
                     );
@@ -81,7 +82,7 @@ impl AreasDialog {
             ui.add(TextEdit::singleline(name).desired_width(220.0));
             let changed = name.trim() != area.name || Rgb(*color) != area.color;
             let save = ui
-                .add_enabled_ui(changed, |ui| button(ui, ButtonStyle::Filled, None, "Save"))
+                .add_enabled_ui(changed, |ui| button(ui, ButtonStyle::Filled, None, tr("Save")))
                 .inner;
             if save.clicked() {
                 events.push(AreaEvent::Update {
@@ -91,7 +92,7 @@ impl AreasDialog {
                 });
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if icon_button(ui, Icon::Trash, "Delete area").clicked() {
+                if icon_button(ui, Icon::Trash, tr("Delete area")).clicked() {
                     events.push(AreaEvent::Delete {
                         id: area.id,
                         name: area.name.clone(),
@@ -106,14 +107,14 @@ impl AreasDialog {
             ui.color_edit_button_srgb(&mut self.new_color);
             let response = ui.add(
                 TextEdit::singleline(&mut self.new_name)
-                    .hint_text("New area")
+                    .hint_text(tr("New area"))
                     .desired_width(220.0),
             );
             if std::mem::take(&mut self.focus_new) {
                 response.request_focus();
             }
             let enter = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-            let add = button(ui, ButtonStyle::Accent, Some(Icon::Plus), "Add").clicked();
+            let add = button(ui, ButtonStyle::Accent, Some(Icon::Plus), tr("Add")).clicked();
             if (add || enter) && !self.new_name.trim().is_empty() {
                 events.push(AreaEvent::Create {
                     name: self.new_name.clone(),

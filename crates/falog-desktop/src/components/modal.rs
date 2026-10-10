@@ -1,5 +1,6 @@
 use super::icon_button;
 use crate::fonts;
+use crate::i18n::tr;
 use crate::icons::Icon;
 use crate::theme::Theme;
 use eframe::egui::{
@@ -89,7 +90,7 @@ pub fn modal_header(ui: &mut Ui, title: &str) -> bool {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(title).font(fonts::semibold(15.0)).color(theme.text));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    closed = icon_button(ui, Icon::Close, "Close (Esc)").clicked();
+                    closed = icon_button(ui, Icon::Close, tr("Close (Esc)")).clicked();
                 });
             });
         });

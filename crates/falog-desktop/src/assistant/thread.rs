@@ -6,6 +6,7 @@ use super::agent::{
     self, AgentEvent, ConfigOption, Environment, OptionKind, Selection, Session, SlashCommand, StartOptions,
     Usage,
 };
+use crate::i18n::{self, tr, trf};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -56,8 +57,9 @@ impl Launcher {
     }
 
     fn environment(&self) -> Result<Environment, String> {
-        let mcp_server = agent::find_mcp_server()
-            .ok_or("falog-mcp was not found next to the app. Reinstall Falog to restore it.")?;
+        let mcp_server = agent::find_mcp_server().ok_or(tr(
+            "falog-mcp was not found next to the app. Reinstall Falog to restore it.",
+        ))?;
         Ok(Environment {
             mcp_server,
             database: self.database.clone(),
@@ -219,7 +221,7 @@ impl Thread {
                 format!("{}…", cut.trim_end())
             }
             Some(text) => text.to_owned(),
-            None => "New thread".to_owned(),
+            None => tr("New thread").to_owned(),
         }
     }
 
@@ -253,9 +255,9 @@ impl Thread {
             let options = self.settings.start_options(self.session_id.clone());
             let started = match agent {
                 Some(agent) => launcher.start(ctx, agent, &options),
-                None => Err(format!(
-                    "{} is no longer set up. Add it again in Settings, or start a new thread with another agent.",
-                    self.agent_name
+                None => Err(trf(
+                    "{agent} is no longer set up. Add it again in Settings, or start a new thread with another agent.",
+                    &[("agent", &self.agent_name)],
                 )),
             };
             match started {
@@ -274,8 +276,10 @@ impl Thread {
             }
             Some(Err(err)) => {
                 self.session = None;
-                self.items
-                    .push(Item::Error(format!("Could not reach {}: {err}", self.agent_name)));
+                self.items.push(Item::Error(trf(
+                    "Could not reach {agent}: {err}",
+                    &[("agent", &self.agent_name), ("err", &err)],
+                )));
             }
             None => {}
         }
@@ -308,7 +312,8 @@ impl Thread {
                 self.model_name = model;
                 if !tools_connected {
                     self.items.push(Item::Error(
-                        "Falog's task tools did not connect, so the assistant cannot change tasks.".into(),
+                        tr("Falog's task tools did not connect, so the assistant cannot change tasks.")
+                            .into(),
                     ));
                 }
             }
@@ -350,7 +355,8 @@ impl Thread {
                 self.flush_streaming();
                 self.end_pending_calls();
                 if is_error {
-                    let message = message.unwrap_or_else(|| "The assistant stopped with an error.".into());
+                    let message =
+                        message.unwrap_or_else(|| tr("The assistant stopped with an error.").into());
                     self.items.push(Item::Error(message));
                 }
                 self.touch();
@@ -387,7 +393,7 @@ impl Thread {
                 && call.result.is_none()
             {
                 call.result = Some(ToolOutcome {
-                    text: "Interrupted".into(),
+                    text: tr("Interrupted").into(),
                     is_error: true,
                 });
             }
@@ -410,7 +416,7 @@ impl Thread {
             self.busy = false;
             self.flush_streaming();
             self.end_pending_calls();
-            self.items.push(Item::Notice("Stopped.".into()));
+            self.items.push(Item::Notice(tr("Stopped.").into()));
         }
     }
 
@@ -468,12 +474,12 @@ pub fn now() -> i64 {
 pub fn relative_time(timestamp: i64, now: i64) -> String {
     let seconds = (now - timestamp).max(0);
     match seconds {
-        0..60 => "just now".into(),
-        60..3_600 => format!("{}m ago", seconds / 60),
-        3_600..86_400 => format!("{}h ago", seconds / 3_600),
-        86_400..172_800 => "yesterday".into(),
+        0..60 => tr("just now").into(),
+        60..3_600 => trf("{n}m ago", &[("n", &(seconds / 60))]),
+        3_600..86_400 => trf("{n}h ago", &[("n", &(seconds / 3_600))]),
+        86_400..172_800 => tr("yesterday").into(),
         _ => chrono::DateTime::from_timestamp(timestamp, 0)
-            .map(|utc| utc.with_timezone(&chrono::Local).format("%b %-d").to_string())
+            .map(|utc| i18n::date::short(utc.with_timezone(&chrono::Local).date_naive()))
             .unwrap_or_default(),
     }
 }
@@ -481,11 +487,17 @@ pub fn relative_time(timestamp: i64, now: i64) -> String {
 fn explain_exit(agent: &str, stderr: &str) -> String {
     let lower = stderr.to_lowercase();
     if lower.contains("login") || lower.contains("logged in") || lower.contains("authenticat") {
-        return format!("{agent} is not signed in. Run it once in a terminal to sign in, then try again.");
+        return trf(
+            "{agent} is not signed in. Run it once in a terminal to sign in, then try again.",
+            &[("agent", &agent)],
+        );
     }
     match agent::summarize_stderr(stderr) {
-        detail if detail.is_empty() => format!("{agent} exited unexpectedly."),
-        detail => format!("{agent} exited unexpectedly: {detail}"),
+        detail if detail.is_empty() => trf("{agent} exited unexpectedly.", &[("agent", &agent)]),
+        detail => trf(
+            "{agent} exited unexpectedly: {detail}",
+            &[("agent", &agent), ("detail", &detail)],
+        ),
     }
 }
 

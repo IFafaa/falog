@@ -1,4 +1,5 @@
 use crate::components::{icon_button, icon_toggle};
+use crate::i18n::{tr, trf};
 use crate::icons::Icon;
 use crate::prefs::Prefs;
 use crate::theme::Theme;
@@ -29,13 +30,13 @@ pub fn show(ctx: &egui::Context, theme: &Theme, prefs: &mut Prefs, search: &mut 
                     search_field(ui, theme, search);
                     match prefs.view {
                         View::Board => {
-                            let tip = "Show tasks completed more than a week ago";
+                            let tip = tr("Show tasks completed more than a week ago");
                             if icon_toggle(ui, Icon::Check, prefs.show_old_completed, tip).clicked() {
                                 prefs.show_old_completed = !prefs.show_old_completed;
                             }
                         }
                         View::List => {
-                            let tip = "Show completed tasks";
+                            let tip = tr("Show completed tasks");
                             if icon_toggle(ui, Icon::Check, prefs.show_completed, tip).clicked() {
                                 prefs.show_completed = !prefs.show_completed;
                             }
@@ -44,7 +45,7 @@ pub fn show(ctx: &egui::Context, theme: &Theme, prefs: &mut Prefs, search: &mut 
                     }
                     if !matches!(prefs.view, View::Focus | View::Calendar | View::Archive) {
                         ComboBox::from_id_salt("sort")
-                            .selected_text(format!("Sort: {}", prefs.sort.label()))
+                            .selected_text(trf("Sort: {order}", &[("order", &prefs.sort.label())]))
                             .width(130.0)
                             .show_ui(ui, |ui| {
                                 for order in SortOrder::ALL {
@@ -82,10 +83,10 @@ fn search_field(ui: &mut egui::Ui, theme: &Theme, search: &mut String) {
                         TextEdit::singleline(search)
                             .id(id)
                             .frame(false)
-                            .hint_text("Search tasks…  Ctrl+F")
+                            .hint_text(tr("Search tasks…  Ctrl+F"))
                             .desired_width(190.0),
                     );
-                    if !search.is_empty() && icon_button(ui, Icon::Close, "Clear search").clicked() {
+                    if !search.is_empty() && icon_button(ui, Icon::Close, tr("Clear search")).clicked() {
                         search.clear();
                     }
                 });

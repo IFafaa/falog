@@ -3,6 +3,7 @@
 use super::acp::{AcpCommand, AcpSession};
 use super::claude_code::{self, ClaudeSession};
 use super::{Environment, Session, StartOptions, home_dir};
+use crate::i18n::{tr, trf};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -88,7 +89,10 @@ impl Agent {
 
     /// A user-defined agent; custom agents always speak ACP.
     pub fn from_custom(config: AgentConfig) -> Self {
-        let hint = format!("Check the command of {} in Settings.", config.name);
+        let hint = trf(
+            "Check the command of {agent} in Settings.",
+            &[("agent", &config.name)],
+        );
         Self {
             config,
             protocol: Protocol::Acp,
@@ -106,9 +110,13 @@ impl Agent {
     ) -> Result<Box<dyn Session>, String> {
         let name = self.name();
         let program = self.program().ok_or_else(|| {
-            format!(
-                "{name} was not found: `{}` is not installed or not on PATH. {}",
-                self.config.command, self.setup_hint
+            trf(
+                "{agent} was not found: `{command}` is not installed or not on PATH. {hint}",
+                &[
+                    ("agent", &name),
+                    ("command", &self.config.command),
+                    ("hint", &self.setup_hint),
+                ],
             )
         })?;
         let started = match self.protocol {
@@ -130,7 +138,12 @@ impl Agent {
                     .map(|session| Box::new(session) as Box<dyn Session>)
             }
         };
-        started.map_err(|err| format!("Could not start {name}: {err}"))
+        started.map_err(|err| {
+            trf(
+                "Could not start {agent}: {err}",
+                &[("agent", &name), ("err", &err)],
+            )
+        })
     }
 
     /// Whether its command can be found.
@@ -162,7 +175,7 @@ pub fn presets() -> Vec<Agent> {
             Protocol::ClaudeCode,
             "claude",
             &[],
-            "Install it from claude.com/claude-code, then run `claude` once in a terminal to sign in.",
+            tr("Install it from claude.com/claude-code, then run `claude` once in a terminal to sign in."),
         ),
         Agent::preset(
             "claude",
@@ -170,7 +183,7 @@ pub fn presets() -> Vec<Agent> {
             Protocol::Acp,
             "npx",
             &["-y", "@agentclientprotocol/claude-agent-acp"],
-            "It needs Node.js 22 or later (nodejs.org) and Claude Code signed in.",
+            tr("It needs Node.js 22 or later (nodejs.org) and Claude Code signed in."),
         ),
         Agent::preset(
             "gemini",
@@ -178,7 +191,9 @@ pub fn presets() -> Vec<Agent> {
             Protocol::Acp,
             "gemini",
             &["--acp"],
-            "Install it with `npm install -g @google/gemini-cli`, then run `gemini` once in a terminal to sign in.",
+            tr(
+                "Install it with `npm install -g @google/gemini-cli`, then run `gemini` once in a terminal to sign in.",
+            ),
         ),
         Agent::preset(
             "codex",
@@ -186,7 +201,7 @@ pub fn presets() -> Vec<Agent> {
             Protocol::Acp,
             "npx",
             &["-y", "@agentclientprotocol/codex-acp"],
-            "It needs Node.js (nodejs.org) and Codex signed in (`codex login`).",
+            tr("It needs Node.js (nodejs.org) and Codex signed in (`codex login`)."),
         ),
     ]
 }

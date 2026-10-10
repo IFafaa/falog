@@ -40,3 +40,25 @@ fale = "fale"
 inicial = "inicial"
 instale = "instale"
 tema = "tema"
+
+# The desktop app's Brazilian Portuguese texts (crates/falog-desktop/src/i18n/pt.rs): these words are
+# right in Portuguese, and only that file accepts them.
+[type.desktop-pt]
+extend-glob = ["pt.rs"]
+
+[type.desktop-pt.extend-words]
+arquive = "arquive"
+ative = "ative"
+cliente = "cliente"
+comando = "comando"
+comandos = "comandos"
+copie = "copie"
+erro = "erro"
+instale = "instale"
+limite = "limite"
+registre = "registre"
+reinstale = "reinstale"
+secretos = "secretos"
+tema = "tema"
+termine = "termine"
+vai = "vai"

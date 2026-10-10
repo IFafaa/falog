@@ -2,6 +2,7 @@
 
 use super::agent::registry::{self, Agent, AgentConfig};
 use crate::components::{ButtonStyle, button, icon_button};
+use crate::i18n::{tr, trf};
 use crate::icons::Icon;
 use crate::theme::Theme;
 use eframe::egui::{self, Align, Frame, Layout, Margin, RichText, TextEdit, Ui};
@@ -46,13 +47,13 @@ impl AgentsForm {
         let name = self.name.trim();
         let mut words = split_command(&self.command).into_iter();
         let (Some(command), false) = (words.next(), name.is_empty()) else {
-            self.error = Some("Give the agent a name and the command that starts it in ACP mode.".into());
+            self.error = Some(tr("Give the agent a name and the command that starts it in ACP mode.").into());
             return false;
         };
         let env = match parse_env(&self.env) {
             Ok(env) => env,
             Err(entry) => {
-                self.error = Some(format!("\"{entry}\" is not a NAME=value pair."));
+                self.error = Some(trf("\"{entry}\" is not a NAME=value pair.", &[("entry", &entry)]));
                 return false;
             }
         };
@@ -78,10 +79,9 @@ impl AgentsForm {
 pub fn show(ui: &mut Ui, theme: &Theme, form: &mut AgentsForm) -> bool {
     let mut changed = false;
     ui.label(
-        RichText::new(
-            "Each thread talks to one agent, on your own subscription. Claude Code is built in; the others \
-             speak the Agent Client Protocol (ACP).",
-        )
+        RichText::new(tr(
+            "Each thread talks to one agent, on your own subscription. Claude Code is built in; the others speak the Agent Client Protocol (ACP).",
+        ))
         .size(12.5)
         .color(theme.text_muted),
     );
@@ -99,7 +99,7 @@ pub fn show(ui: &mut Ui, theme: &Theme, form: &mut AgentsForm) -> bool {
 
     ui.add_space(4.0);
     if !form.open {
-        if button(ui, ButtonStyle::Ghost, Some(Icon::Plus), "Add agent").clicked() {
+        if button(ui, ButtonStyle::Ghost, Some(Icon::Plus), tr("Add agent")).clicked() {
             form.open = true;
         }
         return changed;
@@ -109,22 +109,28 @@ pub fn show(ui: &mut Ui, theme: &Theme, form: &mut AgentsForm) -> bool {
         .rounding(6.0)
         .inner_margin(Margin::same(8.0))
         .show(ui, |ui| {
-            field(ui, theme, "Name", &mut form.name, "My agent");
+            field(ui, theme, tr("Name"), &mut form.name, tr("My agent"));
             field(
                 ui,
                 theme,
-                "Command",
+                tr("Command"),
                 &mut form.command,
                 "npx -y my-acp-agent --acp",
             );
-            field(ui, theme, "Environment", &mut form.env, "API_KEY=...; OTHER=...");
+            field(
+                ui,
+                theme,
+                tr("Environment"),
+                &mut form.env,
+                "API_KEY=...; OTHER=...",
+            );
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                if button(ui, ButtonStyle::Filled, Some(Icon::Plus), "Add").clicked() && form.add() {
+                if button(ui, ButtonStyle::Filled, Some(Icon::Plus), tr("Add")).clicked() && form.add() {
                     form.open = false;
                     changed = true;
                 }
-                if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {
+                if button(ui, ButtonStyle::Ghost, None, tr("Cancel")).clicked() {
                     form.open = false;
                     form.error = None;
                 }
@@ -143,12 +149,12 @@ fn agent_row(ui: &mut Ui, theme: &Theme, agent: &Agent, installed: Option<bool>)
         ui.set_min_height(24.0);
         ui.label(RichText::new(agent.name()).size(13.5).color(theme.text));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if !agent.builtin && icon_button(ui, Icon::Trash, "Remove agent").clicked() {
+            if !agent.builtin && icon_button(ui, Icon::Trash, tr("Remove agent")).clicked() {
                 remove = true;
             }
             let (text, color) = match installed {
-                Some(true) => ("Installed", theme.success),
-                Some(false) => ("Not found", theme.text_placeholder),
+                Some(true) => (tr("Installed"), theme.success),
+                Some(false) => (tr("Not found"), theme.text_placeholder),
                 None => ("", theme.text_placeholder),
             };
             ui.label(RichText::new(text).size(12.0).color(color))

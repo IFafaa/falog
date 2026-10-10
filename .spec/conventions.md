@@ -12,6 +12,10 @@ you find something in another language, rename it in its own commit.
   languages (status synonyms, weekday names, "amanhã") because users dictate in their own language;
   those words live only in parsing tables and their tests.
 - Conversation with the user may happen in any language; what lands in the repository is English.
+- Falog's interface and the public site speak English and Brazilian Portuguese. UI text is written in
+  English in the code and wrapped in `tr` / `trf` (`crates/falog-desktop/src/i18n`); its Portuguese lives
+  only in `crates/falog-desktop/src/i18n/pt.rs` and `site/src/i18n/pt.ts`. A test fails when a desktop
+  text has no Portuguese entry.
 
 ## Naming other products
 

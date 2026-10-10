@@ -6,6 +6,7 @@ pub mod feed;
 mod install;
 
 use crate::download::{Download, Expected};
+use crate::i18n::{tr, trf};
 use eframe::egui;
 use feed::{Release, Version};
 use std::path::PathBuf;
@@ -128,7 +129,7 @@ impl Updater {
         std::thread::spawn(move || {
             let result = fetch(&feed::feed_url())
                 .map(|text| feed::newest(&feed::tags_in_feed(&text), &Version::current(), preview))
-                .map_err(|err| format!("Could not check for updates: {err}"));
+                .map_err(|err| trf("Could not check for updates: {err}", &[("err", &err)]));
             let _ = sender.send(Event::Checked(result));
             ctx.request_repaint();
         });
@@ -145,10 +146,10 @@ impl Updater {
         std::thread::spawn(move || {
             let name = feed::asset_name().unwrap_or_default();
             let checksum = fetch(&feed::asset_url(&release.tag, "SHA256SUMS"))
-                .map_err(|err| format!("Could not download the update: {err}"))
+                .map_err(|err| trf("Could not download the update: {err}", &[("err", &err)]))
                 .and_then(|sums| {
                     feed::checksum_for(&sums, name)
-                        .ok_or_else(|| format!("The release has no checksum for {name}"))
+                        .ok_or_else(|| trf("The release has no checksum for {name}", &[("name", &name)]))
                 });
             let _ = sender.send(Event::Checksum(release, checksum));
             ctx.request_repaint();
@@ -158,10 +159,10 @@ impl Updater {
     /// Installs the downloaded release. On success the caller quits Falog, and the new version starts.
     pub fn install(&mut self) -> Result<(), String> {
         let State::Ready(_, file) = &self.state else {
-            return Err("No update is ready to install".into());
+            return Err(tr("No update is ready to install").into());
         };
         install::install(file).map_err(|err| {
-            let message = format!("Could not install the update: {err}");
+            let message = trf("Could not install the update: {err}", &[("err", &err)]);
             self.state = State::Failed(message.clone());
             message
         })

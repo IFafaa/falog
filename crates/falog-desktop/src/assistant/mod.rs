@@ -19,6 +19,7 @@ use agents::SavedAgents;
 use eframe::egui;
 
 use crate::download::Download;
+use crate::i18n::tr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use thread::Launcher;
@@ -383,7 +384,7 @@ impl Assistant {
         {
             self.voice = VoiceState::Idle;
             let item = match result {
-                Ok(()) => Item::Notice("Voice model ready. Press Ctrl+Space to talk.".into()),
+                Ok(()) => Item::Notice(tr("Voice model ready. Press Ctrl+Space to talk.").into()),
                 Err(message) => Item::Error(message),
             };
             self.active_mut().items.push(item);
@@ -426,7 +427,7 @@ impl Assistant {
             Ok(text) if text.trim().is_empty() => {
                 self.active_mut()
                     .items
-                    .push(Item::Notice("Didn't catch that.".into()));
+                    .push(Item::Notice(tr("Didn't catch that.").into()));
             }
             Ok(text) if options.send_after_dictation && !to_draft => self.send(ctx, text),
             Ok(text) => {

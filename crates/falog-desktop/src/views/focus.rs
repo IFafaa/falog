@@ -4,23 +4,23 @@ use super::{ViewCx, centered_column};
 use crate::action::{Action, Actions};
 use crate::components::single_line;
 use crate::fonts;
+use crate::i18n::{self, area_name, priority_label, tr, trf};
 use crate::icons::Icon;
 use crate::theme::{self, Theme};
 use eframe::egui::{
     Align2, Color32, CursorIcon, FontId, Frame, Margin, Rect, RichText, Sense, Ui, pos2, vec2,
 };
-use falog_core::date;
 use falog_core::domain::{Priority, Task};
 use falog_core::focus::{self, Bucket};
 use std::collections::HashSet;
 
 const MAX_WIDTH: f32 = 880.0;
 const ROW_HEIGHT: f32 = 30.0;
-const COMPLETED: &str = "Completed in the last 7 days";
 
 #[derive(Debug, Default)]
 pub struct FocusState {
-    collapsed: HashSet<&'static str>,
+    /// The folded sections: a bucket, or `None` for the recently completed tasks.
+    collapsed: HashSet<Option<Bucket>>,
 }
 
 pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut Actions) {
@@ -33,18 +33,20 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut A
 
     ui.add_space(20.0);
     ui.label(
-        RichText::new(date::format_long(cx.today))
+        RichText::new(i18n::date::long(cx.today))
             .font(fonts::semibold(22.0))
             .color(theme.text),
     );
     ui.label(
-        RichText::new(format!(
-            "{} open · {} overdue · {} due today · {} more this week · {} completed in the last 7 days",
-            summary.open,
-            summary.overdue,
-            summary.due_today,
-            summary.due_this_week,
-            summary.completed_last_7_days
+        RichText::new(trf(
+            "{open} open · {overdue} overdue · {today} due today · {week} more this week · {completed} completed in the last 7 days",
+            &[
+                ("open", &summary.open),
+                ("overdue", &summary.overdue),
+                ("today", &summary.due_today),
+                ("week", &summary.due_this_week),
+                ("completed", &summary.completed_last_7_days),
+            ],
         ))
         .size(13.0)
         .color(theme.text_muted),
@@ -56,11 +58,10 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut A
         .iter()
         .filter(|s| !s.tasks.is_empty())
     {
-        let title = section.bucket.title();
         if section_header(
             ui,
             theme,
-            title,
+            Some(section.bucket),
             section.tasks.len(),
             bucket_color(theme, section.bucket),
             state,
@@ -72,7 +73,7 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut A
     }
 
     let completed = focus::recently_completed(cx.tasks, cx.today, 7);
-    if !completed.is_empty() && section_header(ui, theme, COMPLETED, completed.len(), theme.success, state) {
+    if !completed.is_empty() && section_header(ui, theme, None, completed.len(), theme.success, state) {
         for task in completed {
             task_row(ui, cx, task, actions);
         }
@@ -81,12 +82,25 @@ fn content(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut FocusState, actions: &mut A
     if summary.open == 0 {
         ui.add_space(32.0);
         ui.label(
-            RichText::new("All clear. Nothing open right now.")
+            RichText::new(tr("All clear. Nothing open right now."))
                 .size(15.0)
                 .color(theme.text_muted),
         );
     }
     ui.add_space(24.0);
+}
+
+/// A bucket's title in the interface language; [`Bucket::title`] stays in English for the MCP server.
+fn bucket_title(bucket: Bucket) -> &'static str {
+    match bucket {
+        Bucket::Overdue => tr("Overdue"),
+        Bucket::DueToday => tr("Due today"),
+        Bucket::DueThisWeek => tr("Due this week"),
+        Bucket::InProgress => tr("In progress"),
+        Bucket::Waiting => tr("Waiting on others"),
+        Bucket::Upcoming => tr("Upcoming"),
+        Bucket::Backlog => tr("Backlog"),
+    }
 }
 
 fn bucket_color(theme: &Theme, bucket: Bucket) -> Color32 {
@@ -128,7 +142,7 @@ fn area_chips(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
                 .response;
             let chip = ui.interact(chip.rect, chip.id.with("click"), Sense::click());
             if chip
-                .on_hover_text("Show only this area")
+                .on_hover_text(tr("Show only this area"))
                 .on_hover_cursor(CursorIcon::PointingHand)
                 .clicked()
             {
@@ -138,16 +152,18 @@ fn area_chips(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
     });
 }
 
-/// A collapsible bucket header; returns whether the bucket is expanded.
+/// A collapsible bucket header, or the recently completed one for `None`; returns whether it is
+/// expanded.
 fn section_header(
     ui: &mut Ui,
     theme: &Theme,
-    title: &'static str,
+    bucket: Option<Bucket>,
     count: usize,
     color: Color32,
     state: &mut FocusState,
 ) -> bool {
-    super::section_header(ui, theme, title, color, count, title, &mut state.collapsed)
+    let title = bucket.map_or(tr("Completed in the last 7 days"), bucket_title);
+    super::section_header(ui, theme, title, color, count, bucket, &mut state.collapsed)
 }
 
 fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
@@ -178,12 +194,15 @@ fn task_row(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task, actions: &mut Actions) {
         right -= 14.0;
     };
     if let (Some(due), true) = (task.due, task.is_open()) {
-        detail(&date::describe_due(due, cx.today), theme.due_color(due, cx.today));
+        detail(
+            &i18n::date::describe_due(due, cx.today),
+            theme.due_color(due, cx.today),
+        );
     }
     if task.priority != Priority::Medium {
-        detail(task.priority.label(), theme.priority_color(task.priority));
+        detail(priority_label(task.priority), theme.priority_color(task.priority));
     }
-    detail(task.area_name(), theme.text_muted);
+    detail(area_name(task), theme.text_muted);
     let area_color = task
         .area
         .as_ref()

@@ -6,7 +6,7 @@ use crate::components::{
     ButtonStyle, Placement, button, icon_button, modal, modal_header, segmented, switch,
 };
 use crate::fonts;
-use crate::i18n::{Language, tr};
+use crate::i18n::{Language, tr, trf};
 use crate::icons::Icon;
 use crate::platform::reveal;
 use crate::prefs::Prefs;
@@ -109,7 +109,7 @@ impl SettingsDialog {
         let theme = Theme::current(ctx);
         let mut events = Vec::new();
         let (closed, dismissed) = modal(ctx, "settings", WIDTH, Placement::Center, |ui| {
-            let closed = modal_header(ui, "Settings");
+            let closed = modal_header(ui, tr("Settings"));
             let (body, _) = ui.allocate_exact_size(vec2(WIDTH, HEIGHT), Sense::hover());
             let nav = Rect::from_min_size(body.min, vec2(NAV_WIDTH, HEIGHT));
             ui.painter().rect_filled(
@@ -210,8 +210,8 @@ impl SettingsDialog {
         setting(
             ui,
             theme,
-            "Launch at startup",
-            "Open Falog when you sign in to this computer.",
+            tr("Launch at startup"),
+            tr("Open Falog when you sign in to this computer."),
             |ui| {
                 if switch(ui, &mut self.autostart).changed() {
                     events.push(SettingsEvent::SetAutostart(self.autostart));
@@ -221,8 +221,8 @@ impl SettingsDialog {
         setting(
             ui,
             theme,
-            "Older completed tasks",
-            "Keep showing tasks done more than a week ago on the board.",
+            tr("Older completed tasks"),
+            tr("Keep showing tasks done more than a week ago on the board."),
             |ui| {
                 switch(ui, &mut prefs.show_old_completed);
             },
@@ -233,34 +233,38 @@ impl SettingsDialog {
 
     fn assistant_tab(&mut self, ui: &mut Ui, theme: &Theme, events: &mut Vec<SettingsEvent>) {
         ui.label(
-            RichText::new("The assistant dock talks to these agents; pick one per thread in the composer.")
-                .size(13.0)
-                .color(theme.text_muted),
+            RichText::new(tr(
+                "The assistant dock talks to these agents; pick one per thread in the composer.",
+            ))
+            .size(13.0)
+            .color(theme.text_muted),
         );
-        section(ui, theme, "Agents");
+        section(ui, theme, tr("Agents"));
         if agent_settings::show(ui, theme, &mut self.agents) {
             events.push(SettingsEvent::AgentsChanged(self.agents.custom.clone()));
         }
     }
 
     fn data_tab(&mut self, ui: &mut Ui, theme: &Theme, events: &mut Vec<SettingsEvent>) {
-        section(ui, theme, "Database");
+        section(ui, theme, tr("Database"));
         let path = self
             .db_path
             .as_ref()
-            .map_or("in memory".into(), |p| p.display().to_string());
+            .map_or(tr("in memory").into(), |p| p.display().to_string());
         copy_row(ui, theme, Icon::Database, &path, events);
         if let Some(path) = &self.db_path
-            && button(ui, ButtonStyle::Ghost, None, reveal::LABEL).clicked()
+            && button(ui, ButtonStyle::Ghost, None, reveal::label()).clicked()
         {
             let _ = reveal::reveal(path);
         }
 
-        section(ui, theme, "Other assistants (MCP)");
+        section(ui, theme, tr("Other assistants (MCP)"));
         ui.label(
-            RichText::new("Use Falog from Claude Code or any MCP client. Register the server once:")
-                .size(13.0)
-                .color(theme.text_muted),
+            RichText::new(tr(
+                "Use Falog from Claude Code or any MCP client. Register the server once:",
+            ))
+            .size(13.0)
+            .color(theme.text_muted),
         );
         ui.add_space(4.0);
         copy_row(ui, theme, Icon::Server, &self.mcp_command, events);
@@ -268,7 +272,7 @@ impl SettingsDialog {
 }
 
 fn appearance_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Vec<SettingsEvent>) {
-    setting(ui, theme, "Theme", "One Dark or One Light.", |ui| {
+    setting(ui, theme, tr("Theme"), tr("One Dark or One Light."), |ui| {
         let options: Vec<(ThemeMode, &str)> = ThemeMode::ALL.iter().map(|m| (*m, m.label())).collect();
         if segmented(ui, &mut prefs.theme, &options) {
             events.push(SettingsEvent::SetTheme(prefs.theme));
@@ -284,40 +288,49 @@ fn updates_section(
     updater: &Updater,
     events: &mut Vec<SettingsEvent>,
 ) {
-    section(ui, theme, "Updates");
+    section(ui, theme, tr("Updates"));
     let current = concat!("Falog ", env!("CARGO_PKG_VERSION"));
     let (status, action) = match &updater.state {
         _ if !updater.enabled => (
-            format!("{current}. This build updates the way it was built, not from here."),
+            trf(
+                "{current}. This build updates the way it was built, not from here.",
+                &[("current", &current)],
+            ),
             None,
         ),
         update::State::Idle => (
             format!("{current}."),
-            Some(("Check for updates", SettingsEvent::CheckForUpdates)),
+            Some((tr("Check for updates"), SettingsEvent::CheckForUpdates)),
         ),
-        update::State::Checking => ("Checking for updates…".to_owned(), None),
+        update::State::Checking => (tr("Checking for updates…").to_owned(), None),
         update::State::UpToDate => (
-            format!("{current} is the latest version."),
-            Some(("Check again", SettingsEvent::CheckForUpdates)),
+            trf("{current} is the latest version.", &[("current", &current)]),
+            Some((tr("Check again"), SettingsEvent::CheckForUpdates)),
         ),
         update::State::Available(release) => (
-            format!(
-                "Falog {} is available. You have {}.",
-                release.version,
-                env!("CARGO_PKG_VERSION")
+            trf(
+                "Falog {version} is available. You have {installed}.",
+                &[
+                    ("version", &release.version),
+                    ("installed", &env!("CARGO_PKG_VERSION")),
+                ],
             ),
-            Some(("Download", SettingsEvent::DownloadUpdate)),
+            Some((tr("Download"), SettingsEvent::DownloadUpdate)),
         ),
-        update::State::Preparing(release) | update::State::Downloading(release, _) => {
-            (format!("Downloading Falog {}…", release.version), None)
-        }
+        update::State::Preparing(release) | update::State::Downloading(release, _) => (
+            trf("Downloading Falog {version}…", &[("version", &release.version)]),
+            None,
+        ),
         update::State::Ready(release, _) => (
-            format!("Falog {} is ready to install.", release.version),
-            Some(("Restart to update", SettingsEvent::InstallUpdate)),
+            trf(
+                "Falog {version} is ready to install.",
+                &[("version", &release.version)],
+            ),
+            Some((tr("Restart to update"), SettingsEvent::InstallUpdate)),
         ),
         update::State::Failed(message) => (
             format!("{message}."),
-            Some(("Try again", SettingsEvent::CheckForUpdates)),
+            Some((tr("Try again"), SettingsEvent::CheckForUpdates)),
         ),
     };
     ui.horizontal(|ui| {
@@ -332,7 +345,7 @@ fn updates_section(
     });
     ui.horizontal(|ui| {
         ui.hyperlink_to(
-            RichText::new("What's new").size(13.0),
+            RichText::new(tr("What's new")).size(13.0),
             "https://github.com/IFafaa/falog/releases",
         );
     });
@@ -340,8 +353,8 @@ fn updates_section(
     setting(
         ui,
         theme,
-        "Check for updates automatically",
-        "Look for a new version now and then, and show it in the status bar.",
+        tr("Check for updates automatically"),
+        tr("Look for a new version now and then, and show it in the status bar."),
         |ui| {
             switch(ui, &mut prefs.check_updates);
         },
@@ -349,8 +362,8 @@ fn updates_section(
     setting(
         ui,
         theme,
-        "Preview versions",
-        "Also offer early versions of what comes next. They are less stable.",
+        tr("Preview versions"),
+        tr("Also offer early versions of what comes next. They are less stable."),
         |ui| {
             switch(ui, &mut prefs.update_preview);
         },
@@ -358,16 +371,22 @@ fn updates_section(
 }
 
 fn voice_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Vec<SettingsEvent>) {
-    setting(ui, theme, "Voice language", "Language you dictate in.", |ui| {
-        let options: Vec<(VoiceLanguage, &str)> =
-            VoiceLanguage::ALL.iter().map(|l| (*l, l.label())).collect();
-        segmented(ui, &mut prefs.voice_language, &options);
-    });
     setting(
         ui,
         theme,
-        "Send after dictation",
-        "Send what you said right away instead of leaving it to edit.",
+        tr("Voice language"),
+        tr("Language you dictate in."),
+        |ui| {
+            let options: Vec<(VoiceLanguage, &str)> =
+                VoiceLanguage::ALL.iter().map(|l| (*l, l.label())).collect();
+            segmented(ui, &mut prefs.voice_language, &options);
+        },
+    );
+    setting(
+        ui,
+        theme,
+        tr("Send after dictation"),
+        tr("Send what you said right away instead of leaving it to edit."),
         |ui| {
             switch(ui, &mut prefs.send_after_dictation);
         },
@@ -376,8 +395,8 @@ fn voice_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Vec<Set
         setting(
             ui,
             theme,
-            "Speech recognition on GPU",
-            "Much faster when the graphics card is free; turn off while gaming.",
+            tr("Speech recognition on GPU"),
+            tr("Much faster when the graphics card is free; turn off while gaming."),
             |ui| {
                 if switch(ui, &mut prefs.voice_gpu).changed() {
                     events.push(SettingsEvent::VoiceEngineChanged);
@@ -386,11 +405,11 @@ fn voice_tab(ui: &mut Ui, theme: &Theme, prefs: &mut Prefs, events: &mut Vec<Set
         );
     }
     let model_status = if voice::model_path().is_file() {
-        "Speech recognition: Whisper large-v3-turbo, on this computer.".to_owned()
+        tr("Speech recognition: Whisper large-v3-turbo, on this computer.").to_owned()
     } else {
-        format!(
-            "Speech recognition runs on this computer; its model ({} MB) downloads the first time you dictate.",
-            voice::MODEL_SIZE_MB
+        trf(
+            "Speech recognition runs on this computer; its model ({size} MB) downloads the first time you dictate.",
+            &[("size", &voice::MODEL_SIZE_MB)],
         )
     };
     ui.label(
@@ -422,14 +441,14 @@ impl SettingsTab {
         Self::Data,
     ];
 
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::General => "General",
-            Self::Appearance => "Appearance",
-            Self::Assistant => "Assistant",
-            Self::Voice => "Voice",
-            Self::Calendar => "Calendar",
-            Self::Data => "Data",
+            Self::General => tr("General"),
+            Self::Appearance => tr("Appearance"),
+            Self::Assistant => tr("Assistant"),
+            Self::Voice => tr("Voice"),
+            Self::Calendar => tr("Calendar"),
+            Self::Data => tr("Data"),
         }
     }
 
@@ -504,7 +523,7 @@ fn copy_row(ui: &mut Ui, theme: &Theme, icon: Icon, text: &str, events: &mut Vec
                 ui.add(icon.image(13.0, theme.icon_muted));
                 // Copy button on the right; the text is truncated to the space left over.
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if icon_button(ui, Icon::Copy, "Copy").clicked() {
+                    if icon_button(ui, Icon::Copy, tr("Copy")).clicked() {
                         ui.ctx().copy_text(text.to_owned());
                         events.push(SettingsEvent::Copied);
                     }

@@ -2,6 +2,7 @@
 
 use super::agent::SlashCommand;
 use crate::components::single_line;
+use crate::i18n::tr;
 use crate::theme::Theme;
 use eframe::egui::{
     self, Align2, CursorIcon, FontId, Frame, Id, Key, Margin, Modifiers, Order, Rect, ScrollArea, Sense, Ui,
@@ -125,9 +126,9 @@ pub fn show(
                     ui.set_width(composer.width() - 8.0);
                     if matches.is_empty() {
                         let text = if commands.is_empty() {
-                            "The agent lists its commands once it starts. Send a message first."
+                            tr("The agent lists its commands once it starts. Send a message first.")
                         } else {
-                            "No matching commands"
+                            tr("No matching commands")
                         };
                         ui.add_space(4.0);
                         ui.label(egui::RichText::new(text).size(13.0).color(theme.text_placeholder));

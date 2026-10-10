@@ -8,6 +8,7 @@ pub mod list;
 
 use crate::components::badge;
 use crate::fonts;
+use crate::i18n::tr;
 use crate::icons::Icon;
 use crate::prefs::Prefs;
 use crate::theme::Theme;
@@ -40,13 +41,13 @@ impl View {
         Self::Archive,
     ];
 
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Board => "Board",
-            Self::List => "List",
-            Self::Focus => "Focus",
-            Self::Calendar => "Calendar",
-            Self::Archive => "Archive",
+            Self::Board => tr("Board"),
+            Self::List => tr("List"),
+            Self::Focus => tr("Focus"),
+            Self::Calendar => tr("Calendar"),
+            Self::Archive => tr("Archive"),
         }
     }
 
@@ -83,12 +84,12 @@ pub enum SortOrder {
 impl SortOrder {
     pub const ALL: [Self; 4] = [Self::Urgency, Self::DueDate, Self::Area, Self::Newest];
 
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Urgency => "Urgency",
-            Self::DueDate => "Due date",
-            Self::Area => "Area",
-            Self::Newest => "Newest",
+            Self::Urgency => tr("Urgency"),
+            Self::DueDate => tr("Due date"),
+            Self::Area => tr("Area"),
+            Self::Newest => tr("Newest"),
         }
     }
 

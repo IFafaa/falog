@@ -1,6 +1,7 @@
 use crate::action::Action;
 use crate::components::{ButtonStyle, Placement, button, modal};
 use crate::fonts;
+use crate::i18n::{tr, trf};
 use crate::theme::Theme;
 use eframe::egui::{self, Align, Frame, Key, Layout, Margin, RichText};
 use falog_core::domain::{AreaId, TaskId};
@@ -33,19 +34,22 @@ impl Confirm {
     fn copy(&self) -> (String, String, &'static str) {
         match self {
             Self::DeleteTask { id, title } => (
-                format!("Delete task #{id}?"),
-                format!("\"{title}\" and its activity log will be permanently deleted."),
-                "Delete",
+                trf("Delete task #{id}?", &[("id", id)]),
+                trf(
+                    "\"{title}\" and its activity log will be permanently deleted.",
+                    &[("title", title)],
+                ),
+                tr("Delete"),
             ),
             Self::DeleteArea { name, .. } => (
-                format!("Delete \"{name}\"?"),
-                "Its tasks are kept, without an area.".to_owned(),
-                "Delete",
+                trf("Delete \"{name}\"?", &[("name", name)]),
+                tr("Its tasks are kept, without an area.").to_owned(),
+                tr("Delete"),
             ),
             Self::DiscardDraft { .. } => (
-                "Discard unsaved changes?".to_owned(),
-                "The changes in the task panel will be lost.".to_owned(),
-                "Discard",
+                tr("Discard unsaved changes?").to_owned(),
+                tr("The changes in the task panel will be lost.").to_owned(),
+                tr("Discard"),
             ),
         }
     }
@@ -64,7 +68,7 @@ impl Confirm {
                     if button(ui, ButtonStyle::Danger, None, confirm_label).clicked() {
                         answer = Answer::Yes;
                     }
-                    if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {
+                    if button(ui, ButtonStyle::Ghost, None, tr("Cancel")).clicked() {
                         answer = Answer::No;
                     }
                 });

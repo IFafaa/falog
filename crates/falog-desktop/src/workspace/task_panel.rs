@@ -5,9 +5,10 @@
 use super::BAR_HEIGHT;
 use crate::components::{ButtonStyle, area_picker, button, icon_button, priority_picker, status_picker};
 use crate::fonts;
+use crate::i18n::{self, tr, trf};
 use crate::icons::Icon;
 use crate::theme::Theme;
-use chrono::{Days, NaiveDate, Weekday};
+use chrono::{Days, NaiveDate, NaiveDateTime, Weekday};
 use eframe::egui::{
     self, Align, Align2, FontId, Frame, Id, Key, Layout, Margin, RichText, ScrollArea, Sense, SidePanel,
     Stroke, TextEdit, Ui, pos2, vec2,
@@ -50,11 +51,11 @@ impl Draft {
     /// Validates the draft; the error is shown in the panel.
     pub fn to_new_task(&self, today: NaiveDate) -> Result<NewTask, String> {
         if self.title.trim().is_empty() {
-            return Err("The title is required.".into());
+            return Err(tr("The title is required.").into());
         }
         let due = match self.due.trim() {
             "" => None,
-            text => Some(date::parse_due(text, today).ok_or("The due date is not a date.")?),
+            text => Some(date::parse_due(text, today).ok_or(tr("The due date is not a date."))?),
         };
         Ok(NewTask {
             title: self.title.clone(),
@@ -77,7 +78,8 @@ pub struct TaskPanel {
     pub notes: Vec<Note>,
     pub new_note: String,
     pub error: Option<String>,
-    meta: String,
+    /// When the saved task was created, changed, completed and archived; `None` for a new task.
+    stamps: Option<Stamps>,
     focus_title: bool,
     /// Whether the saved task is done, and whether it is archived.
     done: bool,
@@ -98,7 +100,7 @@ impl TaskPanel {
             notes: Vec::new(),
             new_note: String::new(),
             error: None,
-            meta: String::new(),
+            stamps: None,
             focus_title: true,
             done: false,
             archived: false,
@@ -107,17 +109,12 @@ impl TaskPanel {
 
     pub fn edit(task: &Task, notes: Vec<Note>) -> Self {
         let draft = Draft::from_task(task);
-        let mut meta = format!(
-            "Created {} · updated {}",
-            task.created_at.format("%b %-d, %H:%M"),
-            task.updated_at.format("%b %-d, %H:%M")
-        );
-        if let Some(done) = task.completed_at {
-            meta.push_str(&format!(" · completed {}", done.format("%b %-d, %H:%M")));
-        }
-        if let Some(archived) = task.archived_at {
-            meta.push_str(&format!(" · archived {}", archived.format("%b %-d, %H:%M")));
-        }
+        let stamps = Stamps {
+            created: task.created_at,
+            updated: task.updated_at,
+            completed: task.completed_at,
+            archived: task.archived_at,
+        };
         Self {
             id: Some(task.id),
             saved: draft.clone(),
@@ -125,7 +122,7 @@ impl TaskPanel {
             notes,
             new_note: String::new(),
             error: None,
-            meta,
+            stamps: Some(stamps),
             focus_title: false,
             done: task.status == Status::Done,
             archived: task.is_archived(),
@@ -134,6 +131,34 @@ impl TaskPanel {
 
     pub fn is_dirty(&self) -> bool {
         self.draft != self.saved
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Stamps {
+    created: NaiveDateTime,
+    updated: NaiveDateTime,
+    completed: Option<NaiveDateTime>,
+    archived: Option<NaiveDateTime>,
+}
+
+impl Stamps {
+    /// `Created Oct 6, 14:30 · updated Oct 7, 09:12 · completed …`, in the interface language.
+    fn describe(self) -> String {
+        let at = i18n::date::short_time;
+        let mut parts = vec![
+            trf("Created {at}", &[("at", &at(self.created))]),
+            trf("updated {at}", &[("at", &at(self.updated))]),
+        ];
+        parts.extend(
+            self.completed
+                .map(|done| trf("completed {at}", &[("at", &at(done))])),
+        );
+        parts.extend(
+            self.archived
+                .map(|archived| trf("archived {at}", &[("at", &at(archived))])),
+        );
+        parts.join(" · ")
     }
 }
 
@@ -182,7 +207,9 @@ fn header(ui: &mut Ui, theme: &Theme, panel: &TaskPanel, events: &mut Vec<PanelE
         rect.bottom() - 0.5,
         Stroke::new(1.0_f32, theme.border),
     );
-    let title = panel.id.map_or("New task".to_owned(), |id| format!("Task #{id}"));
+    let title = panel
+        .id
+        .map_or(tr("New task").to_owned(), |id| trf("Task #{id}", &[("id", &id)]));
     let galley = ui
         .painter()
         .layout_no_wrap(title, fonts::semibold(13.5), theme.text);
@@ -200,7 +227,7 @@ fn header(ui: &mut Ui, theme: &Theme, panel: &TaskPanel, events: &mut Vec<PanelE
             .layout(Layout::right_to_left(Align::Center)),
         |ui| {
             ui.add_space(6.0);
-            if icon_button(ui, Icon::Close, "Close (Esc)").clicked() {
+            if icon_button(ui, Icon::Close, tr("Close (Esc)")).clicked() {
                 events.push(PanelEvent::Close);
             }
         },
@@ -223,7 +250,7 @@ fn body(
             .frame(false)
             .desired_rows(1)
             .desired_width(f32::INFINITY)
-            .hint_text("Task title"),
+            .hint_text(tr("Task title")),
     );
     if std::mem::take(&mut panel.focus_title) {
         title.request_focus();
@@ -231,33 +258,37 @@ fn body(
     ui.add_space(10.0);
 
     let control_width = (ui.available_width() - LABEL_WIDTH - 8.0).max(160.0);
-    property(ui, theme, Icon::for_status(draft.status), "Status", |ui| {
+    property(ui, theme, Icon::for_status(draft.status), tr("Status"), |ui| {
         status_picker(ui, "panel-status", &mut draft.status, control_width)
     });
-    property(ui, theme, Icon::for_priority(draft.priority), "Priority", |ui| {
-        priority_picker(ui, "panel-priority", &mut draft.priority, control_width)
-    });
-    property(ui, theme, Icon::Folder, "Area", |ui| {
+    property(
+        ui,
+        theme,
+        Icon::for_priority(draft.priority),
+        tr("Priority"),
+        |ui| priority_picker(ui, "panel-priority", &mut draft.priority, control_width),
+    );
+    property(ui, theme, Icon::Folder, tr("Area"), |ui| {
         area_picker(ui, "panel-area", &mut draft.area_id, areas, control_width)
     });
-    property(ui, theme, Icon::Clock, "Due", |ui| {
+    property(ui, theme, Icon::Clock, tr("Due"), |ui| {
         due_field(ui, theme, &mut draft.due, today)
     });
-    property(ui, theme, Icon::Person, "Requested by", |ui| {
+    property(ui, theme, Icon::Person, tr("Requested by"), |ui| {
         ui.add(
             TextEdit::singleline(&mut draft.requester)
-                .hint_text("Who asked for it")
+                .hint_text(tr("Who asked for it"))
                 .desired_width(control_width),
         );
     });
 
     ui.add_space(12.0);
-    section_title(ui, theme, "Description");
+    section_title(ui, theme, tr("Description"));
     ui.add(
         TextEdit::multiline(&mut draft.description)
             .desired_rows(7)
             .desired_width(f32::INFINITY)
-            .hint_text("Context, links, acceptance criteria…"),
+            .hint_text(tr("Context, links, acceptance criteria…")),
     );
 
     if panel.id.is_some() {
@@ -272,12 +303,12 @@ fn body(
     }
     ui.horizontal(|ui| {
         let save = ui.add_enabled_ui(panel.is_dirty() || panel.id.is_none(), |ui| {
-            button(ui, ButtonStyle::Accent, Some(Icon::Check), "Save")
+            button(ui, ButtonStyle::Accent, Some(Icon::Check), tr("Save"))
         });
         if save.inner.on_hover_text("Ctrl+S").clicked() {
             events.push(PanelEvent::Save);
         }
-        if button(ui, ButtonStyle::Ghost, None, "Cancel")
+        if button(ui, ButtonStyle::Ghost, None, tr("Cancel"))
             .on_hover_text("Esc")
             .clicked()
         {
@@ -285,19 +316,19 @@ fn body(
         }
         if panel.id.is_some() {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if button(ui, ButtonStyle::Danger, Some(Icon::Trash), "Delete").clicked() {
+                if button(ui, ButtonStyle::Danger, Some(Icon::Trash), tr("Delete")).clicked() {
                     events.push(PanelEvent::Delete);
                 }
                 if panel.archived {
-                    if button(ui, ButtonStyle::Ghost, Some(Icon::ArchiveRestore), "Restore")
-                        .on_hover_text("Put it back in the board's Done column")
+                    if button(ui, ButtonStyle::Ghost, Some(Icon::ArchiveRestore), tr("Restore"))
+                        .on_hover_text(tr("Put it back in the board's Done column"))
                         .clicked()
                     {
                         events.push(PanelEvent::Restore);
                     }
                 } else if panel.done
-                    && button(ui, ButtonStyle::Ghost, Some(Icon::Archive), "Archive")
-                        .on_hover_text("Put it away from the board, in the Archive (Ctrl+5)")
+                    && button(ui, ButtonStyle::Ghost, Some(Icon::Archive), tr("Archive|verb"))
+                        .on_hover_text(tr("Put it away from the board, in the Archive (Ctrl+5)"))
                         .clicked()
                 {
                     events.push(PanelEvent::Archive);
@@ -305,10 +336,10 @@ fn body(
             });
         }
     });
-    if !panel.meta.is_empty() {
+    if let Some(stamps) = panel.stamps {
         ui.add_space(8.0);
         ui.label(
-            RichText::new(&panel.meta)
+            RichText::new(stamps.describe())
                 .size(11.5)
                 .color(theme.text_placeholder),
         );
@@ -337,13 +368,13 @@ fn due_field(ui: &mut Ui, theme: &Theme, due: &mut String, today: NaiveDate) {
     ui.horizontal(|ui| {
         ui.add(
             TextEdit::singleline(due)
-                .hint_text("friday, 15/10, next week…")
+                .hint_text(tr("friday, 15/10, next week…"))
                 .desired_width(170.0),
         );
         if !due.trim().is_empty() {
             let (text, color) = match date::parse_due(due, today) {
-                Some(date) => (date.format("%a, %b %-d").to_string(), theme.text_muted),
-                None => ("not a date".to_owned(), theme.error),
+                Some(date) => (i18n::date::with_weekday(date), theme.text_muted),
+                None => (tr("not a date").to_owned(), theme.error),
             };
             ui.label(RichText::new(text).size(12.5).color(color));
         }
@@ -351,11 +382,11 @@ fn due_field(ui: &mut Ui, theme: &Theme, due: &mut String, today: NaiveDate) {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         let shortcuts = [
-            ("Today", today),
-            ("Tomorrow", today + Days::new(1)),
-            ("Friday", date::next_weekday(today, Weekday::Fri)),
+            (tr("Today"), today),
+            (tr("Tomorrow"), today + Days::new(1)),
+            (tr("Friday"), date::next_weekday(today, Weekday::Fri)),
             (
-                "Next week",
+                tr("Next week"),
                 date::next_weekday(today + Days::new(1), Weekday::Mon),
             ),
         ];
@@ -364,7 +395,7 @@ fn due_field(ui: &mut Ui, theme: &Theme, due: &mut String, today: NaiveDate) {
                 *due = date.format("%d/%m/%Y").to_string();
             }
         }
-        if !due.is_empty() && small_link(ui, theme, "Clear").clicked() {
+        if !due.is_empty() && small_link(ui, theme, tr("Clear")).clicked() {
             due.clear();
         }
     });
@@ -393,7 +424,8 @@ fn section_title(ui: &mut Ui, theme: &Theme, title: &str) {
 }
 
 fn activity(ui: &mut Ui, theme: &Theme, panel: &mut TaskPanel, events: &mut Vec<PanelEvent>) {
-    section_title(ui, theme, &format!("Activity ({})", panel.notes.len()));
+    let count = panel.notes.len();
+    section_title(ui, theme, &trf("Activity ({count})", &[("count", &count)]));
     for note in &panel.notes {
         Frame::none()
             .stroke(Stroke::new(1.0_f32, theme.border_variant))
@@ -407,7 +439,7 @@ fn activity(ui: &mut Ui, theme: &Theme, panel: &mut TaskPanel, events: &mut Vec<
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    let stamp = note.created_at.format("%b %-d, %H:%M").to_string();
+                    let stamp = i18n::date::short_time(note.created_at);
                     ui.label(
                         RichText::new(stamp)
                             .monospace()
@@ -415,7 +447,7 @@ fn activity(ui: &mut Ui, theme: &Theme, panel: &mut TaskPanel, events: &mut Vec<
                             .color(theme.text_placeholder),
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if icon_button(ui, Icon::Trash, "Delete note").clicked() {
+                        if icon_button(ui, Icon::Trash, tr("Delete note")).clicked() {
                             events.push(PanelEvent::DeleteNote(note.id));
                         }
                     });
@@ -426,7 +458,7 @@ fn activity(ui: &mut Ui, theme: &Theme, panel: &mut TaskPanel, events: &mut Vec<
     }
     let response = ui.add(
         TextEdit::singleline(&mut panel.new_note)
-            .hint_text("Add a note and press Enter")
+            .hint_text(tr("Add a note and press Enter"))
             .desired_width(f32::INFINITY),
     );
     if response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) && !panel.new_note.trim().is_empty() {

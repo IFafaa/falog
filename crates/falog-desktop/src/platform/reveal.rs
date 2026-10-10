@@ -1,17 +1,20 @@
 //! Shows a file in the system file manager.
 
+use crate::i18n::tr;
 use std::io;
 use std::path::Path;
 use std::process::Command;
 
 /// Label of the button that calls [`reveal`], naming the platform's file manager.
-pub const LABEL: &str = if cfg!(windows) {
-    "Show in Explorer"
-} else if cfg!(target_os = "macos") {
-    "Show in Finder"
-} else {
-    "Show in Files"
-};
+pub fn label() -> &'static str {
+    if cfg!(windows) {
+        tr("Show in Explorer")
+    } else if cfg!(target_os = "macos") {
+        tr("Show in Finder")
+    } else {
+        tr("Show in Files")
+    }
+}
 
 /// Opens a file manager window with `path` selected (on Linux, its folder when the file manager does
 /// not support selecting).

@@ -4,10 +4,14 @@
 //!
 //! English text in the code is the key: `tr("Delete")` returns it as written in English, or its entry
 //! in [`pt::text`] in Portuguese. Texts with values use `{name}` placeholders and [`trf`]. A test fails
-//! when a text has no Portuguese entry, so new UI text cannot ship untranslated.
+//! when a text has no Portuguese entry, so new UI text cannot ship untranslated. Dates are written by
+//! [`date`]; statuses, priorities and "No area", which `falog-core` shares with the MCP server, by
+//! [`status_label`], [`priority_label`] and [`area_name`].
 
+pub mod date;
 mod pt;
 
+use falog_core::domain::{Priority, Status, Task};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -40,25 +44,44 @@ impl Language {
     }
 }
 
+#[cfg(not(test))]
 static CURRENT: AtomicU8 = AtomicU8::new(0);
+
+#[cfg(test)]
+thread_local! {
+    /// One per test thread, so a test that switches the language does not change another's texts.
+    static CURRENT: AtomicU8 = const { AtomicU8::new(0) };
+}
 
 /// Switches the interface language; the next frame draws in it.
 pub fn set(language: Language) {
+    #[cfg(not(test))]
     CURRENT.store(language as u8, Ordering::Relaxed);
+    #[cfg(test)]
+    CURRENT.with(|current| current.store(language as u8, Ordering::Relaxed));
 }
 
 pub fn current() -> Language {
-    match CURRENT.load(Ordering::Relaxed) {
+    #[cfg(not(test))]
+    let current = CURRENT.load(Ordering::Relaxed);
+    #[cfg(test)]
+    let current = CURRENT.with(|current| current.load(Ordering::Relaxed));
+    match current {
         1 => Language::Portuguese,
         _ => Language::English,
     }
 }
 
 /// `english` in the current interface language.
+///
+/// A `|` starts a note that is not shown, for one English word that needs two translations:
+/// `tr("Archive|verb")` is "Archive" in English and "Arquivar" in Portuguese, while `tr("Archive")`
+/// is "Arquivo".
 pub fn tr(english: &'static str) -> &'static str {
+    let fallback = english.split_once('|').map_or(english, |(text, _)| text);
     match current() {
-        Language::English => english,
-        Language::Portuguese => pt::text(english).unwrap_or(english),
+        Language::English => fallback,
+        Language::Portuguese => pt::text(english).unwrap_or(fallback),
     }
 }
 
@@ -67,6 +90,35 @@ pub fn trf(english: &'static str, values: &[(&str, &dyn Display)]) -> String {
     values.iter().fold(tr(english).to_owned(), |text, (name, value)| {
         text.replace(&format!("{{{name}}}"), &value.to_string())
     })
+}
+
+/// A status's name in the interface language. [`Status::label`] stays in English: the MCP server
+/// shares it.
+pub fn status_label(status: Status) -> &'static str {
+    match status {
+        Status::Todo => tr("To do"),
+        Status::InProgress => tr("In progress"),
+        Status::Waiting => tr("Waiting"),
+        Status::Done => tr("Done"),
+    }
+}
+
+/// A priority's name in the interface language. [`Priority::label`] stays in English: the MCP
+/// server shares it.
+pub fn priority_label(priority: Priority) -> &'static str {
+    match priority {
+        Priority::Low => tr("Low"),
+        Priority::Medium => tr("Medium"),
+        Priority::High => tr("High"),
+        Priority::Urgent => tr("Urgent"),
+    }
+}
+
+/// The name of a task's area, or "No area" in the interface language.
+pub fn area_name(task: &Task) -> &str {
+    task.area
+        .as_ref()
+        .map_or(tr("No area"), |area| area.name.as_str())
 }
 
 #[cfg(test)]
@@ -80,6 +132,17 @@ mod tests {
         assert_eq!(trf("Archived {n} tasks", &[("n", &3)]), "Archived 3 tasks");
         set(Language::Portuguese);
         assert_eq!(trf("Archived {n} tasks", &[("n", &3)]), "3 tarefas arquivadas");
+        set(Language::English);
+    }
+
+    #[test]
+    fn a_note_after_a_bar_tells_translations_apart() {
+        set(Language::English);
+        assert_eq!(tr("Archive|verb"), "Archive");
+        set(Language::Portuguese);
+        assert_eq!(tr("Archive|verb"), "Arquivar");
+        assert_eq!(tr("Archive"), "Arquivo");
+        assert_eq!(status_label(Status::Done), "Concluída");
         set(Language::English);
     }
 
@@ -118,16 +181,23 @@ mod tests {
         }
     }
 
-    /// The literals passed to `tr(` and `trf(`, with Rust escapes for quotes undone.
+    /// The literals passed to `tr(` and `trf(`, also on the next line as rustfmt puts long ones, with
+    /// Rust escapes for quotes undone.
     fn texts_in(source: &str) -> Vec<String> {
         let mut texts = Vec::new();
-        for call in ["tr(\"", "trf(\""] {
+        for call in ["tr", "trf"] {
             for (start, _) in source.match_indices(call) {
                 let before = source[..start].chars().next_back();
                 if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
                     continue;
                 }
-                let rest = &source[start + call.len()..];
+                let Some(rest) = source[start + call.len()..]
+                    .strip_prefix('(')
+                    .map(str::trim_start)
+                    .and_then(|rest| rest.strip_prefix('"'))
+                else {
+                    continue;
+                };
                 let mut text = String::new();
                 let mut chars = rest.chars();
                 while let Some(c) = chars.next() {

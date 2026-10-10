@@ -9,6 +9,7 @@ use super::{slash, voice};
 use crate::action::{Action, Actions};
 use crate::components::{ButtonStyle, button, icon_button, icon_toggle, single_line};
 use crate::fonts;
+use crate::i18n::{tr, trf};
 use crate::icons::Icon;
 use crate::theme::Theme;
 use crate::workspace::BAR_HEIGHT;
@@ -23,11 +24,14 @@ const COMPOSER_ID: &str = "assistant-composer";
 /// Width of the conversation column when the assistant fills the window.
 const ZOOMED_WIDTH: f32 = 820.0;
 
-const EXAMPLES: [&str; 3] = [
-    "What's on my plate today?",
-    "Remind me to renew the car insurance by Friday, it's important",
-    "I finished the payments PR review",
-];
+/// Requests to start from, in the interface language: clicking one sends it as the user's message.
+fn examples() -> [&'static str; 3] {
+    [
+        tr("What's on my plate today?"),
+        tr("Remind me to renew the car insurance by Friday, it's important"),
+        tr("I finished the payments PR review"),
+    ]
+}
 
 pub fn show(
     ctx: &egui::Context,
@@ -82,7 +86,7 @@ fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, zoomed: bool, a
     );
     let icon_rect = Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), vec2(14.0, 14.0));
     let (icon, title) = if assistant.show_history {
-        (Icon::Clock, "History".to_owned())
+        (Icon::Clock, tr("History").to_owned())
     } else {
         (Icon::Sparkle, assistant.active().title())
     };
@@ -114,21 +118,21 @@ fn header(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, zoomed: bool, a
         |ui| {
             ui.add_space(6.0);
             ui.spacing_mut().item_spacing.x = 2.0;
-            if icon_button(ui, Icon::Close, "Close (Ctrl+Shift+A)").clicked() {
+            if icon_button(ui, Icon::Close, tr("Close (Ctrl+Shift+A)")).clicked() {
                 actions.push(Action::ToggleAssistant);
             }
             let (icon, tip) = if zoomed {
-                (Icon::Minimize, "Zoom out (Shift+Esc)")
+                (Icon::Minimize, tr("Zoom out (Shift+Esc)"))
             } else {
-                (Icon::Maximize, "Zoom in (Shift+Esc)")
+                (Icon::Maximize, tr("Zoom in (Shift+Esc)"))
             };
             if icon_button(ui, icon, tip).clicked() {
                 actions.push(Action::ToggleAssistantZoom);
             }
-            if icon_toggle(ui, Icon::Clock, assistant.show_history, "History").clicked() {
+            if icon_toggle(ui, Icon::Clock, assistant.show_history, tr("History")).clicked() {
                 assistant.show_history = !assistant.show_history;
             }
-            if icon_button(ui, Icon::Plus, "New thread").clicked() {
+            if icon_button(ui, Icon::Plus, tr("New thread")).clicked() {
                 assistant.new_thread();
             }
         },
@@ -141,7 +145,11 @@ fn history(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     if assistant.recent_threads().is_empty() {
         ui.add_space(24.0);
         ui.vertical_centered(|ui| {
-            ui.label(RichText::new("No threads yet").size(13.0).color(theme.text_muted));
+            ui.label(
+                RichText::new(tr("No threads yet"))
+                    .size(13.0)
+                    .color(theme.text_muted),
+            );
         });
         return;
     }
@@ -202,12 +210,17 @@ fn thread_row(ui: &mut Ui, theme: &Theme, thread: &Thread, active: bool, now: i6
     ui.painter()
         .galley(pos2(left, rect.top() + 6.0), title, theme.text);
     let count = thread.message_count();
-    let detail = format!(
-        "{} · {count} message{} · {}",
-        thread.agent_name,
-        if count == 1 { "" } else { "s" },
-        thread::relative_time(thread.updated_at, now)
-    );
+    let when = thread::relative_time(thread.updated_at, now);
+    let detail = match count {
+        1 => trf(
+            "{agent} · 1 message · {when}",
+            &[("agent", &thread.agent_name), ("when", &when)],
+        ),
+        count => trf(
+            "{agent} · {count} messages · {when}",
+            &[("agent", &thread.agent_name), ("count", &count), ("when", &when)],
+        ),
+    };
     let detail = single_line(
         ui,
         &detail,
@@ -223,7 +236,9 @@ fn thread_row(ui: &mut Ui, theme: &Theme, thread: &Thread, active: bool, now: i6
     if thread.busy {
         ui.put(side, Spinner::new().size(12.0).color(theme.text_muted));
     } else if hovered {
-        let delete = ui.put(side, |ui: &mut Ui| icon_button(ui, Icon::Trash, "Delete thread"));
+        let delete = ui.put(side, |ui: &mut Ui| {
+            icon_button(ui, Icon::Trash, tr("Delete thread"))
+        });
         if delete.clicked() {
             return RowAction::Delete;
         }
@@ -269,7 +284,7 @@ fn thread_view(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, actions: &
             } else if thread.busy && !has_pending_tool(thread) {
                 ui.horizontal(|ui| {
                     ui.add(Spinner::new().size(12.0).color(theme.text_muted));
-                    ui.label(RichText::new("Thinking…").size(13.0).color(theme.text_muted));
+                    ui.label(RichText::new(tr("Thinking…")).size(13.0).color(theme.text_muted));
                 });
             }
             ui.add_space(4.0);
@@ -285,15 +300,15 @@ fn empty_state(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     ui.vertical_centered(|ui| {
         ui.add(Icon::Sparkle.image(28.0, theme.text_accent));
         ui.add_space(8.0);
-        ui.label(RichText::new("Talk to your tasks").font(fonts::semibold(16.0)).color(theme.text));
+        ui.label(RichText::new(tr("Talk to your tasks")).font(fonts::semibold(16.0)).color(theme.text));
         ui.label(
-            RichText::new("Create, update and review tasks in your own words. Hold Ctrl+Space or click the mic to speak.")
+            RichText::new(tr("Create, update and review tasks in your own words. Hold Ctrl+Space or click the mic to speak."))
                 .size(13.0)
                 .color(theme.text_muted),
         );
     });
     ui.add_space(16.0);
-    for example in EXAMPLES {
+    for example in examples() {
         let response = Frame::none()
             .stroke(Stroke::new(1.0_f32, theme.border_variant))
             .rounding(6.0)
@@ -325,9 +340,16 @@ fn recent(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     }
     ui.add_space(16.0);
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Recent").size(12.0).color(theme.text_muted));
+        ui.label(RichText::new(tr("Recent")).size(12.0).color(theme.text_muted));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if total > SHOWN && button(ui, ButtonStyle::Ghost, None, &format!("View all ({total})")).clicked()
+            if total > SHOWN
+                && button(
+                    ui,
+                    ButtonStyle::Ghost,
+                    None,
+                    &trf("View all ({total})", &[("total", &total)]),
+                )
+                .clicked()
             {
                 assistant.show_history = true;
             }
@@ -441,36 +463,36 @@ fn tool_call(ui: &mut Ui, theme: &Theme, call: &ToolCall, actions: &mut Actions)
 
 fn tool_label(name: &str, pending: bool) -> &'static str {
     match (name, pending) {
-        ("create_task", true) => "Creating task…",
-        ("create_task", false) => "Created task",
-        ("update_task", true) => "Updating task…",
-        ("update_task", false) => "Updated task",
-        ("add_note", true) => "Adding note…",
-        ("add_note", false) => "Added note",
-        ("delete_task", true) => "Deleting task…",
-        ("delete_task", false) => "Deleted task",
-        ("archive_tasks", true) => "Archiving tasks…",
-        ("archive_tasks", false) => "Archived tasks",
-        ("restore_task", true) => "Restoring task…",
-        ("restore_task", false) => "Restored task",
-        ("create_area", true) => "Adding area…",
-        ("create_area", false) => "Added area",
-        ("get_focus", _) => "Read what needs attention",
-        ("list_tasks", _) => "Searched tasks",
-        ("get_task", _) => "Read task",
-        ("list_areas", _) => "Listed areas",
-        ("update_area", true) => "Updating area…",
-        ("update_area", false) => "Updated area",
-        ("list_events", true) => "Reading calendars…",
-        ("list_events", false) => "Read calendars",
-        ("create_event", true) => "Booking event…",
-        ("create_event", false) => "Booked event",
-        ("update_event", true) => "Updating event…",
-        ("update_event", false) => "Updated event",
-        ("delete_event", true) => "Deleting event…",
-        ("delete_event", false) => "Deleted event",
-        (_, true) => "Working…",
-        (_, false) => "Done",
+        ("create_task", true) => tr("Creating task…"),
+        ("create_task", false) => tr("Created task"),
+        ("update_task", true) => tr("Updating task…"),
+        ("update_task", false) => tr("Updated task"),
+        ("add_note", true) => tr("Adding note…"),
+        ("add_note", false) => tr("Added note"),
+        ("delete_task", true) => tr("Deleting task…"),
+        ("delete_task", false) => tr("Deleted task"),
+        ("archive_tasks", true) => tr("Archiving tasks…"),
+        ("archive_tasks", false) => tr("Archived tasks"),
+        ("restore_task", true) => tr("Restoring task…"),
+        ("restore_task", false) => tr("Restored task"),
+        ("create_area", true) => tr("Adding area…"),
+        ("create_area", false) => tr("Added area"),
+        ("get_focus", _) => tr("Read what needs attention"),
+        ("list_tasks", _) => tr("Searched tasks"),
+        ("get_task", _) => tr("Read task"),
+        ("list_areas", _) => tr("Listed areas"),
+        ("update_area", true) => tr("Updating area…"),
+        ("update_area", false) => tr("Updated area"),
+        ("list_events", true) => tr("Reading calendars…"),
+        ("list_events", false) => tr("Read calendars"),
+        ("create_event", true) => tr("Booking event…"),
+        ("create_event", false) => tr("Booked event"),
+        ("update_event", true) => tr("Updating event…"),
+        ("update_event", false) => tr("Updated event"),
+        ("delete_event", true) => tr("Deleting event…"),
+        ("delete_event", false) => tr("Deleted event"),
+        (_, true) => tr("Working…"),
+        (_, false) => tr("Done|tool"),
     }
 }
 
@@ -513,16 +535,19 @@ fn composer(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, options: Assi
             match &assistant.voice {
                 VoiceState::Recording(recorder) => {
                     let (level, elapsed) = (recorder.level(), recorder.elapsed());
-                    live_preview(ui, theme, &assistant.live_text, "Listening…");
+                    live_preview(ui, theme, &assistant.live_text, tr("Listening…"));
                     recording(ui, theme, assistant, level, elapsed, options);
                 }
                 VoiceState::Transcribing => {
                     live_preview(ui, theme, &assistant.live_text, "");
-                    status_line(ui, theme, "Finishing the transcript…");
+                    status_line(ui, theme, tr("Finishing the transcript…"));
                 }
                 VoiceState::NeedsModel => model_prompt(ui, theme, assistant),
                 VoiceState::Downloading(download) => {
-                    let text = format!("Downloading the voice model… {} MB", download.received_mb());
+                    let text = trf(
+                        "Downloading the voice model… {size} MB",
+                        &[("size", &download.received_mb())],
+                    );
                     ui.label(RichText::new(text).size(13.0).color(theme.text_muted));
                     ui.add(ProgressBar::new(download.progress().unwrap_or(0.0)).desired_height(6.0));
                 }
@@ -588,7 +613,7 @@ fn text_input(
             .desired_rows(2)
             .desired_width(f32::INFINITY)
             .return_key(KeyboardShortcut::new(Modifiers::SHIFT, Key::Enter))
-            .hint_text(RichText::new("Tell the assistant what changed…").color(theme.text_placeholder)),
+            .hint_text(RichText::new(tr("Tell the assistant what changed…")).color(theme.text_placeholder)),
     );
     if std::mem::take(&mut assistant.focus_composer) {
         response.request_focus();
@@ -603,7 +628,7 @@ fn text_input(
         option_picker(ui, theme, assistant, OptionKind::Mode);
     });
     ui.horizontal(|ui| {
-        if icon_toggle(ui, Icon::Mic, false, "Talk (Ctrl+Space)").clicked() {
+        if icon_toggle(ui, Icon::Mic, false, tr("Talk (Ctrl+Space)")).clicked() {
             assistant.toggle_dictation(ui.ctx(), options);
         }
         fast_toggle(ui, assistant);
@@ -611,7 +636,7 @@ fn text_input(
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if assistant.active().busy {
                 if button(ui, ButtonStyle::Filled, Some(Icon::Stop), "")
-                    .on_hover_text("Stop")
+                    .on_hover_text(tr("Stop"))
                     .clicked()
                 {
                     assistant.stop();
@@ -620,7 +645,7 @@ fn text_input(
                 let ready = !assistant.active().draft.trim().is_empty();
                 let send =
                     ui.add_enabled_ui(ready, |ui| button(ui, ButtonStyle::Accent, Some(Icon::Send), ""));
-                if (send.inner.on_hover_text("Send (Enter)").clicked() || enter) && ready {
+                if (send.inner.on_hover_text(tr("Send (Enter)")).clicked() || enter) && ready {
                     let text = std::mem::take(&mut assistant.active_mut().draft);
                     assistant.send(ui.ctx(), text);
                     response.request_focus();
@@ -640,9 +665,12 @@ fn fast_toggle(ui: &mut Ui, assistant: &mut Assistant) {
     };
     let on = value == FAST_ON;
     let tooltip = match (on, option.description.is_empty()) {
-        (true, _) => "Fast mode is on".to_owned(),
-        (false, true) => "Fast mode".to_owned(),
-        (false, false) => format!("Fast mode: {}", option.description),
+        (true, _) => tr("Fast mode is on").to_owned(),
+        (false, true) => tr("Fast mode").to_owned(),
+        (false, false) => trf(
+            "Fast mode: {description}",
+            &[("description", &option.description)],
+        ),
     };
     let off = option
         .choices
@@ -661,10 +689,9 @@ fn ultracode(ui: &mut Ui, theme: &Theme, assistant: &Assistant) {
     if !registry::is_claude(&assistant.active().settings.agent) {
         return;
     }
-    picker_label_colored(ui, "Ultracode", theme.text_placeholder).on_hover_text(
-        "Ultracode is not available here: it has Claude run multi-agent workflows with its built-in \
-         tools, and Falog's assistant runs with only its task tools.",
-    );
+    picker_label_colored(ui, "Ultracode", theme.text_placeholder).on_hover_text(tr(
+        "Ultracode is not available here: it has Claude run multi-agent workflows with its built-in tools, and Falog's assistant runs with only its task tools.",
+    ));
 }
 
 /// How full the context window is: a ring that fills up, amber then red near the limit.
@@ -692,11 +719,14 @@ fn context_ring(ui: &mut Ui, theme: &Theme, usage: Usage) {
             .collect();
         painter.add(egui::Shape::line(points, Stroke::new(2.0_f32, color)));
     }
-    response.on_hover_text(format!(
-        "Context: {} of {} tokens ({:.0}%)",
-        tokens(usage.used),
-        tokens(usage.size),
-        fraction * 100.0
+    let percent = format!("{:.0}", fraction * 100.0);
+    response.on_hover_text(trf(
+        "Context: {used} of {size} tokens ({percent}%)",
+        &[
+            ("used", &tokens(usage.used)),
+            ("size", &tokens(usage.size)),
+            ("percent", &percent),
+        ],
     ));
 }
 
@@ -715,8 +745,9 @@ fn agent_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     let thread = assistant.active();
     let label = thread.agent_name.clone();
     if thread.has_messages() {
-        picker_label(ui, theme, &label)
-            .on_hover_text("Each thread keeps its agent. Start a new thread (+) to talk to another one.");
+        picker_label(ui, theme, &label).on_hover_text(tr(
+            "Each thread keeps its agent. Start a new thread (+) to talk to another one.",
+        ));
         return;
     }
     let current = thread.settings.agent.clone();
@@ -726,7 +757,7 @@ fn agent_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     let response = if ui.memory(|m| m.is_popup_open(popup)) {
         response
     } else {
-        response.on_hover_text("Agent")
+        response.on_hover_text(tr("Agent"))
     };
     if response.clicked() {
         ui.memory_mut(|m| m.toggle_popup(popup));
@@ -741,7 +772,7 @@ fn agent_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
         |ui| {
             ui.set_min_width(220.0);
             ui.spacing_mut().item_spacing.y = 0.0;
-            ui.label(RichText::new("Agent").size(12.0).color(theme.text_muted));
+            ui.label(RichText::new(tr("Agent")).size(12.0).color(theme.text_muted));
             ui.add_space(4.0);
             for agent in &agents {
                 let row = menu_row(ui, theme, agent.name(), *agent.id() == current)
@@ -782,9 +813,10 @@ fn option_picker(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant, kind: Op
     };
     let current = value.to_owned();
     let label = match (kind, option.label(value)) {
-        (OptionKind::Model, "Default") => "Default model".to_owned(),
-        (OptionKind::Effort, name) => format!("{name} effort"),
-        (OptionKind::Mode, "Default") => "Default mode".to_owned(),
+        (OptionKind::Model, "Default") => tr("Default model").to_owned(),
+        (OptionKind::Effort, "Default") => tr("Default effort").to_owned(),
+        (OptionKind::Effort, name) => trf("{name} effort", &[("name", &name)]),
+        (OptionKind::Mode, "Default") => tr("Default mode").to_owned(),
         (_, name) => name.to_owned(),
     };
     let (title, choices) = (option.name.clone(), option.choices.clone());
@@ -885,8 +917,9 @@ fn recording(
         ui.painter()
             .circle_filled(dot.center(), 5.0, theme.error.gamma_multiply(pulse));
         let seconds = elapsed.as_secs();
+        let time = format!("{}:{:02}", seconds / 60, seconds % 60);
         ui.label(
-            RichText::new(format!("Listening  {}:{:02}", seconds / 60, seconds % 60))
+            RichText::new(trf("Listening  {time}", &[("time", &time)]))
                 .size(13.0)
                 .color(theme.text),
         );
@@ -898,26 +931,26 @@ fn recording(
         );
         ui.painter().rect_filled(filled, 3.0, theme.text_accent);
         ui.label(
-            RichText::new("Enter to insert")
+            RichText::new(tr("Enter to insert"))
                 .size(12.0)
                 .color(theme.text_placeholder),
         );
     });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        if icon_toggle(ui, Icon::Mic, true, "Stop and transcribe (Ctrl+Space)").clicked() {
+        if icon_toggle(ui, Icon::Mic, true, tr("Stop and transcribe (Ctrl+Space)")).clicked() {
             assistant.toggle_dictation(ui.ctx(), options);
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let label = if options.send_after_dictation {
-                "Send"
+                tr("Send")
             } else {
-                "Done"
+                tr("Done|dictation")
             };
             let tooltip = if options.send_after_dictation {
-                "Stop and send (Enter only inserts the text)"
+                tr("Stop and send (Enter only inserts the text)")
             } else {
-                "Stop and insert the text (Enter)"
+                tr("Stop and insert the text (Enter)")
             };
             if button(ui, ButtonStyle::Accent, Some(Icon::Check), label)
                 .on_hover_text(tooltip)
@@ -925,7 +958,7 @@ fn recording(
             {
                 assistant.toggle_dictation(ui.ctx(), options);
             }
-            if button(ui, ButtonStyle::Ghost, None, "Cancel").clicked() {
+            if button(ui, ButtonStyle::Ghost, None, tr("Cancel")).clicked() {
                 assistant.cancel_dictation();
             }
         });
@@ -963,19 +996,19 @@ fn status_line(ui: &mut Ui, theme: &Theme, text: &str) {
 
 fn model_prompt(ui: &mut Ui, theme: &Theme, assistant: &mut Assistant) {
     ui.label(
-        RichText::new(format!(
-            "Voice input runs Whisper on this computer. It needs a one-time download of about {} MB.",
-            voice::MODEL_SIZE_MB
+        RichText::new(trf(
+            "Voice input runs Whisper on this computer. It needs a one-time download of about {size} MB.",
+            &[("size", &voice::MODEL_SIZE_MB)],
         ))
         .size(13.0)
         .color(theme.text_muted),
     );
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        if button(ui, ButtonStyle::Accent, Some(Icon::Plus), "Download").clicked() {
+        if button(ui, ButtonStyle::Accent, Some(Icon::Plus), tr("Download")).clicked() {
             assistant.download_model(ui.ctx());
         }
-        if button(ui, ButtonStyle::Ghost, None, "Not now").clicked() {
+        if button(ui, ButtonStyle::Ghost, None, tr("Not now")).clicked() {
             assistant.cancel_dictation();
         }
     });

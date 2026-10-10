@@ -3,6 +3,7 @@
 //! The values are the "One Dark" and "One Light" palettes (MIT, see `assets/THIRD-PARTY-NOTICES.md`).
 
 use crate::fonts;
+use crate::i18n::tr;
 use chrono::NaiveDate;
 use eframe::egui::{
     self, Color32, FontFamily, FontId, Rounding, Shadow, Stroke, TextStyle, Visuals, style::WidgetVisuals,
@@ -23,11 +24,11 @@ pub enum ThemeMode {
 impl ThemeMode {
     pub const ALL: [Self; 3] = [Self::System, Self::Dark, Self::Light];
 
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::System => "System",
-            Self::Dark => "Dark",
-            Self::Light => "Light",
+            Self::System => tr("System"),
+            Self::Dark => tr("Dark"),
+            Self::Light => tr("Light"),
         }
     }
 
