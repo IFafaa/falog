@@ -73,6 +73,17 @@ pub struct Event {
     pub html_link: Option<String>,
 }
 
+/// Whether `link` is a web address (http or https). Event links come from whoever sends the invite, so
+/// Falog opens no other scheme (`file:` would reach out to a network share, for one).
+pub fn is_web_link(link: &str) -> bool {
+    let link = link.trim_start();
+    let starts = |scheme: &str| {
+        link.get(..scheme.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(scheme))
+    };
+    starts("https://") || starts("http://")
+}
+
 impl Event {
     pub fn is_all_day(&self) -> bool {
         matches!(self.start, EventTime::Date(_))
@@ -166,6 +177,21 @@ pub fn sort_and_dedupe(events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opens_only_web_links() {
+        assert!(is_web_link("https://meet.google.com/abc"));
+        assert!(is_web_link("HTTP://example.com"));
+        for link in [
+            "file://attacker/share/x.html",
+            "javascript:alert(1)",
+            "ms-word:ofe|u|x",
+            "",
+            "http",
+        ] {
+            assert!(!is_web_link(link), "{link}");
+        }
+    }
 
     fn date(d: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(2026, 10, d).unwrap()

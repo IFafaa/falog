@@ -2,7 +2,7 @@
 //! changing or deleting an event.
 
 use crate::Result;
-use crate::model::{Calendar, Event, EventTime};
+use crate::model::{Calendar, Event, EventTime, is_web_link};
 use crate::url::encode;
 use chrono::{DateTime, Local, NaiveDate, NaiveTime, TimeZone};
 use serde_json::Value;
@@ -285,7 +285,7 @@ fn parse_event(item: &Value, account: &str, calendar_id: &str) -> Option<Event> 
         location: text(item, "location"),
         description: text(item, "description"),
         join_link: join_link(item),
-        html_link: Some(text(item, "htmlLink")).filter(|link| !link.is_empty()),
+        html_link: Some(text(item, "htmlLink")).filter(|link| is_web_link(link)),
     })
 }
 
@@ -313,7 +313,11 @@ fn event_time(json: &Value) -> Option<EventTime> {
 
 /// Meet link, or the first video entry point of another conference provider.
 fn join_link(item: &Value) -> Option<String> {
-    if let Some(link) = item.get("hangoutLink").and_then(Value::as_str) {
+    if let Some(link) = item
+        .get("hangoutLink")
+        .and_then(Value::as_str)
+        .filter(|link| is_web_link(link))
+    {
         return Some(link.to_owned());
     }
     item.get("conferenceData")?
@@ -322,7 +326,7 @@ fn join_link(item: &Value) -> Option<String> {
         .iter()
         .find(|entry| text(entry, "entryPointType") == "video")
         .map(|entry| text(entry, "uri"))
-        .filter(|uri| !uri.is_empty())
+        .filter(|uri| is_web_link(uri))
 }
 
 #[cfg(test)]

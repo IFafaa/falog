@@ -15,7 +15,7 @@ use eframe::egui::{
     ScrollArea, Sense, Spinner, Stroke, Ui, pos2, vec2,
 };
 use falog_calendar::layout;
-use falog_calendar::{Event, EventTime};
+use falog_calendar::{Event, EventTime, is_web_link};
 use falog_core::domain::{Area, Task};
 
 const HOUR_HEIGHT: f32 = 48.0;
@@ -981,12 +981,13 @@ fn popover(ctx: &egui::Context, theme: &Theme, areas: &[Area], cal: &mut Calenda
                     }
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        if let Some(link) = &event.join_link
+                        // Cached events from older builds may hold other schemes.
+                        if let Some(link) = event.join_link.as_deref().filter(|link| is_web_link(link))
                             && button(ui, ButtonStyle::Accent, Some(Icon::Video), "Join").clicked()
                         {
                             ui.ctx().open_url(egui::OpenUrl::new_tab(link));
                         }
-                        if let Some(link) = &event.html_link
+                        if let Some(link) = event.html_link.as_deref().filter(|link| is_web_link(link))
                             && button(
                                 ui,
                                 ButtonStyle::Ghost,

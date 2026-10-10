@@ -5,7 +5,7 @@
 //! The address of a private feed is a credential (whoever has it reads the calendar), so nothing
 //! here puts it in an error message.
 
-use crate::model::{Event, EventTime};
+use crate::model::{Event, EventTime, is_web_link};
 use crate::url::{decode, encode};
 use crate::{Error, Result};
 use base64::Engine;
@@ -593,9 +593,10 @@ impl Feed {
                 .conference
                 .clone()
                 .or_else(|| meeting_link(&entry.description))
-                .or_else(|| meeting_link(&entry.location)),
+                .or_else(|| meeting_link(&entry.location))
+                .filter(|link| is_web_link(link)),
             description,
-            html_link,
+            html_link: html_link.filter(|link| is_web_link(link)),
         }
     }
 }

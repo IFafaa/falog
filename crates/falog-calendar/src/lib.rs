@@ -18,4 +18,4 @@ mod url;
 
 pub use config::{Account, CalendarConfig, Client, EventCache, Files, LINK_COLORS, Link};
 pub use error::{Error, Result};
-pub use model::{Calendar, Event, EventTime};
+pub use model::{Calendar, Event, EventTime, is_web_link};
