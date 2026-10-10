@@ -6,6 +6,7 @@ use crate::components::{
     ButtonStyle, Placement, button, icon_button, modal, modal_header, segmented, switch,
 };
 use crate::fonts;
+use crate::i18n::{Language, tr};
 use crate::icons::Icon;
 use crate::platform::reveal;
 use crate::prefs::Prefs;
@@ -192,6 +193,20 @@ impl SettingsDialog {
         updater: &Updater,
         events: &mut Vec<SettingsEvent>,
     ) {
+        setting(
+            ui,
+            theme,
+            tr("Language"),
+            tr("The language of Falog's menus and messages."),
+            |ui| {
+                let mut language = prefs.language.unwrap_or_default();
+                let options: Vec<(Language, &str)> =
+                    Language::ALL.iter().map(|l| (*l, l.native_name())).collect();
+                if segmented(ui, &mut language, &options) {
+                    prefs.language = Some(language);
+                }
+            },
+        );
         setting(
             ui,
             theme,

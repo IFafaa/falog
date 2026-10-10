@@ -1,6 +1,7 @@
 use crate::assistant::AssistantOptions;
 use crate::assistant::voice::VoiceLanguage;
 use crate::calendar::CalendarMode;
+use crate::i18n::Language;
 use crate::theme::ThemeMode;
 use crate::views::{SortOrder, View};
 use falog_core::domain::AreaId;
@@ -33,6 +34,8 @@ pub struct Prefs {
     pub check_updates: bool,
     /// Offer preview releases too, not only stable ones.
     pub update_preview: bool,
+    /// The interface language; `None` until the first start sets it from the computer's language.
+    pub language: Option<Language>,
 }
 
 impl Prefs {
@@ -64,6 +67,7 @@ impl Default for Prefs {
             voice_gpu: true,
             check_updates: true,
             update_preview: false,
+            language: None,
         }
     }
 }

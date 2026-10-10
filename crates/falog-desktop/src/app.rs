@@ -3,6 +3,7 @@
 use crate::action::{Action, Actions};
 use crate::assistant::{self, Assistant};
 use crate::calendar::CalendarState;
+use crate::i18n::{self, Language, trf};
 use crate::overlays::areas::{AreaEvent, AreasDialog};
 use crate::overlays::command_palette::{CommandPalette, Mode, Outcome};
 use crate::overlays::confirm::{Answer, Confirm};
@@ -119,6 +120,10 @@ impl FalogApp {
             title_bar_dark: None,
         };
         app.reload();
+        // The first start speaks the computer's language; Settings › General changes it.
+        if app.prefs.language.is_none() {
+            app.prefs.language = Some(Language::suggested());
+        }
         app
     }
 
@@ -518,8 +523,11 @@ impl FalogApp {
             return;
         };
         let message = match (count, ids) {
-            (1, [id]) => format!("Archived #{id}; find it in the Archive (Ctrl+5)"),
-            (n, _) => format!("Archived {n} tasks; find them in the Archive (Ctrl+5)"),
+            (1, [id]) => trf("Archived #{id}; find it in the Archive (Ctrl+5)", &[("id", id)]),
+            (n, _) => trf(
+                "Archived {n} tasks; find them in the Archive (Ctrl+5)",
+                &[("n", &n)],
+            ),
         };
         self.notify(message, ToastKind::Success);
         self.refresh_panel(ids);
@@ -760,6 +768,7 @@ impl eframe::App for FalogApp {
             // A tool just ran: show its effect now instead of waiting for the next poll.
             self.sync();
         }
+        i18n::set(self.prefs.language.unwrap_or_default());
         self.updater
             .poll(ctx, self.prefs.check_updates, self.prefs.update_preview);
         if self.calendar.poll(ctx) {

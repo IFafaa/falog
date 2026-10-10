@@ -9,6 +9,7 @@ mod calendar;
 mod components;
 mod download;
 mod fonts;
+mod i18n;
 mod icons;
 mod overlays;
 mod platform;
