@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use thread::Launcher;
 pub use thread::{Item, Settings, Thread, ThreadId, ToolCall};
-use voice::{Download, Recorder, Transcriber, VoiceLanguage};
+use voice::{Clip, Download, Recorder, Transcriber, VoiceLanguage};
 
 /// How often the live preview is refreshed while dictating, and when the first one starts.
 const PARTIAL_EVERY: Duration = Duration::from_millis(1000);
@@ -407,7 +407,7 @@ impl Assistant {
         {
             return;
         }
-        transcriber.submit(recorder.snapshot(), options.language, false);
+        transcriber.submit(recorder.live(), options.language, false);
         self.partial_pending = true;
         self.last_partial = Instant::now();
     }
@@ -453,7 +453,7 @@ impl Assistant {
             VoiceState::Idle | VoiceState::NeedsModel if !voice::model_path().is_file() => {
                 self.voice = VoiceState::NeedsModel;
             }
-            VoiceState::Idle | VoiceState::NeedsModel => match Recorder::start(ctx.clone()) {
+            VoiceState::Idle | VoiceState::NeedsModel => match Recorder::start() {
                 Ok(recorder) => {
                     // Create the worker now so the model loads while the user is still speaking.
                     self.transcriber(ctx, options);
@@ -466,7 +466,7 @@ impl Assistant {
             VoiceState::Recording(recorder) => match recorder.finish() {
                 Some(audio) => {
                     self.transcriber(ctx, options)
-                        .submit(audio, options.language, true);
+                        .submit(Clip::Ready(audio), options.language, true);
                     self.voice = VoiceState::Transcribing;
                 }
                 None => self.voice = VoiceState::Idle,

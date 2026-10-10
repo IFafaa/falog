@@ -90,8 +90,9 @@ impl fmt::Debug for Recorder {
 }
 
 impl Recorder {
-    /// Starts capturing from the default input device.
-    pub fn start(ctx: egui::Context) -> Result<Self, String> {
+    /// Starts capturing from the default input device. The UI repaints on its own while recording, so
+    /// audio buffers (about a hundred a second) do not ask for frames.
+    pub fn start() -> Result<Self, String> {
         let device = cpal::default_host()
             .default_input_device()
             .ok_or("No microphone was found.")?;
@@ -105,10 +106,10 @@ impl Recorder {
         let samples = Arc::new(Mutex::new(Vec::new()));
         let level = Arc::new(AtomicU32::new(0));
         let stream = match supported.sample_format() {
-            SampleFormat::F32 => build::<f32>(&device, config, channels, &samples, &level, ctx),
-            SampleFormat::I16 => build::<i16>(&device, config, channels, &samples, &level, ctx),
-            SampleFormat::U16 => build::<u16>(&device, config, channels, &samples, &level, ctx),
-            SampleFormat::I32 => build::<i32>(&device, config, channels, &samples, &level, ctx),
+            SampleFormat::F32 => build::<f32>(&device, config, channels, &samples, &level),
+            SampleFormat::I16 => build::<i16>(&device, config, channels, &samples, &level),
+            SampleFormat::U16 => build::<u16>(&device, config, channels, &samples, &level),
+            SampleFormat::I32 => build::<i32>(&device, config, channels, &samples, &level),
             other => return Err(format!("Unsupported microphone format {other:?}.")),
         }
         .map_err(|e| format!("Could not open the microphone: {e}"))?;
@@ -134,10 +135,13 @@ impl Recorder {
         self.started.elapsed()
     }
 
-    /// The audio recorded so far at 16 kHz, without stopping (for live previews).
-    pub fn snapshot(&self) -> Vec<f32> {
-        let samples = self.samples.lock().map(|s| s.clone()).unwrap_or_default();
-        resample(&samples, self.sample_rate, SAMPLE_RATE)
+    /// The recording so far, without stopping (for live previews). Copying and resampling it is left
+    /// to the transcriber's thread: a long clip is tens of megabytes.
+    pub fn live(&self) -> Clip {
+        Clip::Live {
+            samples: Arc::clone(&self.samples),
+            rate: self.sample_rate,
+        }
     }
 
     /// Stops recording and returns 16 kHz audio, or `None` if the clip was too short.
@@ -156,7 +160,6 @@ fn build<T>(
     channels: usize,
     samples: &Arc<Mutex<Vec<f32>>>,
     level: &Arc<AtomicU32>,
-    ctx: egui::Context,
 ) -> Result<cpal::Stream, cpal::Error>
 where
     T: SizedSample,
@@ -176,7 +179,6 @@ where
             if let Ok(mut buffer) = samples.lock() {
                 buffer.extend_from_slice(&mono);
             }
-            ctx.request_repaint();
         },
         |err| eprintln!("falog: microphone error: {err}"),
         None,
@@ -207,8 +209,31 @@ pub fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
 /// repeat itself ("Review the PR. Review the PR.").
 const TRAILING_SILENCE: usize = SAMPLE_RATE as usize;
 
+/// Audio to transcribe: ready at 16 kHz, or a recording still going on, read when the job runs.
+#[derive(Debug)]
+pub enum Clip {
+    Ready(Vec<f32>),
+    Live {
+        samples: Arc<Mutex<Vec<f32>>>,
+        rate: u32,
+    },
+}
+
+impl Clip {
+    /// The audio at 16 kHz.
+    fn into_samples(self) -> Vec<f32> {
+        match self {
+            Self::Ready(samples) => samples,
+            Self::Live { samples, rate } => {
+                let recorded = samples.lock().map(|s| s.clone()).unwrap_or_default();
+                resample(&recorded, rate, SAMPLE_RATE)
+            }
+        }
+    }
+}
+
 struct Job {
-    audio: Vec<f32>,
+    audio: Clip,
     language: VoiceLanguage,
     /// Partial jobs feed the live preview while recording; the final one is the transcript.
     is_final: bool,
@@ -261,7 +286,7 @@ impl Transcriber {
         }
     }
 
-    pub fn submit(&self, audio: Vec<f32>, language: VoiceLanguage, is_final: bool) {
+    pub fn submit(&self, audio: Clip, language: VoiceLanguage, is_final: bool) {
         let job = Job {
             audio,
             language,
@@ -350,7 +375,7 @@ impl Lane {
             if self.is_final {
                 self.final_running.store(true, Ordering::Relaxed);
             }
-            let mut audio = job.audio;
+            let mut audio = job.audio.into_samples();
             audio.resize(audio.len() + TRAILING_SILENCE, 0.0);
             let result = self
                 .cache
@@ -632,7 +657,7 @@ mod tests {
 
     fn job(id: f32, is_final: bool) -> Job {
         Job {
-            audio: vec![id],
+            audio: Clip::Ready(vec![id]),
             language: VoiceLanguage::English,
             is_final,
         }
@@ -641,13 +666,14 @@ mod tests {
     #[test]
     fn keeps_only_the_newest_pending_job() {
         let picked = newest(job(1.0, false), [job(2.0, false), job(3.0, false)].into_iter());
-        assert_eq!(picked.audio, vec![3.0]);
+        assert_eq!(picked.audio.into_samples(), vec![3.0]);
     }
 
     #[test]
     fn never_drops_a_final_job_for_a_partial_one() {
         let picked = newest(job(1.0, false), [job(2.0, true), job(3.0, false)].into_iter());
-        assert_eq!((picked.audio, picked.is_final), (vec![2.0], true));
+        assert!(picked.is_final);
+        assert_eq!(picked.audio.into_samples(), vec![2.0]);
     }
 
     #[test]
