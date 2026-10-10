@@ -61,7 +61,7 @@ Semantic helpers: `status_color`, `priority_color`, `due_color`. Area colors com
 │  dock)  │ view                                             │       │ ────────────── │
 │         │                                                  │       │ composer 🎤 ➤  │
 ├─────────┴──────────────────────────────────────────────────┴───────┴────────────────┤
-│ status bar: sidebar toggle · counts             listening · ✦ · date · ⌘ · ⚙        │
+│ status bar: sidebar toggle                       listening · ✦ · date · ⌘ · ⚙        │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 

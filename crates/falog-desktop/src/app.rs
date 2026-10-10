@@ -21,7 +21,7 @@ use crate::{fonts, icons::Icon};
 use chrono::NaiveDate;
 use eframe::egui::{self, Frame, Id, Key, Margin, Modifiers, RichText, Vec2, ViewportCommand, vec2};
 use falog_core::domain::{Area, Status, Task, TaskId, TaskPatch};
-use falog_core::{Store, date, focus};
+use falog_core::{Store, date};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -729,7 +729,6 @@ impl eframe::App for FalogApp {
         }
 
         let bar = StatusBar {
-            summary: focus::summary(&self.tasks, self.today),
             date: self.today.format("%a, %b %-d").to_string(),
             sidebar_open: self.prefs.sidebar_open,
             assistant_open: self.prefs.assistant_open,

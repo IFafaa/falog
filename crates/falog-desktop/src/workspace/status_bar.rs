@@ -2,12 +2,10 @@ use crate::action::{Action, Actions};
 use crate::components::{icon_button, icon_toggle};
 use crate::icons::Icon;
 use crate::theme::Theme;
-use crate::views::View;
 use eframe::egui::{
     self, Align, Color32, CursorIcon, FontId, Frame, Layout, Margin, Rect, Response, Sense, TopBottomPanel,
     Ui, pos2, vec2,
 };
-use falog_core::focus::Summary;
 use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,7 +24,6 @@ pub struct Toast {
 
 #[derive(Debug)]
 pub struct StatusBar<'a> {
-    pub summary: Summary,
     pub date: String,
     pub sidebar_open: bool,
     pub assistant_open: bool,
@@ -49,42 +46,6 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
                 ui.spacing_mut().item_spacing.x = 2.0;
                 if icon_toggle(ui, Icon::SidebarLeft, bar.sidebar_open, "Toggle sidebar (Ctrl+B)").clicked() {
                     actions.push(Action::ToggleSidebar);
-                }
-                let summary = bar.summary;
-                if item(
-                    ui,
-                    theme,
-                    Icon::Circle,
-                    theme.icon_muted,
-                    &format!("{} open", summary.open),
-                )
-                .clicked()
-                {
-                    actions.push(Action::SetView(View::List));
-                }
-                if summary.overdue > 0
-                    && item(
-                        ui,
-                        theme,
-                        Icon::Warning,
-                        theme.error,
-                        &format!("{} overdue", summary.overdue),
-                    )
-                    .clicked()
-                {
-                    actions.push(Action::SetView(View::Focus));
-                }
-                if summary.due_today > 0
-                    && item(
-                        ui,
-                        theme,
-                        Icon::Clock,
-                        theme.warning,
-                        &format!("{} due today", summary.due_today),
-                    )
-                    .clicked()
-                {
-                    actions.push(Action::SetView(View::Focus));
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
