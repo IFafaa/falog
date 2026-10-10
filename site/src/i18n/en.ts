@@ -206,7 +206,6 @@ const en = {
     releases: "Releases",
     issues: "Issues",
     specs: "Specs",
-    credits: "No cookies, no trackers.",
   },
 
   // Read by app.js through a JSON block in the page.

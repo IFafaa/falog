@@ -718,12 +718,6 @@ h2, .section-head h1 {
 }
 .footer-links a { color: var(--text-muted); }
 .footer-links a:hover { color: var(--text); }
-.credits {
-  flex-basis: 100%;
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 13px;
-}
 
 /* ---- narrow screens ---------------------------------------------------------------------- */
 

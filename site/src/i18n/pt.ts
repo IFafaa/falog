@@ -204,7 +204,6 @@ const pt: Copy = {
     releases: "Versões",
     issues: "Issues",
     specs: "Especificações",
-    credits: "Sem cookies e sem rastreadores.",
   },
 
   js: {
