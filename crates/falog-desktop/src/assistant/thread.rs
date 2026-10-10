@@ -155,6 +155,8 @@ pub struct Activity {
     pub tasks_changed: bool,
     /// Something worth saving happened.
     pub changed: bool,
+    /// The agent reported its commands or settings.
+    pub reported: bool,
 }
 
 #[derive(Debug)]
@@ -319,6 +321,7 @@ impl Thread {
         let mut activity = Activity::default();
         while let Some(event) = self.session.as_mut().and_then(|session| session.try_recv()) {
             activity.tasks_changed |= matches!(event, AgentEvent::ToolResult { .. });
+            activity.reported |= matches!(event, AgentEvent::Commands(_) | AgentEvent::Options(_));
             activity.changed |= !matches!(
                 event,
                 AgentEvent::TextDelta(_) | AgentEvent::Commands(_) | AgentEvent::Options(_)

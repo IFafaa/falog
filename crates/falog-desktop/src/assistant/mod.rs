@@ -353,12 +353,16 @@ impl Assistant {
     /// Processes pending events. Returns `true` when a tool finished, so tasks may have changed.
     pub fn poll(&mut self, ctx: &egui::Context, options: AssistantOptions) -> bool {
         let mut tasks_changed = false;
+        let mut reported = false;
         for thread in &mut self.threads {
             let activity = thread.poll();
             tasks_changed |= activity.tasks_changed;
+            reported |= activity.reported;
             self.unsaved |= activity.changed;
         }
-        self.learn();
+        if reported {
+            self.learn();
+        }
 
         self.schedule_partial(options);
         while let Some(done) = self.transcriber.as_ref().and_then(Transcriber::try_recv) {
