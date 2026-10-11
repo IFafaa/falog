@@ -232,7 +232,7 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
             ui.horizontal(|ui| {
                 ui.add(Icon::Calendar.image(16.0, theme.text_accent));
                 ui.label(
-                    RichText::new(tr("See your Google Calendar meetings here: paste each calendar's secret link in Settings."))
+                    RichText::new(tr("See your Google Calendar meetings here: connect a calendar with its link or by signing in with Google."))
                         .size(13.0)
                         .color(theme.text_muted),
                 );
@@ -246,7 +246,7 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
                                 .size(12.5)
                                 .color(theme.text_placeholder),
                         );
-                    } else if button(ui, ButtonStyle::Accent, Some(Icon::Plus), tr("Add a calendar link")).clicked() {
+                    } else if button(ui, ButtonStyle::Accent, Some(Icon::Plus), tr("Connect a calendar")).clicked() {
                         actions.push(Action::OpenSettingsTab(SettingsTab::Calendar));
                     }
                 });

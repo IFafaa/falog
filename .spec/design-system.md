@@ -124,7 +124,7 @@ An event opens a popover (`elevated_surface`) with time, calendar (and account, 
 location, description, Join and Open in Google Calendar. The sidebar adds a Calendars section with one
 checkbox per calendar in its color: calendar links first, then calendars grouped under their account's
 email; its `+` opens Settings › Calendar. With no calendar yet, the view shows a banner whose
-"Add a calendar link" (accent) opens the same page.
+"Connect a calendar" (accent) opens the same page.
 
 Each email (signed-in account or calendar link) belongs to one area; an area may have several emails.
 A calendar whose email has an area is drawn in the area's color (events, month dots, sidebar
@@ -169,15 +169,21 @@ button on the right (*Check for updates*, *Download*, *Restart to update*), a "W
 releases, and switches for automatic checks and preview versions. The status bar offers an update at
 its right, left of ✦, as an item in `text_accent`: *Update to X.Y.Z* (arrow down), *Downloading update
 N%* in `icon_muted` while it downloads, then *Restart to update* (refresh icon).
-`Action::OpenSettingsTab` opens a given page, as the calendar's "Add a calendar link" does.
+`Action::OpenSettingsTab` opens a given page, as the calendar's "Connect a calendar" does.
 
-The Calendar page puts the easy path first: an "Add a calendar link" section with a four-step how-to in
-plain words, label/field rows (96 px labels; the address field is masked), an accent Add that turns into
-a spinner and "Checking the link…" while the link is read once, and the refusal in `warning`. Linked
-calendars follow, one per row: an inline name field (renames on focus loss), Google's twelve calendar
-colors as 14 px swatches (the current one ringed in `text`) and a Danger Remove, with the masked
-address under it in monospace `text_placeholder`. Signing in with an OAuth client sits under a
-disclosure row (chevron, `ghost_hover` on hover), folded unless a client or account already exists.
+The Calendar page lists what is connected first: under *Connected calendars*, calendar links (copy
+icon) with an inline name field (renames on focus loss), Google's twelve calendar colors as 14 px
+swatches (the current one ringed in `text`), a Danger Remove and the masked address under it in
+monospace `text_placeholder`; then signed-in accounts (person icon) with Remove and, when needed, Sign
+in. *Area of each account* follows, with a read-only notice and Reconnect on a second line. Under
+*Connect a calendar*, the two ways to connect are alike: bordered cards (`border_variant`, 6 px
+rounding) whose 50 px header (icon, semibold title, one-line `text_muted` summary cut with an ellipsis,
+chevron on the right, `ghost_hover` on hover) folds the steps open. *Paste a calendar link*
+(recommended) has a four-step how-to in plain words, label/field rows (120 px labels; the address
+field is masked), an accent Add that turns into a spinner and "Checking the link…" while the link is
+read once, and the refusal in `warning`. *Sign in with Google* (advanced) holds the OAuth client setup
+and Connect Google account. The link card starts open when nothing is connected; the Google card when
+a client is saved but no account signed in.
 
 ## Public site
 

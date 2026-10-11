@@ -341,7 +341,17 @@ pub fn text(english: &str) -> Option<&'static str> {
         "See your Google calendars next to your tasks. The assistant can also book meetings in signed-in accounts." => {
             "Veja suas agendas do Google ao lado das tarefas. O assistente também pode marcar reuniões nas contas conectadas."
         }
-        "Add a calendar link" => "Adicionar o link de uma agenda",
+        "Paste a calendar link" => "Colar o link de uma agenda",
+        "Recommended. Two minutes, no setup: copy a link from Google Calendar." => {
+            "Recomendado. Dois minutos, sem configurar nada: copie um link do Google Calendar."
+        }
+        "Sign in with Google" => "Entrar com o Google",
+        "Advanced. The assistant can book meetings; needs your own OAuth client." => {
+            "Avançado. O assistente pode marcar reuniões; exige um cliente OAuth seu."
+        }
+        "Connected calendars" => "Agendas conectadas",
+        "Calendar link" => "Link de agenda",
+        "Google account" => "Conta do Google",
         "1. Open" => "1. Abra as configurações do",
         "settings (the gear, then Settings)." => "(a engrenagem, depois Configurações).",
         "2. On the left, under \"Settings for my calendars\", click the calendar." => {
@@ -359,9 +369,7 @@ pub fn text(english: &str) -> Option<&'static str> {
         "The address works like a password: whoever has it can read the calendar. Falog keeps it on this computer only. Falog reads the calendars again every five minutes." => {
             "O endereço funciona como uma senha: quem o tiver pode ler a agenda. O Falog o guarda só neste computador e lê as agendas de novo a cada cinco minutos."
         }
-        "Linked calendars" => "Agendas vinculadas",
         "Remove" => "Remover",
-        "Sign in with Google instead (advanced)" => "Entrar com o Google em vez disso (avançado)",
         "For accounts whose admin turned off secret addresses. Events show up right away, but you need your own Google OAuth client:" => {
             "Para contas cujo administrador desativou os endereços secretos. Os eventos aparecem na hora, mas você precisa do seu próprio cliente OAuth do Google:"
         }
@@ -520,9 +528,10 @@ pub fn text(english: &str) -> Option<&'static str> {
         "{month} {from} – {to}, {year}" => "{from} – {to} de {month} de {year}",
         "{from} – {to}, {year}" => "{from} – {to} de {year}",
         "Updated {time}" => "Atualizado às {time}",
-        "See your Google Calendar meetings here: paste each calendar's secret link in Settings." => {
-            "Veja aqui suas reuniões do Google Calendar: cole o endereço secreto de cada agenda nas Configurações."
+        "See your Google Calendar meetings here: connect a calendar with its link or by signing in with Google." => {
+            "Veja aqui suas reuniões do Google Calendar: conecte uma agenda pelo link dela ou entrando com o Google."
         }
+        "Connect a calendar" => "Conectar uma agenda",
         "{date}, all day" => "{date}, o dia todo",
         "all-day" => "dia todo",
         "Open this week" => "Abrir esta semana",
