@@ -1,7 +1,8 @@
 use super::Store;
-use crate::date::now;
-use crate::domain::{Area, NewTask, Status, Task, TaskId, TaskPatch};
+use crate::date::{now, today};
+use crate::domain::{Area, NewTask, Recurrence, Status, Task, TaskId, TaskPatch};
 use crate::{Error, Result};
+use chrono::NaiveDate;
 use rusqlite::{OptionalExtension, Row, params};
 
 const SELECT: &str = "
@@ -9,7 +10,7 @@ const SELECT: &str = "
            t.created_at, t.updated_at, t.completed_at,
            a.id, a.name, a.color,
            (SELECT COUNT(*) FROM notes n WHERE n.task_id = t.id),
-           t.archived_at
+           t.archived_at, t.recurrence
     FROM tasks t
     LEFT JOIN areas a ON a.id = t.area_id";
 
@@ -36,7 +37,13 @@ fn map_row(row: &Row<'_>) -> rusqlite::Result<Task> {
         area,
         note_count: row.get(13)?,
         archived_at: row.get(14)?,
+        recurrence: row.get(15)?,
     })
+}
+
+/// `due`, or the first occurrence from today when a recurring task has none.
+fn first_due(due: Option<NaiveDate>, recurrence: Option<Recurrence>) -> Option<NaiveDate> {
+    due.or_else(|| recurrence.map(|rule| rule.first_from(today())))
 }
 
 fn validate_title(title: &str) -> Result<&str> {
@@ -67,34 +74,46 @@ impl Store {
         self.task(id)?.ok_or(Error::TaskNotFound(id))
     }
 
+    /// Creates a task. A recurring task without a due date is due on its first occurrence.
     pub fn create_task(&self, new: &NewTask) -> Result<Task> {
         let title = validate_title(&new.title)?;
         let now = now();
         self.conn.execute(
             "INSERT INTO tasks (title, description, area_id, status, priority, due_date,
-                                requester, created_at, updated_at, completed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?9)",
+                                requester, created_at, updated_at, completed_at, recurrence)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?9, ?10)",
             params![
                 title,
                 new.description.trim(),
                 new.area_id,
                 new.status,
                 new.priority,
-                new.due,
+                first_due(new.due, new.recurrence),
                 new.requester.trim(),
                 now,
                 (new.status == Status::Done).then_some(now),
+                new.recurrence,
             ],
         )?;
         self.require_task(TaskId(self.conn.last_insert_rowid()))
     }
 
     /// Applies a partial update. Moving into `Done` stamps `completed_at`; moving out clears it and
-    /// takes the task out of the archive.
+    /// takes the task out of the archive. Completing a recurring task also creates its next
+    /// occurrence ([`Self::update_task_with_next`]).
     pub fn update_task(&self, id: TaskId, patch: &TaskPatch) -> Result<Task> {
+        Ok(self.update_task_with_next(id, patch)?.0)
+    }
+
+    /// [`Self::update_task`], also returning the next occurrence created when the update completes a
+    /// recurring task. The new task copies the fields, is due on the rule's next date after the
+    /// later of the old due date and today, and takes the rule over: the completed task no longer
+    /// repeats, so reopening and completing it again does not create a second copy.
+    pub fn update_task_with_next(&self, id: TaskId, patch: &TaskPatch) -> Result<(Task, Option<Task>)> {
         let current = self.require_task(id)?;
         let title = validate_title(patch.title.as_deref().unwrap_or(&current.title))?;
         let status = patch.status.unwrap_or(current.status);
+        let completing = current.status != Status::Done && status == Status::Done;
         let completed_at = match (current.status, status) {
             (Status::Done, Status::Done) => current.completed_at,
             (_, Status::Done) => Some(now()),
@@ -105,30 +124,54 @@ impl Store {
         } else {
             None
         };
+        let recurrence = patch.recurrence.unwrap_or(current.recurrence);
+        let due = first_due(patch.due.unwrap_or(current.due), recurrence);
+        let description = patch
+            .description
+            .as_deref()
+            .unwrap_or(&current.description)
+            .trim();
+        let area_id = patch.area_id.unwrap_or(current.area_id());
+        let priority = patch.priority.unwrap_or(current.priority);
+        let requester = patch.requester.as_deref().unwrap_or(&current.requester).trim();
+        let repeat = recurrence.filter(|_| completing);
+
+        let tx = self.conn.unchecked_transaction()?;
         self.conn.execute(
             "UPDATE tasks SET title = ?1, description = ?2, area_id = ?3, status = ?4,
                               priority = ?5, due_date = ?6, requester = ?7, updated_at = ?8,
-                              completed_at = ?9, archived_at = ?10
-             WHERE id = ?11",
+                              completed_at = ?9, archived_at = ?10, recurrence = ?11
+             WHERE id = ?12",
             params![
                 title,
-                patch
-                    .description
-                    .as_deref()
-                    .unwrap_or(&current.description)
-                    .trim(),
-                patch.area_id.unwrap_or(current.area_id()),
+                description,
+                area_id,
                 status,
-                patch.priority.unwrap_or(current.priority),
-                patch.due.unwrap_or(current.due),
-                patch.requester.as_deref().unwrap_or(&current.requester).trim(),
+                priority,
+                due,
+                requester,
                 now(),
                 completed_at,
                 archived_at,
+                if repeat.is_some() { None } else { recurrence },
                 id,
             ],
         )?;
-        self.require_task(id)
+        let next = match repeat {
+            Some(rule) => Some(self.create_task(&NewTask {
+                title: title.to_owned(),
+                description: description.to_owned(),
+                area_id,
+                status: Status::Todo,
+                priority,
+                due: Some(rule.following(due, today())),
+                requester: requester.to_owned(),
+                recurrence: Some(rule),
+            })?),
+            None => None,
+        };
+        tx.commit()?;
+        Ok((self.require_task(id)?, next))
     }
 
     pub fn set_status(&self, id: TaskId, status: Status) -> Result<Task> {
@@ -272,6 +315,111 @@ mod tests {
 
         let reopened = store.set_status(task.id, Status::Todo).unwrap();
         assert!(!reopened.is_archived());
+    }
+
+    /// A Friday far enough ahead to stay later than today.
+    fn friday() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2099, 1, 2).unwrap()
+    }
+
+    fn weekly_report(store: &Store) -> Task {
+        let area = store.create_area("Work", None).unwrap();
+        store
+            .create_task(&NewTask {
+                description: "Numbers from the dashboard".into(),
+                area_id: Some(area.id),
+                priority: Priority::High,
+                due: Some(friday()),
+                requester: "Ana".into(),
+                recurrence: Recurrence::parse("every friday", friday()),
+                ..NewTask::new("Send the weekly report")
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn completing_a_recurring_task_creates_the_next_one() {
+        let store = store();
+        let task = weekly_report(&store);
+        let (done, next) = store
+            .update_task_with_next(task.id, &TaskPatch::status(Status::Done))
+            .unwrap();
+        let next = next.expect("a next occurrence");
+
+        assert_eq!(done.status, Status::Done);
+        assert_eq!(done.recurrence, None, "the rule moves to the next occurrence");
+        assert_eq!(next.status, Status::Todo);
+        assert_eq!(next.due, NaiveDate::from_ymd_opt(2099, 1, 9));
+        assert_eq!(next.recurrence, task.recurrence);
+        assert_eq!(
+            (
+                &next.title,
+                &next.description,
+                &next.area,
+                next.priority,
+                &next.requester
+            ),
+            (
+                &task.title,
+                &task.description,
+                &task.area,
+                task.priority,
+                &task.requester
+            )
+        );
+
+        // Reopening and completing the old one again does not repeat it twice.
+        store.set_status(task.id, Status::Todo).unwrap();
+        let (_, again) = store
+            .update_task_with_next(task.id, &TaskPatch::status(Status::Done))
+            .unwrap();
+        assert_eq!(again, None);
+        assert_eq!(store.tasks().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn editing_a_done_or_open_recurring_task_does_not_repeat_it() {
+        let store = store();
+        let task = weekly_report(&store);
+        let (_, next) = store
+            .update_task_with_next(task.id, &TaskPatch::status(Status::InProgress))
+            .unwrap();
+        assert_eq!(next, None);
+        assert_eq!(store.tasks().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn recurring_tasks_without_a_due_date_get_the_first_occurrence() {
+        let store = store();
+        let task = store
+            .create_task(&NewTask {
+                recurrence: Some(Recurrence::Daily),
+                ..NewTask::new("Water the plants")
+            })
+            .unwrap();
+        assert_eq!(task.due, Some(crate::date::today()));
+
+        let plain = store.create_task(&NewTask::new("Call the bank")).unwrap();
+        let repeating = store
+            .update_task(
+                plain.id,
+                &TaskPatch {
+                    recurrence: Some(Some(Recurrence::Daily)),
+                    ..TaskPatch::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(repeating.due, Some(crate::date::today()));
+        let stopped = store
+            .update_task(
+                plain.id,
+                &TaskPatch {
+                    recurrence: Some(None),
+                    ..TaskPatch::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(stopped.recurrence, None);
     }
 
     #[test]

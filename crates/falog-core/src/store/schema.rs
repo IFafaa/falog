@@ -41,6 +41,8 @@ const MIGRATIONS: &[&str] = &[
     "SELECT 1;",
     // Done tasks put away from the board; NULL while the task is on it.
     "ALTER TABLE tasks ADD COLUMN archived_at TEXT;",
+    // How a task repeats (`daily`, `weekly:mon,fri`, `monthly:5`); NULL when it does not.
+    "ALTER TABLE tasks ADD COLUMN recurrence TEXT;",
 ];
 
 pub(super) fn migrate(conn: &Connection) -> Result<()> {

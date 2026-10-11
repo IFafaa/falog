@@ -282,11 +282,18 @@ impl FalogApp {
         };
         let id = panel.id;
         let saved = self.write(|store| match id {
-            Some(id) => store.update_task(id, &TaskPatch::from(new)),
-            None => store.create_task(&new),
+            Some(id) => store.update_task_with_next(id, &TaskPatch::from(new)),
+            None => store.create_task(&new).map(|task| (task, None)),
         });
-        if let Some(task) = saved {
-            self.notify(trf("Saved #{id}", &[("id", &task.id)]), ToastKind::Success);
+        if let Some((task, next)) = saved {
+            let message = match next_due(next.as_ref()) {
+                Some(date) => trf(
+                    "Saved #{id}; the next one is due {date}",
+                    &[("id", &task.id), ("date", &date)],
+                ),
+                None => trf("Saved #{id}", &[("id", &task.id)]),
+            };
+            self.notify(message, ToastKind::Success);
             self.open_task(task.id);
         }
     }
@@ -505,14 +512,23 @@ impl FalogApp {
         if self.tasks.iter().any(|t| t.id == id && t.status == status) {
             return;
         }
-        if let Some(task) = self.write(|store| store.set_status(id, status)) {
-            self.notify(
-                trf(
+        let patch = TaskPatch::status(status);
+        if let Some((task, next)) = self.write(|store| store.update_task_with_next(id, &patch)) {
+            let message = match next_due(next.as_ref()) {
+                Some(date) => trf(
+                    "#{id} moved to {status}; the next one is due {date}",
+                    &[
+                        ("id", &task.id),
+                        ("status", &status_label(status)),
+                        ("date", &date),
+                    ],
+                ),
+                None => trf(
                     "#{id} moved to {status}",
                     &[("id", &task.id), ("status", &status_label(status))],
                 ),
-                ToastKind::Success,
-            );
+            };
+            self.notify(message, ToastKind::Success);
             let panel_shows_it = self
                 .task_panel
                 .as_ref()
@@ -926,6 +942,11 @@ fn startup_error(ctx: &egui::Context, theme: &Theme, error: &str) {
             );
             ui.label(RichText::new(hint).color(theme.text_placeholder));
         });
+}
+
+/// When the occurrence a completed recurring task created is due, for the toast.
+fn next_due(next: Option<&Task>) -> Option<String> {
+    next.and_then(|task| task.due).map(i18n::date::short)
 }
 
 fn too_small(size: Vec2) -> bool {

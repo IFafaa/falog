@@ -19,6 +19,8 @@ domingo = "domingo"
 semana = "semana"
 progresso = "progresso"
 importante = "importante"
+# Recurrence rules ("repete toda sexta").
+repete = "repete"
 # Prefixes matched on purpose: an area key typed short ("hom" for Home) and the start of
 # "authenticate"/"authentication" in agent error output.
 hom = "hom"

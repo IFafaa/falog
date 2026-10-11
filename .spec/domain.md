@@ -18,6 +18,7 @@
 | `created_at`, `updated_at` | local datetime | `updated_at` also bumps when a note is added |
 | `completed_at` | `Option` | Set when moving into `done`, cleared when moving out |
 | `archived_at` | `Option` | Set when a done task is archived (put away from the board); cleared by restoring it or moving it out of `done` |
+| `recurrence` | `Option<Recurrence>` | How it repeats; see [Recurring tasks](#recurring-tasks). Migration 4 |
 
 ### Area
 
@@ -34,6 +35,24 @@ Append-only activity log entry: `id`, `task_id`, `body`, `created_at`. Deleted w
 Only done tasks can be archived. Archived tasks keep every field and their notes; they leave the Board,
 List, Focus and Calendar views and `list_tasks`, and live in the Archive view until restored. Moving an
 archived task out of `done` restores it too, since an open task belongs on the board.
+
+## Recurring tasks
+
+A `Recurrence` is `Daily`, `Weekly(days)` (one or more weekdays; Monday to Friday reads "every
+weekday") or `Monthly(day)` (1 to 31; shorter months use their last day). It is stored as text:
+`daily`, `weekly:mon,fri`, `monthly:5`.
+
+- **Completing** a recurring task (moving it into `done` from any other status) creates the next
+  occurrence in the same transaction: same title, description, area, priority, requester and rule,
+  status `todo`, due on the rule's first date after the later of the old due date and today. Done late,
+  the new task is not born overdue; done early, it does not repeat the same day.
+- The rule **moves** to the new task: the completed one no longer repeats, so reopening and completing
+  it again creates nothing. Editing an open or done task never creates an occurrence.
+- A recurring task **without a due date** is due on the rule's first date from today.
+- `Recurrence::parse(text, anchor)` reads English and Portuguese: `daily`, `todo dia`, `every weekday`,
+  `dias úteis`, `every friday`, `toda segunda e quarta`, `monthly on the 5th`, `todo dia 10`, and the
+  stored form. `weekly` and `monthly` without a day use the anchor's weekday or day (the due date,
+  else today). Intervals (`every 2 weeks`) and end dates are not supported and do not parse.
 
 ## Status
 

@@ -11,7 +11,7 @@
 pub mod date;
 mod pt;
 
-use falog_core::domain::{Priority, Status, Task};
+use falog_core::domain::{Priority, Recurrence, Status, Task, Weekdays};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -111,6 +111,19 @@ pub fn priority_label(priority: Priority) -> &'static str {
         Priority::Medium => tr("Medium"),
         Priority::High => tr("High"),
         Priority::Urgent => tr("Urgent"),
+    }
+}
+
+/// How a task repeats, in the interface language: `Every day`, `Weekly on Mon, Thu`, `Monthly on day 5`.
+pub fn recurrence_label(rule: Recurrence) -> String {
+    match rule {
+        Recurrence::Daily => tr("Every day").to_owned(),
+        Recurrence::Weekly(Weekdays::WORKDAYS) => tr("Every weekday").to_owned(),
+        Recurrence::Weekly(days) => {
+            let names: Vec<&str> = days.iter().map(date::weekday_short_of).collect();
+            trf("Weekly on {days}", &[("days", &names.join(", "))])
+        }
+        Recurrence::Monthly(day) => trf("Monthly on day {day}", &[("day", &day)]),
     }
 }
 

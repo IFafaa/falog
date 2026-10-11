@@ -2,7 +2,7 @@
 //! order of the parts ("Oct 6" or "6 de out") is a translated pattern.
 
 use super::{Language, current, pt, tr, trf};
-use chrono::{Datelike, NaiveDate, NaiveDateTime};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, Weekday};
 use falog_core::date::{Urgency, urgency};
 
 const MONTHS: [&str; 12] = [
@@ -51,6 +51,15 @@ pub fn weekday_long(date: NaiveDate) -> &'static str {
         Language::English => WEEKDAYS[index],
         Language::Portuguese => pt::WEEKDAYS[index],
     }
+}
+
+/// `Tue`, or `ter`, for a weekday on its own.
+pub fn weekday_short_of(day: Weekday) -> &'static str {
+    let index = day.num_days_from_monday() as usize;
+    first_three(match current() {
+        Language::English => WEEKDAYS[index],
+        Language::Portuguese => pt::WEEKDAYS[index],
+    })
 }
 
 /// `Tue`, or `ter`.

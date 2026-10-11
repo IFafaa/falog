@@ -11,7 +11,8 @@ Health, Home...). When \
 they describe a request (\"I got a task\", \"so-and-so asked\", \"I need to\", \"I have a doctor's \
 appointment\"), call create_task with a short actionable title, the area, a \
 description that keeps ALL the context they gave, the requester, the due date as YYYY-MM-DD (resolve \
-relative dates against today) and a priority. One message may contain several requests: create one task \
+relative dates against today) and a priority; for something that repeats (\"every friday\", \"on the 5th \
+of each month\"), pass recurrence too. One message may contain several requests: create one task \
 each. Before updating a task mentioned by name, find its id with list_tasks. When they ask what to work \
 on or to catch up (\"good morning\", \"what's on my plate\", \"what did I do last week\"), call get_focus. \
 Statuses: todo, in_progress, waiting (blocked on someone, in review), done. Reply in the user's language.";
@@ -234,6 +235,48 @@ mod tests {
         call(&server, 7, "restore_task", json!({ "id": 1 }));
         let board = text(&call(&server, 8, "list_tasks", json!({ "include_done": true }))).to_owned();
         assert!(board.contains("Ship v1"), "{board}");
+    }
+
+    #[test]
+    fn completing_a_recurring_task_schedules_the_next() {
+        let server = server();
+        let created = call(
+            &server,
+            1,
+            "create_task",
+            json!({ "title": "Send the weekly report", "due_date": "2099-01-02",
+                    "recurrence": "toda sexta" }),
+        );
+        assert!(
+            text(&created).contains("repeats every Friday"),
+            "{}",
+            text(&created)
+        );
+
+        let done = call(&server, 2, "update_task", json!({ "id": 1, "status": "done" }));
+        assert!(
+            text(&done)
+                .contains("Next occurrence: #2 [No area] Send the weekly report — Medium · due 2099-01-09"),
+            "{}",
+            text(&done)
+        );
+        let details = text(&call(&server, 3, "get_task", json!({ "id": 2 }))).to_owned();
+        assert!(details.contains("Repeats: every Friday"), "{details}");
+
+        let stopped = call(
+            &server,
+            4,
+            "update_task",
+            json!({ "id": 2, "recurrence": "never" }),
+        );
+        assert!(!text(&stopped).contains("repeats"), "{}", text(&stopped));
+        let refused = call(
+            &server,
+            5,
+            "update_task",
+            json!({ "id": 2, "recurrence": "sometimes" }),
+        );
+        assert_eq!(refused["isError"], true);
     }
 
     #[test]

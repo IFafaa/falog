@@ -5,11 +5,15 @@ use falog_core::date;
 use falog_core::domain::{Note, Task};
 use falog_core::focus;
 
-/// `#12 [Work] Fix login — High · due 2026-10-09 (Fri Oct 9) · In progress · requested by Ana`
+/// `#12 [Work] Fix login — High · due 2026-10-09 (Fri Oct 9) · repeats every Friday · In progress ·
+/// requested by Ana`
 pub fn task_line(task: &Task, today: NaiveDate) -> String {
     let mut facts = vec![task.priority.label().to_string()];
     if let Some(due) = task.due {
         facts.push(format!("due {due} ({})", date::describe_due(due, today)));
+    }
+    if let Some(rule) = task.recurrence {
+        facts.push(format!("repeats {rule}"));
     }
     facts.push(task.status.label().to_string());
     if task.is_archived() {
@@ -39,6 +43,9 @@ pub fn task_details(task: &Task, notes: &[Note], today: NaiveDate) -> String {
     ];
     if let Some(due) = task.due {
         out.push(format!("Due: {due} ({})", date::describe_due(due, today)));
+    }
+    if let Some(rule) = task.recurrence {
+        out.push(format!("Repeats: {rule}"));
     }
     if !task.requester.is_empty() {
         out.push(format!("Requested by: {}", task.requester));

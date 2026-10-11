@@ -40,6 +40,10 @@ pub fn text(english: &str) -> Option<&'static str> {
             "Antes, adicione seu cliente OAuth do Google nas Configurações"
         }
         "#{id} moved to {status}" => "#{id} movida para {status}",
+        "#{id} moved to {status}; the next one is due {date}" => {
+            "#{id} movida para {status}; a próxima vence {date}"
+        }
+        "Saved #{id}; the next one is due {date}" => "#{id} salva; a próxima vence {date}",
         "No done tasks to archive" => "Nenhuma tarefa concluída para arquivar",
         "Archived #{id}; find it in the Archive (Ctrl+5)" => "#{id} arquivada; ela fica no Arquivo (Ctrl+5)",
         "Archived {n} tasks; find them in the Archive (Ctrl+5)" => {
@@ -489,7 +493,13 @@ pub fn text(english: &str) -> Option<&'static str> {
             "{count} tarefas arquivadas · restaure uma para devolvê-la a Concluída"
         }
         "Restore to the board" => "Devolver ao quadro",
+        // ---- i18n ----
+        "Every day" => "Todo dia",
+        "Every weekday" => "Dias úteis",
+        "Weekly on {days}" => "Semanal: {days}",
+        "Monthly on day {day}" => "Mensal, dia {day}",
         // ---- views/board ----
+        "Completing it creates the next one" => "Ao concluir, a próxima é criada",
         "No tasks" => "Nenhuma tarefa",
         "1 completed more than a week ago" => "1 concluída há mais de uma semana",
         "{n} completed more than a week ago" => "{n} concluídas há mais de uma semana",
@@ -577,6 +587,11 @@ pub fn text(english: &str) -> Option<&'static str> {
         "New task (Ctrl+N)" => "Nova tarefa (Ctrl+N)",
         "Find task (Ctrl+P)" => "Buscar tarefa (Ctrl+P)",
         // ---- workspace/task_panel ----
+        "Repeats" => "Repete",
+        "Never" => "Nunca",
+        "Every week" => "Toda semana",
+        "Every month" => "Todo mês",
+        "On day" => "No dia",
         "The title is required." => "O título é obrigatório.",
         "The due date is not a date." => "O prazo não é uma data.",
         "Created {at}" => "Criada em {at}",

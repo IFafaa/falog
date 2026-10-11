@@ -232,7 +232,12 @@ fn card(ui: &mut Ui, cx: &ViewCx<'_>, state: &mut BoardState, task: &Task, actio
 fn card_meta(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task) {
     let theme = cx.theme;
     let show_priority = task.priority != Priority::Medium;
-    if !show_priority && task.due.is_none() && task.requester.is_empty() && task.note_count == 0 {
+    if !show_priority
+        && task.due.is_none()
+        && task.recurrence.is_none()
+        && task.requester.is_empty()
+        && task.note_count == 0
+    {
         return;
     }
     ui.horizontal_wrapped(|ui| {
@@ -252,6 +257,10 @@ fn card_meta(ui: &mut Ui, cx: &ViewCx<'_>, task: &Task) {
                 theme.text_placeholder
             };
             meta(ui, Icon::Clock, i18n::date::describe_due(due, cx.today), color);
+        }
+        if let Some(rule) = task.recurrence {
+            meta(ui, Icon::Refresh, i18n::recurrence_label(rule), theme.text_muted)
+                .on_hover_text(tr("Completing it creates the next one"));
         }
         if !task.requester.is_empty() {
             meta(ui, Icon::Person, &task.requester, theme.text_muted);

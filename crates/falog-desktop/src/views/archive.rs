@@ -238,6 +238,7 @@ mod tests {
             updated_at: at,
             completed_at: Some(at),
             archived_at: Some(at),
+            recurrence: None,
         }
     }
 

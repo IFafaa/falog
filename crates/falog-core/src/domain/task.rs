@@ -1,4 +1,4 @@
-use super::{Area, AreaId, Priority, Status, TaskId};
+use super::{Area, AreaId, Priority, Recurrence, Status, TaskId};
 use crate::text::fuzzy_contains;
 use chrono::{NaiveDate, NaiveDateTime};
 
@@ -22,6 +22,8 @@ pub struct Task {
     pub completed_at: Option<NaiveDateTime>,
     /// When a done task was put away from the board; `None` while it is on it.
     pub archived_at: Option<NaiveDateTime>,
+    /// How the task repeats; completing it creates the next occurrence.
+    pub recurrence: Option<Recurrence>,
 }
 
 impl Task {
@@ -67,6 +69,7 @@ pub struct NewTask {
     pub priority: Priority,
     pub due: Option<NaiveDate>,
     pub requester: String,
+    pub recurrence: Option<Recurrence>,
 }
 
 impl NewTask {
@@ -89,6 +92,7 @@ pub struct TaskPatch {
     pub priority: Option<Priority>,
     pub due: Option<Option<NaiveDate>>,
     pub requester: Option<String>,
+    pub recurrence: Option<Option<Recurrence>>,
 }
 
 impl TaskPatch {
@@ -111,6 +115,7 @@ impl From<NewTask> for TaskPatch {
             priority: Some(task.priority),
             due: Some(task.due),
             requester: Some(task.requester),
+            recurrence: Some(task.recurrence),
         }
     }
 }

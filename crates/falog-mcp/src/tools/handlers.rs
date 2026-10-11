@@ -3,7 +3,7 @@ use super::calendar::{self, CalendarAccess};
 use crate::format;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::NaiveDate;
-use falog_core::domain::{NewTask, Priority, Rgb, Status, Task, TaskId, TaskPatch};
+use falog_core::domain::{NewTask, Priority, Recurrence, Rgb, Status, Task, TaskId, TaskPatch};
 use falog_core::{Store, date, focus, text::fold};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -88,14 +88,16 @@ fn create_task(store: &Store, args: CreateTaskArgs) -> Result<String> {
         Some(name) => Some(store.find_area(&name)?.id),
         None => None,
     };
+    let due = parse_due(args.due_date)?.flatten();
     let task = store.create_task(&NewTask {
         title: args.title,
         description: args.description,
         area_id,
         status: parse_status(args.status)?.unwrap_or_default(),
         priority: parse_priority(args.priority)?.unwrap_or_default(),
-        due: parse_due(args.due_date)?.flatten(),
+        due,
         requester: args.requester,
+        recurrence: parse_recurrence(args.recurrence, due)?.flatten(),
     })?;
     Ok(format!("Created {}", format::task_line(&task, date::today())))
 }
@@ -107,17 +109,28 @@ fn update_task(store: &Store, args: UpdateTaskArgs) -> Result<String> {
         Some(name) if name.trim().is_empty() => Some(None),
         Some(name) => Some(Some(store.find_area(&name)?.id)),
     };
+    let due = parse_due(args.due_date)?;
+    // "weekly" without a day repeats on the weekday the task is due.
+    let anchor = match due {
+        Some(due) => due,
+        None => store.require_task(id)?.due,
+    };
     let patch = TaskPatch {
         title: non_empty(args.title),
         description: args.description,
         area_id,
         status: parse_status(args.status)?,
         priority: parse_priority(args.priority)?,
-        due: parse_due(args.due_date)?,
+        due,
         requester: args.requester,
+        recurrence: parse_recurrence(args.recurrence, anchor)?,
     };
-    let task = store.update_task(id, &patch)?;
-    let mut reply = format!("Updated {}", format::task_line(&task, date::today()));
+    let (task, next) = store.update_task_with_next(id, &patch)?;
+    let today = date::today();
+    let mut reply = format!("Updated {}", format::task_line(&task, today));
+    if let Some(next) = next {
+        reply.push_str(&format!("\nNext occurrence: {}", format::task_line(&next, today)));
+    }
     if let Some(note) = non_empty(args.note) {
         store.add_note(id, &note)?;
         reply.push_str("\nNote added to the activity log.");
@@ -235,6 +248,25 @@ fn parse_status(value: Option<String>) -> Result<Option<Status>> {
 
 fn parse_priority(value: Option<String>) -> Result<Option<Priority>> {
     Ok(non_empty(value).map(|v| v.parse()).transpose()?)
+}
+
+/// `None` = not given, `Some(None)` = stop repeating. `weekly` and `monthly` without a day repeat on
+/// the day of `due`, else of today.
+fn parse_recurrence(value: Option<String>, due: Option<NaiveDate>) -> Result<Option<Option<Recurrence>>> {
+    let Some(raw) = value else { return Ok(None) };
+    if matches!(
+        fold(&raw).as_str(),
+        "" | "none" | "null" | "never" | "no" | "nunca" | "nao repete" | "sem repeticao"
+    ) {
+        return Ok(Some(None));
+    }
+    Recurrence::parse(&raw, due.unwrap_or_else(date::today))
+        .map(|rule| Some(Some(rule)))
+        .ok_or_else(|| {
+            anyhow!(
+                "invalid recurrence \"{raw}\"; use daily, every weekday, every friday, weekly, monthly on the 5th or monthly"
+            )
+        })
 }
 
 /// `None` = not given, `Some(None)` = clear the due date.

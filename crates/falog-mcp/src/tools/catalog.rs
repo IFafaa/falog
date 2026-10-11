@@ -12,6 +12,7 @@ pub fn catalog() -> Value {
         "description": "waiting = blocked on someone else (review, an answer, a deploy)"
     });
     let priority = json!({ "type": "string", "enum": ["low", "medium", "high", "urgent"] });
+    let recurrence = json!({ "type": "string", "description": "Only for tasks that repeat: 'daily', 'every weekday', 'every friday', 'every monday and thursday', 'weekly', 'monthly on the 5th', 'monthly' (also in Portuguese). Completing the task creates the next occurrence" });
 
     json!([
         {
@@ -53,12 +54,13 @@ pub fn catalog() -> Value {
                 "priority": priority,
                 "due_date": { "type": "string", "description": "YYYY-MM-DD (also accepts 'today', 'tomorrow', 'friday', DD/MM)" },
                 "requester": { "type": "string", "description": "Who asked for it" },
-                "status": status
+                "status": status,
+                "recurrence": recurrence
             }, "required": ["title"] }
         },
         {
             "name": "update_task",
-            "description": "Changes only the given fields. Use status=done to complete a task. Can append a note to the activity log in the same call.",
+            "description": "Changes only the given fields. Use status=done to complete a task; a recurring task then gets its next occurrence. Can append a note to the activity log in the same call.",
             "inputSchema": { "type": "object", "properties": {
                 "id": task_id,
                 "title": { "type": "string" },
@@ -68,6 +70,7 @@ pub fn catalog() -> Value {
                 "due_date": { "type": "string", "description": "YYYY-MM-DD; empty string removes the due date" },
                 "requester": { "type": "string" },
                 "status": status,
+                "recurrence": { "type": "string", "description": "New rule, same forms as in create_task; 'never' stops it" },
                 "note": { "type": "string", "description": "Entry for the activity log, e.g. 'client changed the scope: ...'" }
             }, "required": ["id"] }
         },

@@ -8,13 +8,15 @@ use crate::fonts;
 use crate::i18n::{self, tr, trf};
 use crate::icons::Icon;
 use crate::theme::Theme;
-use chrono::{Days, NaiveDate, NaiveDateTime, Weekday};
+use chrono::{Datelike, Days, NaiveDate, NaiveDateTime, Weekday};
 use eframe::egui::{
-    self, Align, Align2, FontId, Frame, Id, Key, Layout, Margin, RichText, ScrollArea, Sense, SidePanel,
-    Stroke, TextEdit, Ui, pos2, vec2,
+    self, Align, Align2, ComboBox, DragValue, FontId, Frame, Id, Key, Layout, Margin, RichText, ScrollArea,
+    Sense, SidePanel, Stroke, TextEdit, Ui, pos2, vec2,
 };
 use falog_core::date;
-use falog_core::domain::{Area, AreaId, NewTask, Note, NoteId, Priority, Status, Task, TaskId};
+use falog_core::domain::{
+    Area, AreaId, NewTask, Note, NoteId, Priority, Recurrence, Status, Task, TaskId, Weekdays,
+};
 
 const LABEL_WIDTH: f32 = 104.0;
 const TITLE_ID: &str = "task-panel-title";
@@ -30,6 +32,7 @@ pub struct Draft {
     /// Free text; parsed with [`date::parse_due`] on save.
     pub due: String,
     pub requester: String,
+    pub recurrence: Option<Recurrence>,
 }
 
 impl Draft {
@@ -45,6 +48,7 @@ impl Draft {
                 .map(|d| d.format("%d/%m/%Y").to_string())
                 .unwrap_or_default(),
             requester: task.requester.clone(),
+            recurrence: task.recurrence,
         }
     }
 
@@ -65,6 +69,7 @@ impl Draft {
             priority: self.priority,
             due,
             requester: self.requester.clone(),
+            recurrence: self.recurrence,
         })
     }
 }
@@ -274,6 +279,11 @@ fn body(
     property(ui, theme, Icon::Clock, tr("Due"), |ui| {
         due_field(ui, theme, &mut draft.due, today)
     });
+    // "Every week" and "Every month" start on the due date's weekday or day.
+    let anchor = date::parse_due(&draft.due, today).unwrap_or(today);
+    property(ui, theme, Icon::Refresh, tr("Repeats"), |ui| {
+        repeat_field(ui, theme, &mut draft.recurrence, anchor, control_width);
+    });
     property(ui, theme, Icon::Person, tr("Requested by"), |ui| {
         ui.add(
             TextEdit::singleline(&mut draft.requester)
@@ -401,6 +411,72 @@ fn due_field(ui: &mut Ui, theme: &Theme, due: &mut String, today: NaiveDate) {
     });
 }
 
+/// Never, every day, every weekday, every week or every month; then the weekdays or the day of the
+/// month the rule falls on.
+fn repeat_field(ui: &mut Ui, theme: &Theme, rule: &mut Option<Recurrence>, anchor: NaiveDate, width: f32) {
+    let selected = rule.map_or_else(|| tr("Never").to_owned(), i18n::recurrence_label);
+    let weekly =
+        |r: &Option<Recurrence>| matches!(r, Some(Recurrence::Weekly(days)) if *days != Weekdays::WORKDAYS);
+    ComboBox::from_id_salt("panel-repeat")
+        .selected_text(selected)
+        .width(width)
+        .show_ui(ui, |ui| {
+            let options = [
+                (tr("Never"), rule.is_none(), None),
+                (
+                    tr("Every day"),
+                    *rule == Some(Recurrence::Daily),
+                    Some(Recurrence::Daily),
+                ),
+                (
+                    tr("Every weekday"),
+                    *rule == Some(Recurrence::Weekly(Weekdays::WORKDAYS)),
+                    Some(Recurrence::Weekly(Weekdays::WORKDAYS)),
+                ),
+                (
+                    tr("Every week"),
+                    weekly(rule),
+                    Some(Recurrence::Weekly(Weekdays::single(anchor.weekday()))),
+                ),
+                (
+                    tr("Every month"),
+                    matches!(rule, Some(Recurrence::Monthly(_))),
+                    Some(Recurrence::Monthly(anchor.day())),
+                ),
+            ];
+            for (label, current, choice) in options {
+                if ui.selectable_label(current, label).clicked() && !current {
+                    *rule = choice;
+                }
+            }
+        });
+    match rule {
+        Some(Recurrence::Weekly(days)) => {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                for day in std::iter::successors(Some(Weekday::Mon), |day| Some(day.succ())).take(7) {
+                    let name = i18n::date::weekday_short_of(day);
+                    if ui.selectable_label(days.contains(day), name).clicked() {
+                        let mut toggled = *days;
+                        toggled.toggle(day);
+                        // A weekly rule needs at least one day.
+                        if !toggled.is_empty() {
+                            *days = toggled;
+                        }
+                    }
+                }
+            });
+        }
+        Some(Recurrence::Monthly(day)) => {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(tr("On day")).size(12.5).color(theme.text_muted));
+                ui.add(DragValue::new(day).range(1..=31));
+            });
+        }
+        _ => {}
+    }
+}
+
 fn small_link(ui: &mut Ui, theme: &Theme, label: &str) -> egui::Response {
     let galley = ui
         .painter()
@@ -464,5 +540,24 @@ fn activity(ui: &mut Ui, theme: &Theme, panel: &mut TaskPanel, events: &mut Vec<
     if response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) && !panel.new_note.trim().is_empty() {
         events.push(PanelEvent::AddNote(std::mem::take(&mut panel.new_note)));
         response.request_focus();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drafts_keep_the_recurrence() {
+        let today = NaiveDate::from_ymd_opt(2026, 10, 6).unwrap();
+        let draft = Draft {
+            title: "Send the weekly report".into(),
+            due: "friday".into(),
+            recurrence: Some(Recurrence::Weekly(Weekdays::single(Weekday::Fri))),
+            ..Draft::default()
+        };
+        let new = draft.to_new_task(today).unwrap();
+        assert_eq!(new.recurrence, draft.recurrence);
+        assert_eq!(new.due, NaiveDate::from_ymd_opt(2026, 10, 9));
     }
 }

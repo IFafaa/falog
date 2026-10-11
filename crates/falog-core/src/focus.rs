@@ -176,6 +176,7 @@ mod tests {
             updated_at: at,
             completed_at: (status == Status::Done).then_some(day(5).and_hms_opt(18, 0, 0).unwrap()),
             archived_at: None,
+            recurrence: None,
         }
     }
 

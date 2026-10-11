@@ -20,8 +20,8 @@ request). Keep it in sync with `assistant/CLAUDE.md`.
 | `create_event` | `title`, `start`, `end?`, `duration_minutes?`, `all_day?`, `area?`, `calendar?`, `description?`, `location?`, `attendees?`, `meet?` | `Created` line; the account is the area's (or `calendar`) |
 | `update_event` | `calendar`, `id`, `title?`, `start?`, `end?`, `description?`, `location?` | `Updated` line |
 | `delete_event` | `calendar`, `id` | Confirmation |
-| `create_task` | `title`, `area?`, `description?`, `priority?`, `due_date?`, `requester?`, `status?` | `Created #id [...]` line |
-| `update_task` | `id`, any task field, `note?` | `Updated ...` line |
+| `create_task` | `title`, `area?`, `description?`, `priority?`, `due_date?`, `requester?`, `status?`, `recurrence?` | `Created #id [...]` line |
+| `update_task` | `id`, any task field, `recurrence?`, `note?` | `Updated ...` line, plus `Next occurrence: ...` when it completes a recurring task |
 | `add_note` | `id`, `note` | Confirmation line |
 | `list_tasks` | `area?`, `status?`, `search?`, `include_done?`, `archived?`, `limit?` | Count + task lines, by status then urgency; archived tasks only with `archived` |
 | `archive_tasks` | `ids?`, `all_done?`, `area?` | How many done tasks were archived |
@@ -33,12 +33,13 @@ request). Keep it in sync with `assistant/CLAUDE.md`.
 
 - **Lenient input.** Ids accept `12`, `"12"`, `"#12"`; enum-like fields accept numbers or strings;
   statuses and priorities accept synonyms; areas accept unique fragments.
-- **Clearing fields.** In `update_task`, an empty `area` or `due_date` clears it; omitted fields are
+- **Clearing fields.** In `update_task`, an empty `area` or `due_date` clears it, and `recurrence: never` (or
+  empty) stops a task repeating; omitted fields are
   untouched.
 - **Errors are in-band.** Tool failures return `isError: true` with a message the model can act on
   (e.g. an unknown area → list of registered ones). Protocol errors use JSON-RPC error codes.
-- **Text output, stable shape.** Every task line is `#id [Area] Title — Priority · due ... · Status ·
-  requested by ...` (see `format.rs`). Models rely on it; change it deliberately.
+- **Text output, stable shape.** Every task line is `#id [Area] Title — Priority · due ... · repeats ... ·
+  Status · requested by ...` (see `format.rs`). Models rely on it; change it deliberately.
 - Tool descriptions are part of the product: they steer the model. Keep them short and directive.
 
 ## Adding a tool

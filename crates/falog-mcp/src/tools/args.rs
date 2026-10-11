@@ -37,6 +37,8 @@ pub struct CreateTaskArgs {
     pub requester: String,
     #[serde(default, deserialize_with = "lenient_string")]
     pub status: Option<String>,
+    /// How it repeats, e.g. "every friday" or "monthly on the 5th".
+    pub recurrence: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,6 +54,8 @@ pub struct UpdateTaskArgs {
     pub requester: Option<String>,
     #[serde(default, deserialize_with = "lenient_string")]
     pub status: Option<String>,
+    /// New rule; "never" or an empty string stops the repetition.
+    pub recurrence: Option<String>,
     pub note: Option<String>,
 }
 
