@@ -1,6 +1,6 @@
 # 0020: Accounts and sync across devices
 
-**Status:** doing (being designed; no code yet)
+**Status:** shelved (not pursued; no code was written)
 **Area:** core, desktop
 
 ## Goal
@@ -22,3 +22,8 @@ protected, conflict handling, offline use) is not decided yet; this task records
 ## Acceptance criteria
 
 - [ ] A design is agreed before any code is written
+
+## Outcome
+
+Shelved: Falog stays a single-machine organizer whose data never leaves the computer. Revisit only
+with a design for sign-in, storage, protection of the data and conflict handling.
