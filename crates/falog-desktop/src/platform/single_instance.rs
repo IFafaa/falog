@@ -99,4 +99,28 @@ mod tests {
         listen(falog, egui::Context::default(), flag.clone());
         assert!(ask_to_show(port));
     }
+
+    #[test]
+    fn only_a_second_launch_brings_the_window_back() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let flag = Arc::new(AtomicBool::new(false));
+        listen(listener, egui::Context::default(), flag.clone());
+
+        let mut stranger = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
+        stranger.write_all(b"GET / HTTP/1.1\r\n").unwrap();
+        stranger.shutdown(std::net::Shutdown::Write).unwrap();
+        let mut reply = Vec::new();
+        let _ = stranger.read_to_end(&mut reply);
+        assert!(reply.is_empty(), "no greeting for a stranger");
+        assert!(!flag.load(Ordering::Relaxed));
+
+        assert!(ask_to_show(port));
+        // The flag is raised right after the greeting is sent.
+        let deadline = std::time::Instant::now() + TIMEOUT;
+        while !flag.load(Ordering::Relaxed) && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(flag.load(Ordering::Relaxed));
+    }
 }
