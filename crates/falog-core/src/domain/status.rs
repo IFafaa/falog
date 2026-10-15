@@ -109,4 +109,90 @@ mod tests {
             assert_eq!(status.as_str().parse::<Status>().unwrap(), status);
         }
     }
+
+    #[test]
+    fn parses_every_synonym() {
+        let synonyms = [
+            (
+                Status::Todo,
+                &[
+                    "todo", "to do", "to-do", "open", "backlog", "pending", "new", "a fazer", "fazer",
+                    "pendente", "aberta", "aberto",
+                ][..],
+            ),
+            (
+                Status::InProgress,
+                &[
+                    "in progress",
+                    "In-Progress",
+                    "doing",
+                    "started",
+                    "wip",
+                    "working",
+                    "fazendo",
+                    "em andamento",
+                    "andamento",
+                    "em progresso",
+                ],
+            ),
+            (
+                Status::Waiting,
+                &[
+                    "waiting",
+                    "blocked",
+                    "on hold",
+                    "on_hold",
+                    "review",
+                    "in review",
+                    "paused",
+                    "aguardando",
+                    "bloqueado",
+                    "bloqueada",
+                    "esperando",
+                    "em review",
+                    "revisão",
+                    "em revisão",
+                ],
+            ),
+            (
+                Status::Done,
+                &[
+                    "done",
+                    "complete",
+                    "completed",
+                    "finished",
+                    "closed",
+                    "concluído",
+                    "concluída",
+                    "feito",
+                    "feita",
+                    "finalizado",
+                    "finalizada",
+                    "pronto",
+                    "pronta",
+                    "entregue",
+                ],
+            ),
+        ];
+        for (status, words) in synonyms {
+            for word in words {
+                assert_eq!(word.parse::<Status>().ok(), Some(status), "{word}");
+            }
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_statuses_with_the_input() {
+        let err = " cancelled ".parse::<Status>().unwrap_err();
+        assert_eq!(err.to_string(), "unknown status \" cancelled \"");
+        assert!("".parse::<Status>().is_err());
+    }
+
+    #[test]
+    fn only_done_is_closed() {
+        let open: Vec<bool> = Status::ALL.iter().map(|s| s.is_open()).collect();
+        assert_eq!(open, [true, true, true, false]);
+        assert_eq!(Status::InProgress.to_string(), "In progress");
+        assert_eq!(Status::Waiting.label(), "Waiting");
+    }
 }

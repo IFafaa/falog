@@ -115,4 +115,56 @@ mod tests {
             assert_eq!(Priority::from_rank(priority.rank()), priority);
         }
     }
+
+    #[test]
+    fn parses_every_synonym() {
+        let synonyms = [
+            (
+                Priority::Low,
+                &["low", "1", "minor", "whenever", "baixa", "baixo"][..],
+            ),
+            (Priority::Medium, &["medium", "2", "normal", "média", "médio"]),
+            (
+                Priority::High,
+                &["high", "3", "important", "alta", "alto", "importante"],
+            ),
+            (
+                Priority::Urgent,
+                &["urgent", "4", "critical", "ASAP", "urgente", "crítica", "crítico"],
+            ),
+        ];
+        for (priority, words) in synonyms {
+            for word in words {
+                assert_eq!(word.parse::<Priority>().ok(), Some(priority), "{word}");
+            }
+        }
+        assert_eq!(" High ".parse::<Priority>().ok(), Some(Priority::High));
+    }
+
+    #[test]
+    fn rejects_ranks_out_of_range_when_parsing() {
+        for text in ["0", "5", "", "very high"] {
+            assert!(text.parse::<Priority>().is_err(), "{text}");
+        }
+        assert_eq!(
+            "5".parse::<Priority>().unwrap_err().to_string(),
+            "unknown priority \"5\""
+        );
+    }
+
+    #[test]
+    fn stored_ranks_out_of_range_clamp() {
+        assert_eq!(Priority::from_rank(0), Priority::Low);
+        assert_eq!(Priority::from_rank(-3), Priority::Low);
+        assert_eq!(Priority::from_rank(9), Priority::Urgent);
+    }
+
+    #[test]
+    fn lists_most_pressing_first() {
+        assert_eq!(
+            Priority::ALL,
+            [Priority::Urgent, Priority::High, Priority::Medium, Priority::Low]
+        );
+        assert_eq!(Priority::default(), Priority::Medium);
+    }
 }
