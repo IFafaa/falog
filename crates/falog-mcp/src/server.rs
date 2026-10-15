@@ -893,4 +893,181 @@ mod tests {
             "{invalid}"
         );
     }
+
+    #[test]
+    fn creates_areas_with_the_palette_or_a_given_color() {
+        let server = server();
+        assert_eq!(
+            ok(&server, "create_area", json!({ "name": "Home" })),
+            "Created area Home (#74ade8)"
+        );
+        assert_eq!(
+            ok(
+                &server,
+                "create_area",
+                json!({ "name": " Health ", "color": "#A1C181" })
+            ),
+            "Created area Health (#a1c181)"
+        );
+        assert_eq!(
+            fails(
+                &server,
+                "create_area",
+                json!({ "name": "Study", "color": "green" })
+            ),
+            "Error: invalid color \"green\", expected #rrggbb"
+        );
+        for name in ["home", "HÓME"] {
+            assert_eq!(
+                fails(&server, "create_area", json!({ "name": name })),
+                format!("Error: area \"{name}\" already exists")
+            );
+        }
+    }
+
+    #[test]
+    fn refuses_to_rename_an_area_onto_another() {
+        let server = server();
+        ok(&server, "create_area", json!({ "name": "Home" }));
+        ok(&server, "create_area", json!({ "name": "Health" }));
+        assert_eq!(
+            fails(
+                &server,
+                "update_area",
+                json!({ "area": "health", "name": "home" })
+            ),
+            "Error: area \"home\" already exists"
+        );
+        // Blank fields keep the current name and color.
+        assert_eq!(
+            ok(
+                &server,
+                "update_area",
+                json!({ "area": "health", "name": " ", "color": "" })
+            ),
+            "Updated area Health (#bf956a)"
+        );
+    }
+
+    #[test]
+    fn list_areas_counts_open_tasks() {
+        let server = server();
+        let empty = ok(&server, "list_areas", json!({}));
+        assert!(empty.starts_with("No areas yet."), "{empty}");
+        ok(&server, "create_area", json!({ "name": "Home" }));
+        ok(&server, "create_area", json!({ "name": "Health" }));
+        ok(
+            &server,
+            "create_task",
+            json!({ "title": "Fix the sink", "area": "home" }),
+        );
+        ok(
+            &server,
+            "create_task",
+            json!({ "title": "Pay the rent", "area": "home", "status": "done" }),
+        );
+        assert_eq!(
+            ok(&server, "list_areas", json!({})),
+            "- Health (0 open)\n- Home (1 open)"
+        );
+    }
+
+    fn request(server: &Server, message: Value) -> Value {
+        server.handle_line(&message.to_string()).unwrap()
+    }
+
+    #[test]
+    fn initialize_falls_back_to_the_default_version() {
+        let response = request(
+            &server(),
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        );
+        let result = &response["result"];
+        assert_eq!(result["protocolVersion"], DEFAULT_PROTOCOL_VERSION);
+        assert_eq!(result["capabilities"]["tools"]["listChanged"], false);
+        assert_eq!(result["serverInfo"]["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(result["instructions"], INSTRUCTIONS);
+    }
+
+    #[test]
+    fn answers_ping_and_empty_lists_with_the_request_id() {
+        let server = server();
+        let pong = request(
+            &server,
+            json!({ "jsonrpc": "2.0", "id": "abc", "method": "ping" }),
+        );
+        assert_eq!(pong, json!({ "jsonrpc": "2.0", "id": "abc", "result": {} }));
+        for (method, key) in [("resources/list", "resources"), ("prompts/list", "prompts")] {
+            let response = request(&server, json!({ "jsonrpc": "2.0", "id": 7, "method": method }));
+            assert_eq!(response["id"], 7);
+            assert_eq!(response["result"][key], json!([]), "{method}");
+        }
+    }
+
+    #[test]
+    fn rejects_requests_without_a_method() {
+        let response = request(&server(), json!({ "jsonrpc": "2.0", "id": 4 }));
+        assert_eq!(response["id"], 4);
+        assert_eq!(response["error"]["code"], protocol::INVALID_REQUEST);
+        assert_eq!(response["error"]["message"], "missing method");
+    }
+
+    #[test]
+    fn invalid_json_gets_a_parse_error_without_an_id() {
+        let response = server().handle_line("{\"id\": 1,").unwrap();
+        assert_eq!(response["id"], Value::Null);
+        assert_eq!(response["error"]["code"], protocol::PARSE_ERROR);
+        let message = response["error"]["message"].as_str().unwrap();
+        assert!(message.starts_with("invalid JSON: "), "{message}");
+    }
+
+    #[test]
+    fn unknown_tools_fail_in_band() {
+        let response = request(
+            &server(),
+            json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                    "params": { "name": "nope", "arguments": {} } }),
+        );
+        assert_eq!(response["error"], Value::Null);
+        assert_eq!(response["result"]["isError"], true);
+        assert_eq!(text(&response["result"]), "Error: unknown tool \"nope\"");
+    }
+
+    #[test]
+    fn tools_called_without_arguments_get_an_empty_object() {
+        let server = server();
+        let response = request(
+            &server,
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                    "params": { "name": "list_areas" } }),
+        );
+        assert_ne!(response["result"]["isError"], true);
+        let response = request(
+            &server,
+            json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                    "params": { "name": "create_task", "arguments": null } }),
+        );
+        let error = text(&response["result"]);
+        assert_eq!(error, "Error: invalid arguments: missing field `title`");
+    }
+
+    #[test]
+    fn serves_one_line_per_request_and_none_for_notifications() {
+        let input = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n\
+                     \n   \n\
+                     {\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n\
+                     {oops\n\
+                     {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n";
+        let mut output = Vec::new();
+        server().serve(input.as_bytes(), &mut output).unwrap();
+        let replies: Vec<Value> = String::from_utf8(output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(replies.len(), 3);
+        assert_eq!(replies[0]["id"], 1);
+        assert_eq!(replies[1]["error"]["code"], protocol::PARSE_ERROR);
+        assert_eq!(replies[2]["id"], 2);
+    }
 }
