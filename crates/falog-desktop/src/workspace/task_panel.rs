@@ -559,6 +559,8 @@ fn activity(ui: &mut Ui, theme: &Theme, panel: &mut TaskPanel, events: &mut Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::{Language, set};
+    use crate::testing::{area, day, noon, task};
 
     #[test]
     fn drafts_keep_the_recurrence() {
@@ -572,5 +574,173 @@ mod tests {
         let new = draft.to_new_task(today).unwrap();
         assert_eq!(new.recurrence, draft.recurrence);
         assert_eq!(new.due, NaiveDate::from_ymd_opt(2026, 10, 9));
+    }
+
+    #[test]
+    fn a_draft_needs_a_title_and_a_due_date_that_reads_as_a_date() {
+        let today = day(6);
+        let draft = |title: &str, due: &str| Draft {
+            title: title.into(),
+            due: due.into(),
+            ..Draft::default()
+        };
+        set(Language::English);
+        assert_eq!(
+            draft("  ", "").to_new_task(today),
+            Err("The title is required.".into())
+        );
+        assert_eq!(
+            draft("Pay rent", "someday").to_new_task(today),
+            Err("The due date is not a date.".into())
+        );
+        assert_eq!(draft("Pay rent", "  ").to_new_task(today).unwrap().due, None);
+        set(Language::Portuguese);
+        assert_eq!(
+            draft("", "").to_new_task(today),
+            Err("O título é obrigatório.".into())
+        );
+        assert_eq!(
+            draft("Pay rent", "someday").to_new_task(today),
+            Err("O prazo não é uma data.".into())
+        );
+        set(Language::English);
+    }
+
+    #[test]
+    fn editing_a_task_and_saving_it_unchanged_keeps_every_field() {
+        let mut mon_thu = Weekdays::single(Weekday::Mon);
+        mon_thu.insert(Weekday::Thu);
+        let saved = Task {
+            description: "Numbers from finance, then the slides".into(),
+            area: Some(area(2, "Work")),
+            status: Status::Waiting,
+            priority: Priority::Urgent,
+            // Long past, so a day and month without a year could not stand for it.
+            due: NaiveDate::from_ymd_opt(2025, 3, 9),
+            requester: "Ana".into(),
+            recurrence: Some(Recurrence::Weekly(mon_thu)),
+            ..task(7, "Send the quarterly report")
+        };
+        let panel = TaskPanel::edit(&saved, Vec::new());
+        assert_eq!(panel.id, Some(saved.id));
+        assert!(!panel.is_dirty());
+        assert_eq!(
+            panel.draft.to_new_task(day(15)),
+            Ok(NewTask {
+                title: saved.title.clone(),
+                description: saved.description.clone(),
+                area_id: saved.area_id(),
+                status: saved.status,
+                priority: saved.priority,
+                due: saved.due,
+                requester: saved.requester.clone(),
+                recurrence: saved.recurrence,
+            })
+        );
+    }
+
+    #[test]
+    fn the_panel_knows_when_it_has_unsaved_edits() {
+        let mut panel = TaskPanel::edit(&task(1, "Call the bank"), Vec::new());
+        panel.draft.title.push('!');
+        assert!(panel.is_dirty());
+        panel.draft.title.pop();
+        assert!(!panel.is_dirty(), "back as it was saved");
+        panel.draft.recurrence = Some(Recurrence::Daily);
+        assert!(panel.is_dirty());
+
+        let work = area(2, "Work");
+        let new = TaskPanel::new(Some(work.id), Status::Waiting);
+        assert_eq!(new.id, None);
+        assert_eq!(
+            (new.draft.area_id, new.draft.status),
+            (Some(work.id), Status::Waiting)
+        );
+        assert!(!new.is_dirty(), "nothing typed yet");
+    }
+
+    #[test]
+    fn every_week_and_every_month_start_from_the_due_date() {
+        let today = day(6); // a Tuesday
+        let options = |rule, due: &str| {
+            let draft = Draft {
+                due: due.into(),
+                ..Draft::default()
+            };
+            repeat_options(rule, draft.repeat_anchor(today))
+        };
+        let choices = |rule, due| options(rule, due).map(|(_, _, choice)| choice);
+        assert_eq!(
+            choices(None, "friday")[3..],
+            [
+                Some(Recurrence::Weekly(Weekdays::single(Weekday::Fri))),
+                Some(Recurrence::Monthly(9)),
+            ]
+        );
+        assert_eq!(
+            choices(None, "")[3..],
+            [
+                Some(Recurrence::Weekly(Weekdays::single(Weekday::Tue))),
+                Some(Recurrence::Monthly(6)),
+            ],
+            "no due date: today"
+        );
+    }
+
+    #[test]
+    fn the_repeat_picker_marks_the_current_rule() {
+        let current = |rule| -> Vec<&str> {
+            set(Language::English);
+            repeat_options(rule, day(6))
+                .into_iter()
+                .filter(|(_, current, _)| *current)
+                .map(|(label, _, _)| label)
+                .collect()
+        };
+        assert_eq!(current(None), ["Never"]);
+        assert_eq!(current(Some(Recurrence::Daily)), ["Every day"]);
+        assert_eq!(
+            current(Some(Recurrence::Weekly(Weekdays::WORKDAYS))),
+            ["Every weekday"]
+        );
+        assert_eq!(
+            current(Some(Recurrence::Weekly(Weekdays::single(Weekday::Sat)))),
+            ["Every week"]
+        );
+        assert_eq!(current(Some(Recurrence::Monthly(31))), ["Every month"]);
+    }
+
+    #[test]
+    fn a_weekly_repeat_keeps_at_least_one_day() {
+        let friday = Weekdays::single(Weekday::Fri);
+        let both = toggle_day(friday, Weekday::Mon);
+        assert!(both.contains(Weekday::Mon) && both.contains(Weekday::Fri));
+        assert_eq!(toggle_day(both, Weekday::Mon), friday);
+        assert_eq!(toggle_day(friday, Weekday::Fri), friday, "the last day stays");
+    }
+
+    #[test]
+    fn describes_when_the_task_was_created_changed_and_put_away() {
+        let stamps = Stamps {
+            created: noon(6),
+            updated: day(7).and_hms_opt(9, 12, 0).unwrap(),
+            completed: Some(noon(8)),
+            archived: None,
+        };
+        set(Language::English);
+        assert_eq!(
+            stamps.describe(),
+            "Created Oct 6, 12:00 · updated Oct 7, 09:12 · completed Oct 8, 12:00"
+        );
+        set(Language::Portuguese);
+        let archived = Stamps {
+            archived: Some(noon(9)),
+            ..stamps
+        };
+        assert_eq!(
+            archived.describe(),
+            "Criada em 6 de out, 12:00 · atualizada em 7 de out, 09:12 · concluída em 8 de out, 12:00 · arquivada em 9 de out, 12:00"
+        );
+        set(Language::English);
     }
 }
