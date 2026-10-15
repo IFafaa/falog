@@ -101,3 +101,44 @@ pub fn modal_header(ui: &mut Ui, title: &str) -> bool {
     );
     closed
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::{Context, RawInput, Rect, vec2};
+
+    /// The dialog's rect after a frame in an 800 px wide window `height` tall, with contents
+    /// `content_height` tall.
+    fn shown_rect(ctx: &Context, height: f32, placement: Placement, content_height: f32) -> Rect {
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, height))),
+            ..RawInput::default()
+        };
+        let _ = ctx.run(input, |ctx| {
+            modal(ctx, "tall", 400.0, placement, |ui| {
+                ui.allocate_space(vec2(400.0, content_height));
+            });
+        });
+        ctx.memory(|m| m.area_rect(Id::new("tall"))).unwrap()
+    }
+
+    // Regression: a dialog taller than the window (Settings on a small screen) ran off its bottom.
+    #[test]
+    fn a_dialog_taller_than_the_window_fits_in_it() {
+        for placement in [Placement::Center, Placement::Top] {
+            let ctx = Context::default();
+            // Two frames: an area is placed with the size measured on the frame before.
+            shown_rect(&ctx, 400.0, placement, 1_000.0);
+            let rect = shown_rect(&ctx, 400.0, placement, 1_000.0);
+            assert!(rect.height() <= 400.0, "{placement:?}: {rect:?}");
+        }
+    }
+
+    #[test]
+    fn a_short_dialog_keeps_its_own_height() {
+        let ctx = Context::default();
+        shown_rect(&ctx, 800.0, Placement::Center, 120.0);
+        let rect = shown_rect(&ctx, 800.0, Placement::Center, 120.0);
+        assert!(rect.height() < 200.0, "{rect:?}");
+    }
+}
