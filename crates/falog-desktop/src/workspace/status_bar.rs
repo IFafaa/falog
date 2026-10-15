@@ -165,3 +165,40 @@ fn item(ui: &mut Ui, theme: &Theme, icon: Icon, icon_color: Color32, text: &str)
     );
     response.on_hover_cursor(CursorIcon::PointingHand)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::{Language, set};
+
+    #[test]
+    fn the_update_badge_says_where_the_update_is() {
+        set(Language::English);
+        let available = UpdateBadge::Available("0.4.0".into());
+        assert_eq!(available.label(), "Update to 0.4.0");
+        assert_eq!(
+            available.tooltip().as_deref(),
+            Some("Download the new version of Falog")
+        );
+        assert_eq!(UpdateBadge::Downloading(None).label(), "Downloading update…");
+        assert_eq!(
+            UpdateBadge::Downloading(Some(0.426)).label(),
+            "Downloading update 43%"
+        );
+        assert_eq!(UpdateBadge::Downloading(None).tooltip(), None);
+        let ready = UpdateBadge::Ready("0.4.0".into());
+        assert_eq!(ready.label(), "Restart to update");
+        assert_eq!(
+            ready.tooltip().as_deref(),
+            Some("Install Falog 0.4.0 and start it again")
+        );
+        set(Language::Portuguese);
+        assert_eq!(available.label(), "Atualizar para 0.4.0");
+        assert_eq!(
+            UpdateBadge::Downloading(Some(1.0)).label(),
+            "Baixando atualização 100%"
+        );
+        assert_eq!(ready.label(), "Reiniciar para atualizar");
+        set(Language::English);
+    }
+}

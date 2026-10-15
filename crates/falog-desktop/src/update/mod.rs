@@ -177,3 +177,83 @@ fn fetch(url: &str) -> Result<String, String> {
         .into_string()
         .map_err(|err| err.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn release() -> Release {
+        Release {
+            tag: "v9.0.0".into(),
+            version: Version::parse("9.0.0").unwrap(),
+        }
+    }
+
+    /// `duration` before now, or now on a machine that started more recently than that.
+    fn ago(duration: Duration) -> Instant {
+        Instant::now().checked_sub(duration).unwrap_or_else(Instant::now)
+    }
+
+    #[test]
+    fn a_build_from_a_checkout_never_looks_for_updates() {
+        let ctx = egui::Context::default();
+        let mut updater = Updater::default();
+        assert!(!updater.enabled, "tests run from target/");
+        updater.started = ago(FIRST_CHECK_AFTER * 2);
+        updater.poll(&ctx, true, false);
+        updater.check(&ctx, true);
+        assert!(matches!(updater.state, State::Idle));
+        assert!(updater.last_check.is_none());
+    }
+
+    #[test]
+    fn checks_after_startup_then_every_few_hours_but_not_while_busy() {
+        let mut updater = Updater::default();
+        assert!(!updater.check_due(), "the window is just up");
+        updater.started = ago(FIRST_CHECK_AFTER);
+        assert!(updater.check_due());
+        updater.last_check = Some(Instant::now());
+        assert!(!updater.check_due(), "checked a moment ago");
+        updater.last_check = Some(ago(CHECK_EVERY));
+        assert!(updater.check_due());
+        for busy in [
+            State::Checking,
+            State::Preparing(release()),
+            State::Ready(release(), PathBuf::from("Falog-Setup-x64.exe")),
+        ] {
+            updater.state = busy;
+            assert!(!updater.check_due(), "{:?}", updater.state);
+        }
+    }
+
+    #[test]
+    fn shows_what_the_check_found() {
+        let ctx = egui::Context::default();
+        let mut updater = Updater::default();
+        let mut after = |event| {
+            updater.sender.send(event).unwrap();
+            updater.poll(&ctx, false, false);
+            std::mem::take(&mut updater.state)
+        };
+        assert!(matches!(after(Event::Checked(Ok(Some(release())))), State::Available(r) if r == release()));
+        assert!(matches!(after(Event::Checked(Ok(None))), State::UpToDate));
+        assert!(matches!(after(Event::Checked(Err("offline".into()))), State::Failed(m) if m == "offline"));
+        assert!(matches!(
+            after(Event::Checksum(release(), Err("no checksum".into()))),
+            State::Failed(m) if m == "no checksum"
+        ));
+    }
+
+    #[test]
+    fn downloads_and_installs_only_in_their_turn() {
+        let ctx = egui::Context::default();
+        let mut updater = Updater {
+            state: State::UpToDate,
+            ..Updater::default()
+        };
+        updater.download(&ctx);
+        assert!(matches!(updater.state, State::UpToDate), "nothing to download");
+        crate::i18n::set(crate::i18n::Language::English);
+        assert_eq!(updater.install(), Err("No update is ready to install".into()));
+    }
+}

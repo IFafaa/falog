@@ -193,6 +193,65 @@ mod tests {
     }
 
     #[test]
+    fn orders_previews_by_semver_precedence() {
+        // The example from semver.org, oldest first.
+        let chain = [
+            "1.0.0-alpha",
+            "1.0.0-alpha.1",
+            "1.0.0-alpha.beta",
+            "1.0.0-beta",
+            "1.0.0-beta.2",
+            "1.0.0-beta.11",
+            "1.0.0-rc.1",
+            "1.0.0",
+        ];
+        for pair in chain.windows(2) {
+            assert!(v(pair[0]) < v(pair[1]), "{} < {}", pair[0], pair[1]);
+        }
+        assert!(v("1.0.0-rc.1").is_preview());
+        assert!(!v("1.0.0").is_preview());
+    }
+
+    #[test]
+    fn knows_the_version_of_this_build() {
+        // Unreadable, it would count as 0.0.0 and every release would look newer.
+        assert_eq!(Version::current().to_string(), env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn a_preview_build_is_offered_the_stable_release_it_led_to() {
+        let tags: Vec<String> = ["v0.3.0", "v0.3.0-rc.2"].map(String::from).to_vec();
+        let running = v("0.3.0-rc.1");
+        assert_eq!(newest(&tags, &running, false).unwrap().tag, "v0.3.0");
+        assert_eq!(
+            newest(&tags, &running, true).unwrap().tag,
+            "v0.3.0",
+            "the release beats its previews"
+        );
+        // The feed's order does not matter.
+        let shuffled: Vec<String> = ["v0.2.0", "v0.4.1", "v0.4.0"].map(String::from).to_vec();
+        assert_eq!(newest(&shuffled, &v("0.3.0"), false).unwrap().tag, "v0.4.1");
+    }
+
+    #[test]
+    fn reads_checksums_written_either_way() {
+        let hash = "AB".repeat(32);
+        // `sha256sum --binary` marks the file with `*`; some tools write upper case or a tab.
+        let sums = format!(
+            "{hash} *Falog-Setup-x64.exe\n{}\tfalog-linux-x86_64.tar.gz\n",
+            "c".repeat(64)
+        );
+        assert_eq!(checksum_for(&sums, "Falog-Setup-x64.exe"), Some("ab".repeat(32)));
+        assert_eq!(
+            checksum_for(&sums, "falog-linux-x86_64.tar.gz"),
+            Some("c".repeat(64))
+        );
+        assert_eq!(checksum_for(&sums, "Falog-Setup"), None, "whole names only");
+        let not_hex = format!("{}  Falog-Setup-x64.exe", "z".repeat(64));
+        assert_eq!(checksum_for(&not_hex, "Falog-Setup-x64.exe"), None);
+    }
+
+    #[test]
     fn reads_the_tags_of_the_feed() {
         let feed = r#"<feed><entry><id>tag:github.com,2008:Repository/1/v0.2.0-beta.1</id>
             <link rel="alternate" type="text/html" href="https://github.com/IFafaa/falog/releases/tag/v0.2.0-beta.1"/>
