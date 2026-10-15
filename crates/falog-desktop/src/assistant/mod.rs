@@ -649,6 +649,49 @@ mod tests {
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
+    /// Options with "Send after dictation" on, as by default.
+    fn sending_after_dictation() -> AssistantOptions {
+        AssistantOptions {
+            language: VoiceLanguage::default(),
+            send_after_dictation: true,
+            zoomed: false,
+            voice_gpu: false,
+        }
+    }
+
+    // Regression: a dictation stopped with Enter was sent right away when "Send after dictation"
+    // was on, instead of waiting in the composer for a second Enter.
+    #[test]
+    fn a_dictation_stopped_with_enter_waits_in_the_composer() {
+        let ctx = egui::Context::default();
+        let (mut a, _) = assistant("dictation");
+        // An agent that is gone: a message sent by mistake shows up without starting a process.
+        a.active_mut().settings.agent = AgentId("custom-gone".into());
+        a.active_mut().draft = "About #12:".into();
+        a.dictation_to_draft = true;
+        a.finish_dictation(&ctx, Ok("it shipped".into()), sending_after_dictation());
+        assert_eq!(a.active().draft, "About #12: it shipped");
+        assert!(!a.active().has_messages(), "not sent");
+        assert!(a.focus_composer);
+        assert!(matches!(a.voice, VoiceState::Idle));
+
+        // The next dictation, stopped with the Done button, follows "Send after dictation" again.
+        a.active_mut().draft.clear();
+        a.finish_dictation(&ctx, Ok("and the docs".into()), sending_after_dictation());
+        assert_eq!(a.active().message_count(), 1);
+    }
+
+    #[test]
+    fn an_empty_dictation_or_a_failure_leaves_a_note_in_the_thread() {
+        let ctx = egui::Context::default();
+        let (mut a, _) = assistant("unheard");
+        a.finish_dictation(&ctx, Ok("  ".into()), sending_after_dictation());
+        a.finish_dictation(&ctx, Err("No microphone".into()), sending_after_dictation());
+        assert!(matches!(a.active().items[0], Item::Notice(_)));
+        assert!(matches!(&a.active().items[1], Item::Error(text) if text == "No microphone"));
+        assert!(!a.active().has_messages());
+    }
+
     #[test]
     fn deleting_the_active_thread_opens_a_new_one() {
         let (mut a, path) = assistant("delete");
