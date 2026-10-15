@@ -1068,6 +1068,69 @@ mod tests {
     }
 
     #[test]
+    fn completing_a_recurring_task_says_when_the_next_one_is_due() {
+        use falog_core::domain::{NewTask, Recurrence};
+        let store = Store::open_in_memory().unwrap();
+        // Far ahead, so the next one falls the day after whatever today is.
+        let due = NaiveDate::from_ymd_opt(2099, 1, 5);
+        let daily = NewTask {
+            due,
+            recurrence: Some(Recurrence::Daily),
+            ..NewTask::new("Water the plants")
+        };
+        let created = store.create_task(&daily).unwrap();
+        let (done, next) = store
+            .update_task_with_next(created.id, &TaskPatch::status(Status::Done))
+            .unwrap();
+        i18n::set(Language::English);
+        let id = done.id.0;
+        assert_eq!(
+            moved_message(done.id, Status::Done, next.as_ref()),
+            format!("#{id} moved to Done; the next one is due Jan 6")
+        );
+        assert_eq!(
+            saved_message(done.id, next.as_ref()),
+            format!("Saved #{id}; the next one is due Jan 6")
+        );
+        i18n::set(Language::Portuguese);
+        assert_eq!(
+            moved_message(done.id, Status::Done, next.as_ref()),
+            format!("#{id} movida para Concluída; a próxima vence 6 de jan")
+        );
+        i18n::set(Language::English);
+    }
+
+    #[test]
+    fn other_moves_and_saves_say_only_what_happened() {
+        i18n::set(Language::English);
+        let id = TaskId(4);
+        assert_eq!(
+            moved_message(id, Status::InProgress, None),
+            "#4 moved to In progress"
+        );
+        assert_eq!(saved_message(id, None), "Saved #4");
+        // An occurrence without a due date has nothing to announce.
+        let undated = task(5, "Water the plants");
+        assert_eq!(
+            moved_message(id, Status::Done, Some(&undated)),
+            "#4 moved to Done"
+        );
+    }
+
+    #[test]
+    fn archiving_says_where_the_tasks_went() {
+        i18n::set(Language::English);
+        assert_eq!(
+            archived_message(1, &[TaskId(3)]),
+            "Archived #3; find it in the Archive (Ctrl+5)"
+        );
+        assert_eq!(
+            archived_message(2, &[TaskId(3), TaskId(8)]),
+            "Archived 2 tasks; find them in the Archive (Ctrl+5)"
+        );
+    }
+
+    #[test]
     fn a_window_below_the_minimum_is_too_small() {
         assert!(too_small(vec2(64.4, 64.4)));
         assert!(too_small(vec2(1360.0, 300.0)));
