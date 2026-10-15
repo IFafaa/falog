@@ -425,4 +425,143 @@ mod tests {
         let (stream, _) = pending.listener.accept().unwrap();
         assert!(pending.answer(stream).is_none());
     }
+
+    #[test]
+    fn writing_needs_the_events_scope_itself() {
+        let grant = |scope: &str| Grant {
+            refresh_token: "t".into(),
+            scope: scope.into(),
+        };
+        let events = WRITE_SCOPE;
+        assert!(grant(&format!("openid {events} email")).can_write());
+        assert!(!grant(&format!("{events}.readonly")).can_write());
+        assert!(!grant("").can_write());
+    }
+
+    #[test]
+    fn a_blank_client_cannot_sign_in() {
+        let blank = Client {
+            id: "  ".into(),
+            secret: "shh".into(),
+        };
+        assert!(matches!(begin(&blank), Err(Error::NoClient)));
+        let no_secret = Client {
+            secret: " ".into(),
+            ..client()
+        };
+        assert!(matches!(begin(&no_secret), Err(Error::NoClient)));
+    }
+
+    #[test]
+    fn the_consent_url_carries_the_pkce_challenge_state_and_scopes() {
+        let pending = begin(&Client {
+            id: " 123.apps.googleusercontent.com ".into(),
+            secret: "shh".into(),
+        })
+        .unwrap();
+        let (base, query) = pending.url().split_once('?').unwrap();
+        assert_eq!(base, AUTH_URL);
+        let pairs = query_pairs(query);
+        let get = |key: &str| pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone());
+        let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(pending.verifier.as_bytes()));
+        assert_eq!(get("code_challenge"), Some(challenge));
+        assert_eq!(
+            get("client_id").as_deref(),
+            Some("123.apps.googleusercontent.com")
+        );
+        assert_eq!(get("state"), Some(pending.state.clone()));
+        assert_eq!(get("scope").as_deref(), Some(SCOPES));
+        assert_eq!(get("response_type").as_deref(), Some("code"));
+        assert_eq!(get("prompt").as_deref(), Some("consent select_account"));
+        // The redirect comes back to this sign-in's own loopback listener.
+        let port = pending.listener.local_addr().unwrap().port();
+        assert_eq!(get("redirect_uri"), Some(format!("http://127.0.0.1:{port}")));
+
+        let another = begin(&client()).unwrap();
+        assert_ne!(another.verifier, pending.verifier);
+        assert_ne!(another.state, pending.state);
+    }
+
+    #[test]
+    fn a_redirect_without_a_code_is_a_failed_sign_in() {
+        for query in ["state=s1", "state=s1&code="] {
+            assert!(matches!(
+                read_redirect(query, "s1"),
+                Some(Err(Error::Denied(message))) if message == "Google sent no authorization code"
+            ));
+        }
+        assert!(matches!(
+            read_redirect("error=server_error&state=s1", "s1"),
+            Some(Err(Error::Denied(message))) if message == "server_error"
+        ));
+    }
+
+    #[test]
+    fn answers_other_requests_without_ending_the_sign_in() {
+        let pending = begin(&client()).unwrap();
+        let (result, answer) = ask(&pending, "GET /favicon.ico HTTP/1.1\r\n\r\n");
+        assert!(result.is_none());
+        assert!(answer.starts_with("HTTP/1.1 404"), "{answer}");
+        let (result, _) = ask(&pending, "\r\n");
+        assert!(result.is_none());
+
+        let denied = format!(
+            "GET /?error=access_denied&state={} HTTP/1.1\r\n\r\n",
+            pending.state
+        );
+        let (result, answer) = ask(&pending, &denied);
+        assert!(matches!(result, Some(Err(Error::Denied(_)))));
+        assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+        assert!(answer.contains("could not connect"), "{answer}");
+    }
+
+    #[test]
+    fn waits_for_the_redirect_past_other_requests() {
+        let pending = begin(&client()).unwrap();
+        let port = pending.listener.local_addr().unwrap().port();
+        let state = pending.state.clone();
+        let browser = std::thread::spawn(move || {
+            for target in ["/favicon.ico".to_owned(), format!("/?code=c1&state={state}")] {
+                let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+                write!(stream, "GET {target} HTTP/1.1\r\n\r\n").unwrap();
+                let mut answer = String::new();
+                stream.read_to_string(&mut answer).unwrap();
+            }
+        });
+        let code = pending.wait(&AtomicBool::new(false), Duration::from_secs(30));
+        browser.join().unwrap();
+        assert_eq!(code.unwrap(), "c1");
+    }
+
+    #[test]
+    fn gives_up_after_the_timeout() {
+        let pending = begin(&client()).unwrap();
+        let result = pending.wait(&AtomicBool::new(false), Duration::ZERO);
+        assert!(matches!(result, Err(Error::TimedOut)));
+    }
+
+    #[test]
+    fn stops_waiting_when_cancelled() {
+        let pending = begin(&client()).unwrap();
+        let cancel = AtomicBool::new(false);
+        let result = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(200));
+                cancel.store(true, Ordering::Relaxed);
+            });
+            pending.wait(&cancel, Duration::from_secs(30))
+        });
+        assert!(matches!(result, Err(Error::Cancelled)));
+    }
+
+    #[test]
+    fn an_access_token_is_fresh_until_its_last_minute() {
+        let token = |seconds: u64| AccessToken {
+            token: "t".into(),
+            expires_at: Instant::now() + Duration::from_secs(seconds),
+        };
+        assert!(token(3600).is_fresh());
+        assert!(token(120).is_fresh());
+        assert!(!token(30).is_fresh());
+    }
 }
