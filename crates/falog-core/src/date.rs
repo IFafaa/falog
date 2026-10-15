@@ -227,4 +227,137 @@ mod tests {
         assert_eq!(describe_due(d(2026, 10, 24), today()), "Oct 24");
         assert_eq!(describe_due(d(2027, 1, 5), today()), "Jan 5, 2027");
     }
+
+    #[test]
+    fn ignores_the_words_people_say_before_a_date() {
+        let friday = Some(d(2026, 10, 9));
+        for text in [
+            "by friday",
+            "on friday",
+            "until friday",
+            "due friday",
+            "até sexta",
+            "na sexta",
+            "pra sexta",
+            "para sexta",
+        ] {
+            assert_eq!(parse_due(text, today()), friday, "{text}");
+        }
+        assert_eq!(parse_due("no sábado", today()), Some(d(2026, 10, 10)));
+        assert_eq!(parse_due("dia 15/10", today()), Some(d(2026, 10, 15)));
+        assert_eq!(parse_due("até dia 15/10", today()), Some(d(2026, 10, 15)));
+        assert_eq!(parse_due("By Tomorrow", today()), Some(d(2026, 10, 7)));
+        assert_eq!(parse_due("by ", today()), None);
+    }
+
+    #[test]
+    fn parses_every_keyword() {
+        let cases = [
+            ("hoje", d(2026, 10, 6)),
+            ("tomorrow", d(2026, 10, 7)),
+            ("day after tomorrow", d(2026, 10, 8)),
+            ("depois de amanhã", d(2026, 10, 8)),
+            ("próxima semana", d(2026, 10, 12)),
+            ("end of the week", d(2026, 10, 9)),
+            ("fim da semana", d(2026, 10, 9)),
+            ("final da semana", d(2026, 10, 9)),
+            ("end of month", d(2026, 10, 31)),
+            ("end of the month", d(2026, 10, 31)),
+            ("final do mês", d(2026, 10, 31)),
+            ("próxima sexta", d(2026, 10, 9)),
+            ("sexta feira", d(2026, 10, 9)),
+            ("sat", d(2026, 10, 10)),
+            ("domingo", d(2026, 10, 11)),
+        ];
+        for (text, expected) in cases {
+            assert_eq!(parse_due(text, today()), Some(expected), "{text}");
+        }
+    }
+
+    #[test]
+    fn next_week_from_a_monday_is_the_following_monday() {
+        let monday = d(2026, 10, 12);
+        assert_eq!(parse_due("next week", monday), Some(d(2026, 10, 19)));
+        assert_eq!(parse_due("monday", monday), Some(monday));
+        assert_eq!(parse_due("next monday", monday), Some(d(2026, 10, 19)));
+    }
+
+    #[test]
+    fn end_of_week_is_friday_but_never_before_today() {
+        assert_eq!(parse_due("end of week", d(2026, 10, 9)), Some(d(2026, 10, 9)));
+        let saturday = d(2026, 10, 10);
+        assert_eq!(parse_due("end of week", saturday), Some(saturday));
+        let sunday = d(2026, 10, 11);
+        assert_eq!(parse_due("fim da semana", sunday), Some(sunday));
+    }
+
+    #[test]
+    fn end_of_month_handles_december_and_february() {
+        assert_eq!(parse_due("end of month", d(2026, 12, 15)), Some(d(2026, 12, 31)));
+        assert_eq!(parse_due("end of month", d(2026, 12, 31)), Some(d(2026, 12, 31)));
+        assert_eq!(parse_due("end of month", d(2027, 2, 1)), Some(d(2027, 2, 28)));
+        assert_eq!(parse_due("fim do mês", d(2028, 2, 10)), Some(d(2028, 2, 29)));
+    }
+
+    #[test]
+    fn day_month_rolls_over_only_past_sixty_days_ago() {
+        // Today is October 6, so sixty days ago is August 7.
+        assert_eq!(parse_due("07/08", today()), Some(d(2026, 8, 7)));
+        assert_eq!(parse_due("06/08", today()), Some(d(2027, 8, 6)));
+        assert_eq!(parse_due("06/10", today()), Some(today()));
+        assert_eq!(parse_due("31/12", today()), Some(d(2026, 12, 31)));
+    }
+
+    #[test]
+    fn parses_every_numeric_format() {
+        let expected = Some(d(2026, 10, 20));
+        for text in [
+            "2026-10-20",
+            "20/10/2026",
+            "20-10-2026",
+            "20/10/26",
+            "20/10",
+            "20-10",
+            "20.10",
+        ] {
+            assert_eq!(parse_due(text, today()), expected, "{text}");
+        }
+        assert_eq!(parse_due("32/10", today()), None);
+        assert_eq!(parse_due("10/13", today()), None);
+    }
+
+    #[test]
+    fn urgency_boundaries() {
+        assert_eq!(urgency(d(2026, 10, 5), today()), Urgency::Overdue { days: 1 });
+        assert_eq!(urgency(today(), today()), Urgency::Today);
+        assert_eq!(urgency(d(2026, 10, 7), today()), Urgency::Tomorrow);
+        assert_eq!(urgency(d(2026, 10, 8), today()), Urgency::ThisWeek);
+        assert_eq!(urgency(d(2026, 10, 12), today()), Urgency::ThisWeek);
+        assert_eq!(urgency(d(2026, 10, 13), today()), Urgency::Later);
+    }
+
+    #[test]
+    fn describes_due_dates_across_a_year_change() {
+        let today = d(2026, 12, 30);
+        assert_eq!(describe_due(d(2026, 12, 31), today), "tomorrow");
+        assert_eq!(describe_due(d(2027, 1, 1), today), "Fri Jan 1");
+        assert_eq!(describe_due(d(2027, 1, 6), today), "Jan 6, 2027");
+        assert_eq!(describe_due(d(2026, 12, 20), today), "10d overdue");
+        assert_eq!(describe_due(d(2026, 12, 30), d(2027, 1, 2)), "3d overdue");
+    }
+
+    #[test]
+    fn formats_dates() {
+        assert_eq!(format_long(today()), "Tuesday, October 6, 2026");
+        assert_eq!(format_long(d(2027, 1, 1)), "Friday, January 1, 2027");
+        assert_eq!(format_short(d(2027, 1, 1)), "Jan 1");
+    }
+
+    #[test]
+    fn finds_the_next_weekday_including_today() {
+        assert_eq!(next_weekday(today(), Weekday::Tue), today());
+        assert_eq!(next_weekday(today(), Weekday::Mon), d(2026, 10, 12));
+        assert_eq!(end_of_week(d(2026, 10, 5)), d(2026, 10, 11));
+        assert_eq!(end_of_week(d(2026, 12, 30)), d(2027, 1, 3));
+    }
 }
