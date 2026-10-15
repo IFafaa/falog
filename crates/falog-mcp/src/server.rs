@@ -494,4 +494,229 @@ mod tests {
         let created = ok(&server, "create_task", json!({ "title": "X", "area": "admin" }));
         assert!(created.starts_with("Created #1 [Work Admin] X"), "{created}");
     }
+
+    /// Two areas and seven tasks in every status; #6 is archived.
+    fn board() -> Server {
+        let server = server();
+        ok(&server, "create_area", json!({ "name": "Work" }));
+        ok(&server, "create_area", json!({ "name": "Home" }));
+        for task in [
+            json!({ "title": "Write the report", "area": "Work" }),
+            json!({ "title": "Review the PR", "area": "Work", "status": "waiting", "priority": "high",
+                    "due_date": "2099-01-02", "requester": "Bruno" }),
+            json!({ "title": "Fix the sink", "area": "Home", "status": "in_progress", "priority": "low" }),
+            json!({ "title": "Pay the rent", "area": "Home", "status": "done" }),
+            json!({ "title": "Book flights", "area": "Home", "priority": "urgent" }),
+            json!({ "title": "Old invoice", "area": "Work", "status": "done" }),
+            json!({ "title": "Renew the passport", "area": "Work", "due_date": "2099-03-01" }),
+        ] {
+            ok(&server, "create_task", task);
+        }
+        ok(&server, "archive_tasks", json!({ "ids": [6] }));
+        server
+    }
+
+    /// The ids of the task lines of a `list_tasks` reply, in order.
+    fn listed(server: &Server, args: Value) -> Vec<i64> {
+        ok(server, "list_tasks", args)
+            .lines()
+            .filter_map(|line| line.strip_prefix("- #"))
+            .map(|line| line.split(' ').next().unwrap().parse().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn list_tasks_shows_open_tasks_by_column_then_urgency() {
+        let server = board();
+        let reply = ok(&server, "list_tasks", json!({}));
+        let header = format!("5 task(s); today is {}", falog_core::date::today());
+        assert_eq!(reply.lines().next(), Some(header.as_str()));
+        assert_eq!(listed(&server, json!({})), [5, 7, 1, 3, 2]);
+        assert_eq!(
+            listed(&server, json!({ "include_done": true })),
+            [5, 7, 1, 3, 2, 4]
+        );
+    }
+
+    #[test]
+    fn list_tasks_filters_by_status_area_and_search() {
+        let server = board();
+        assert_eq!(listed(&server, json!({ "status": "done" })), [4]);
+        assert_eq!(listed(&server, json!({ "status": "em review" })), [2]);
+        assert_eq!(
+            listed(&server, json!({ "status": "todo", "area": "work" })),
+            [7, 1]
+        );
+        assert_eq!(listed(&server, json!({ "area": "home" })), [5, 3]);
+        assert_eq!(listed(&server, json!({ "search": "home" })), [5, 3]);
+        assert_eq!(listed(&server, json!({ "search": "BRUNO" })), [2]);
+        assert_eq!(listed(&server, json!({ "search": "#2" })), [2]);
+        assert_eq!(listed(&server, json!({ "search": "rent" })), [] as [i64; 0]);
+        assert_eq!(
+            listed(&server, json!({ "search": "rent", "include_done": true })),
+            [4]
+        );
+        assert_eq!(
+            ok(&server, "list_tasks", json!({ "search": "nothing like it" })),
+            "No tasks found."
+        );
+    }
+
+    #[test]
+    fn list_tasks_shows_archived_tasks_only_when_asked() {
+        let server = board();
+        assert_eq!(listed(&server, json!({ "archived": true })), [6]);
+        let reply = ok(&server, "list_tasks", json!({ "archived": true }));
+        assert!(
+            reply.ends_with("- #6 [Work] Old invoice — Medium · Done · archived"),
+            "{reply}"
+        );
+        assert!(!listed(&server, json!({ "status": "done" })).contains(&6));
+    }
+
+    #[test]
+    fn list_tasks_limits_the_lines_and_counts_the_rest() {
+        let server = board();
+        let reply = ok(&server, "list_tasks", json!({ "limit": 2 }));
+        let lines: Vec<&str> = reply.lines().collect();
+        assert_eq!(lines.len(), 4, "{reply}");
+        assert!(lines[0].starts_with("5 task(s)"), "{reply}");
+        assert_eq!(lines[3], "... and 3 more");
+        // At least one line is always shown.
+        let reply = ok(&server, "list_tasks", json!({ "limit": 0 }));
+        assert!(reply.ends_with("\n... and 4 more"), "{reply}");
+        assert_eq!(listed(&server, json!({ "limit": 0 })), [5]);
+        assert!(!ok(&server, "list_tasks", json!({ "limit": 5 })).contains("more"));
+    }
+
+    #[test]
+    fn get_focus_covers_every_area_or_one() {
+        let server = board();
+        let today = falog_core::date::today();
+        let focus = ok(&server, "get_focus", json!({}));
+        assert!(
+            focus.starts_with(&format!(
+                "# Focus — {}\n\nOpen: 5 (0 overdue, 0 due today, 0 more due this week)\nBy area: \
+                 Work: 3 · Home: 2\n",
+                falog_core::date::format_long(today)
+            )),
+            "{focus}"
+        );
+        assert!(
+            focus.contains(
+                "\n## Backlog (2)\n- #5 [Home] Book flights — Urgent · To do\n- #1 [Work] Write the \
+                 report — Medium · To do\n"
+            ),
+            "{focus}"
+        );
+        assert!(
+            focus.ends_with(&format!(
+                "\n## Completed in the last 7 days (1)\n- #4 [Home] Pay the rent — completed {today}\n"
+            )),
+            "{focus}"
+        );
+
+        let home = ok(&server, "get_focus", json!({ "area": "home" }));
+        assert!(
+            home.contains("Open: 2 (") && home.contains("By area: Home: 2\n"),
+            "{home}"
+        );
+        assert!(
+            home.contains("Book flights") && !home.contains("Write the report"),
+            "{home}"
+        );
+        assert!(home.contains("Pay the rent"), "{home}");
+    }
+
+    #[test]
+    fn add_note_confirms_with_the_task_line() {
+        let server = board();
+        assert_eq!(
+            ok(
+                &server,
+                "add_note",
+                json!({ "id": "#3", "note": " bought the part " })
+            ),
+            "Note added to #3 [Home] Fix the sink — Low · In progress"
+        );
+        assert!(ok(&server, "get_task", json!({ "id": 3 })).ends_with(" — bought the part"));
+        assert_eq!(
+            fails(&server, "add_note", json!({ "id": 3, "note": " " })),
+            "Error: note cannot be empty"
+        );
+        assert_eq!(
+            fails(&server, "add_note", json!({ "id": 99, "note": "x" })),
+            "Error: task #99 not found"
+        );
+        let missing = fails(&server, "add_note", json!({ "id": 3 }));
+        assert!(missing.starts_with("Error: invalid arguments: "), "{missing}");
+    }
+
+    #[test]
+    fn delete_task_names_what_it_deleted() {
+        let server = board();
+        assert_eq!(
+            ok(&server, "delete_task", json!({ "id": 1 })),
+            "Deleted #1 [Work] Write the report"
+        );
+        assert_eq!(
+            fails(&server, "delete_task", json!({ "id": 1 })),
+            "Error: task #1 not found"
+        );
+        assert_eq!(
+            fails(&server, "get_task", json!({ "id": 1 })),
+            "Error: task #1 not found"
+        );
+    }
+
+    #[test]
+    fn archive_tasks_takes_every_done_task_of_an_area() {
+        let server = board();
+        ok(
+            &server,
+            "create_task",
+            json!({ "title": "Close the sprint", "area": "Work", "status": "done" }),
+        );
+        assert_eq!(
+            ok(
+                &server,
+                "archive_tasks",
+                json!({ "all_done": true, "area": "work" })
+            ),
+            "Archived 1 task. It stays in the Archive view until restored."
+        );
+        assert_eq!(listed(&server, json!({ "archived": true })), [6, 8]);
+        assert_eq!(listed(&server, json!({ "status": "done" })), [4]);
+        assert_eq!(
+            ok(&server, "archive_tasks", json!({ "all_done": true })),
+            "Archived 1 task. It stays in the Archive view until restored."
+        );
+        assert_eq!(
+            ok(&server, "archive_tasks", json!({ "all_done": true })),
+            "Nothing to archive: no done tasks on the board."
+        );
+        assert_eq!(
+            fails(&server, "archive_tasks", json!({})),
+            "Error: pass the ids of the tasks to archive, or all_done=true"
+        );
+    }
+
+    #[test]
+    fn restore_task_puts_it_back_in_done() {
+        let server = board();
+        assert_eq!(
+            ok(&server, "restore_task", json!({ "id": "#6" })),
+            "Restored #6 [Work] Old invoice — Medium · Done"
+        );
+        assert_eq!(listed(&server, json!({ "status": "done" })), [4, 6]);
+        assert_eq!(
+            fails(&server, "restore_task", json!({ "id": 99 })),
+            "Error: task #99 not found"
+        );
+        ok(&server, "restore_task", json!({ "id": 4 }));
+        assert_eq!(
+            ok(&server, "archive_tasks", json!({ "ids": [4, "#6"] })),
+            "Archived 2 tasks. They stay in the Archive view until restored."
+        );
+    }
 }
