@@ -195,8 +195,9 @@ mod tests {
     }
 
     /// The literals passed to `tr(` and `trf(`, also on the next line as rustfmt puts long ones, with
-    /// Rust escapes for quotes undone.
+    /// Rust escapes for quotes undone. Comments are skipped: docs may show a call as an example.
     fn texts_in(source: &str) -> Vec<String> {
+        let source = without_comments(source);
         let mut texts = Vec::new();
         for call in ["tr", "trf"] {
             for (start, _) in source.match_indices(call) {
@@ -224,6 +225,115 @@ mod tests {
             }
         }
         texts
+    }
+
+    /// `source` without its comments (line, doc and block comments, nested ones included). String,
+    /// raw string and character literals are kept whole, so a `//` or a quote inside them changes
+    /// nothing.
+    fn without_comments(source: &str) -> String {
+        let chars: Vec<char> = source.chars().collect();
+        let starts_word = |at: usize| at == 0 || !(chars[at - 1].is_alphanumeric() || chars[at - 1] == '_');
+        let mut code = String::with_capacity(source.len());
+        let mut i = 0;
+        while i < chars.len() {
+            let end = match (chars[i], chars.get(i + 1)) {
+                ('/', Some('/')) => {
+                    let line_end = chars[i..].iter().position(|&c| c == '\n');
+                    i = line_end.map_or(chars.len(), |n| i + n);
+                    continue;
+                }
+                ('/', Some('*')) => {
+                    let mut depth = 0;
+                    while i < chars.len() {
+                        match (chars[i], chars.get(i + 1)) {
+                            ('/', Some('*')) => (depth, i) = (depth + 1, i + 2),
+                            ('*', Some('/')) => (depth, i) = (depth - 1, i + 2),
+                            _ => i += 1,
+                        }
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    code.push(' ');
+                    continue;
+                }
+                ('"', _) => string_end(&chars, i + 1),
+                ('r', Some('"' | '#')) if starts_word(i) || (chars[i - 1] == 'b' && starts_word(i - 1)) => {
+                    let hashes = chars[i + 1..].iter().take_while(|&&c| c == '#').count();
+                    if chars.get(i + 1 + hashes) == Some(&'"') {
+                        let closing: Vec<char> =
+                            std::iter::once('"').chain("#".repeat(hashes).chars()).collect();
+                        let body = i + 2 + hashes;
+                        chars[body..]
+                            .windows(closing.len())
+                            .position(|window| window == closing.as_slice())
+                            .map_or(chars.len(), |n| body + n + closing.len())
+                    } else {
+                        i + 1
+                    }
+                }
+                // A character literal ('"', '\''), not a lifetime ('static).
+                ('\'', Some('\\')) => chars[i + 2..]
+                    .iter()
+                    .skip(1)
+                    .position(|&c| c == '\'')
+                    .map_or(chars.len(), |n| i + 4 + n),
+                ('\'', Some(_)) if chars.get(i + 2) == Some(&'\'') => i + 3,
+                _ => i + 1,
+            };
+            let end = end.min(chars.len());
+            code.extend(&chars[i..end]);
+            i = end;
+        }
+        code
+    }
+
+    /// Where the string literal whose text starts at `start` ends, after its closing quote.
+    fn string_end(chars: &[char], start: usize) -> usize {
+        let mut i = start;
+        while i < chars.len() {
+            match chars[i] {
+                '\\' => i += 2,
+                '"' => return i + 1,
+                _ => i += 1,
+            }
+        }
+        chars.len()
+    }
+
+    // Regression: a `tr("…")` written in a doc comment was taken for a UI text needing Portuguese.
+    #[test]
+    fn the_text_scanner_reads_calls_and_skips_comments() {
+        // `xtr` stands for `tr` here, so the scan of this very file does not see these samples.
+        let source = r##"
+            //! The module: `xtr("Module doc")`.
+            /// Shows `xtr("Item doc")`.
+            fn show() {
+                // xtrf("Line comment", &[])
+                /* xtr("Block comment") /* xtr("Nested comment") */ */
+                let url = "https://example.com"; let a = xtr("After a url");
+                let quote = '"'; let b = xtr("After a quote");
+                let raw = r#"a "quoted" // not a comment"#; let c = xtr("After a raw string");
+                let d = xtrf(
+                    "On the next line {n}",
+                    &[("n", &1)],
+                );
+                let e = attr("Not a call"); let f = xtr("Say \"hi\"");
+                let g: &'static str = xtr("After a lifetime");
+            }
+        "##
+        .replace("xtr", "tr");
+        assert_eq!(
+            texts_in(&source),
+            [
+                "After a url",
+                "After a quote",
+                "After a raw string",
+                "Say \"hi\"",
+                "After a lifetime",
+                "On the next line {n}",
+            ]
+        );
     }
 
     fn placeholders(text: &str) -> Vec<&str> {
