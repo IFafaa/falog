@@ -269,6 +269,96 @@ mod tests {
     }
 
     #[test]
+    fn web_links_may_start_with_spaces_but_need_a_full_scheme() {
+        assert!(is_web_link("  https://meet.google.com/abc"));
+        assert!(is_web_link("Https://example.com"));
+        for link in [
+            "https:",
+            "https:/example.com",
+            "mailto:me@work.example",
+            " ftp://x",
+        ] {
+            assert!(!is_web_link(link), "{link}");
+        }
+    }
+
+    #[test]
+    fn an_all_day_event_ending_where_it_starts_still_touches_its_day() {
+        let odd = event(EventTime::Date(date(7)), EventTime::Date(date(7)));
+        assert_eq!(odd.first_and_last_day(), (date(7), date(7)));
+        assert!(odd.touches(date(7)));
+        assert!(!odd.touches(date(6)) && !odd.touches(date(8)));
+    }
+
+    #[test]
+    fn a_timed_event_within_a_day_keeps_its_minutes() {
+        let lunch = event(at(7, 12, 15), at(7, 13, 0));
+        assert!(!lunch.is_all_day() && !lunch.in_all_day_row());
+        assert_eq!(lunch.minutes_on(date(7)), (12 * 60 + 15, 13 * 60));
+        assert!(lunch.touches(date(7)) && !lunch.touches(date(8)));
+    }
+
+    #[test]
+    fn sorts_all_day_first_then_by_start_then_longest_first() {
+        let mut short = event(at(7, 9, 0), at(7, 9, 30));
+        short.title = "Short".into();
+        let mut long = event(at(7, 9, 0), at(7, 11, 0));
+        long.title = "Long".into();
+        let mut early = event(at(7, 8, 0), at(7, 8, 30));
+        early.title = "Early".into();
+        let mut holiday = event(EventTime::Date(date(9)), EventTime::Date(date(10)));
+        holiday.title = "Holiday".into();
+        let mut flight = event(at(8, 22, 0), at(9, 6, 0));
+        flight.title = "Flight".into();
+        let mut events = vec![short, long, holiday, early, flight];
+        sort_and_dedupe(&mut events);
+        let titles: Vec<&str> = events.iter().map(|e| e.title.as_str()).collect();
+        assert_eq!(titles, vec!["Flight", "Holiday", "Early", "Long", "Short"]);
+    }
+
+    #[test]
+    fn keeps_events_without_a_uid_and_moved_copies() {
+        let plain = event(at(7, 10, 0), at(7, 11, 0));
+        let mut first = event(at(7, 12, 0), at(7, 13, 0));
+        first.ical_uid = "abc@google.com".into();
+        let mut moved = first.clone();
+        moved.start = at(8, 12, 0);
+        moved.end = at(8, 13, 0);
+        let mut events = vec![plain.clone(), plain, first, moved];
+        sort_and_dedupe(&mut events);
+        assert_eq!(events.len(), 4);
+    }
+
+    #[test]
+    fn decodes_entities_once_and_keeps_broken_tags_as_text() {
+        let mut meeting = event(at(7, 10, 0), at(7, 11, 0));
+        meeting.description = "<p>Agenda</p><p>Use&nbsp;&quot;Q&#39;s&quot;</p>\
+                               <a href=\"https://example.com\">doc</a> &amp;lt;tag&amp;gt;"
+            .into();
+        assert_eq!(
+            meeting.plain_description(),
+            "Agenda\nUse \"Q's\"\ndoc &lt;tag&gt;"
+        );
+        meeting.description = "a <b unclosed".into();
+        assert_eq!(meeting.plain_description(), "a <b unclosed");
+    }
+
+    #[test]
+    fn colors_must_be_six_hex_digits() {
+        let color = |text: &str| Calendar {
+            id: "x".into(),
+            name: "Work".into(),
+            color: text.into(),
+            primary: false,
+            visible: true,
+        };
+        assert_eq!(color("#FFAA00").rgb(), [0xff, 0xaa, 0x00]);
+        for odd in ["#12345", "#gg0000", "123456", "#1234567", ""] {
+            assert_eq!(color(odd).rgb(), [0x61, 0xaf, 0xef], "{odd}");
+        }
+    }
+
+    #[test]
     fn parses_calendar_colors() {
         let mut calendar = Calendar {
             id: "x".into(),

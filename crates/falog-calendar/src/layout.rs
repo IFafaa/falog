@@ -83,6 +83,43 @@ mod tests {
     }
 
     #[test]
+    fn nothing_to_lay_out() {
+        assert!(columns(&[], 15).is_empty());
+        assert_eq!(columns(&[(600, 660)], 15), vec![slot(0, 1)]);
+    }
+
+    #[test]
+    fn three_at_once_take_a_third_each() {
+        let slots = columns(&[(540, 660), (550, 600), (560, 620)], 15);
+        assert_eq!(slots, vec![slot(0, 3), slot(1, 3), slot(2, 3)]);
+    }
+
+    #[test]
+    fn each_group_counts_its_own_columns() {
+        // Two overlapping in the morning, one alone after lunch, then three together.
+        let events = [
+            (540, 600),
+            (560, 620),
+            (780, 840),
+            (900, 960),
+            (900, 960),
+            (930, 990),
+        ];
+        let slots = columns(&events, 15);
+        assert_eq!(
+            slots,
+            vec![
+                slot(0, 2),
+                slot(1, 2),
+                slot(0, 1),
+                slot(0, 3),
+                slot(1, 3),
+                slot(2, 3)
+            ]
+        );
+    }
+
+    #[test]
     fn a_long_event_groups_everything_it_spans() {
         let slots = columns(&[(480, 720), (540, 570), (600, 630), (780, 810)], 15);
         assert_eq!(slots, vec![slot(0, 2), slot(1, 2), slot(1, 2), slot(0, 1)]);
