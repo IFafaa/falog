@@ -585,3 +585,75 @@ fn connect_option(ui: &mut Ui, theme: &Theme, option: ConnectOption<'_>, add_bod
             }
         });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use falog_calendar::Account;
+
+    const SECRET_LINK: &str =
+        "https://calendar.google.com/calendar/ical/me%40work.example/private-SECRET/basic.ics";
+
+    fn account() -> Account {
+        Account {
+            email: "me@work.example".into(),
+            refresh_token: "token".into(),
+            calendars: Vec::new(),
+            needs_sign_in: false,
+            can_write: false,
+            area: None,
+        }
+    }
+
+    fn client() -> Client {
+        Client {
+            id: "falog-test.apps.example".into(),
+            secret: "not-a-secret".into(),
+        }
+    }
+
+    /// Which ways to connect start unfolded: the link card, then the Google card.
+    fn unfolded(calendar: &CalendarState) -> (bool, bool) {
+        let form = CalendarForm::new(calendar);
+        (form.show_link, form.show_oauth)
+    }
+
+    #[test]
+    fn with_nothing_connected_the_link_card_starts_open() {
+        assert_eq!(unfolded(&CalendarState::new(None)), (true, false));
+    }
+
+    #[test]
+    fn a_saved_client_without_an_account_opens_the_rest_of_the_google_setup() {
+        let mut calendar = CalendarState::new(None);
+        calendar.config.client = client();
+        assert_eq!(unfolded(&calendar), (true, true));
+
+        calendar.config.add_link("Team", SECRET_LINK, None).unwrap();
+        assert_eq!(unfolded(&calendar), (false, true), "a link is connected");
+
+        calendar.config.upsert(account());
+        assert_eq!(unfolded(&calendar), (false, false), "signed in");
+    }
+
+    #[test]
+    fn a_connected_link_folds_both_ways_away() {
+        let mut calendar = CalendarState::new(None);
+        calendar.config.add_link("Team", SECRET_LINK, None).unwrap();
+        assert_eq!(unfolded(&calendar), (false, false));
+    }
+
+    #[test]
+    fn a_pasted_link_never_prints_its_address() {
+        let link = NewLink {
+            name: "Team".into(),
+            url: SECRET_LINK.into(),
+        };
+        let printed = format!("{link:?}");
+        assert!(printed.contains("Team"), "{printed}");
+        assert!(
+            !printed.contains("SECRET") && !printed.contains("me%40"),
+            "{printed}"
+        );
+    }
+}
