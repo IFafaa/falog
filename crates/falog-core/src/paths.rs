@@ -489,6 +489,55 @@ mod tests {
     }
 
     #[test]
+    fn moves_the_preferences_alone() {
+        let root = TempDir::new("prefs");
+        let legacy = Legacy {
+            home: None,
+            ..old_layout(&root.0)
+        };
+        let home = root.0.join(".falog");
+
+        migrate(&home, &legacy, Duration::ZERO).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(home.join(PREFERENCES_FILE)).unwrap(),
+            "(theme: Dark)"
+        );
+        assert!(!legacy.preferences.unwrap().exists());
+        assert!(!home.join(DATABASE_FILE).exists());
+        assert!(!home.join(LOCK_FILE).exists());
+    }
+
+    #[test]
+    fn replaces_a_partial_copy_left_by_an_interrupted_move() {
+        let root = TempDir::new("partial");
+        let legacy = old_layout(&root.0);
+        let home = root.0.join(".falog");
+        fs::create_dir_all(&home).unwrap();
+        let partial = partial_path(&home.join(DATABASE_FILE));
+        fs::write(&partial, "half a database").unwrap();
+
+        migrate(&home, &legacy, Duration::ZERO).unwrap();
+
+        assert_eq!(area_names(&home.join(DATABASE_FILE)), ["Work"]);
+        assert!(!partial.exists());
+    }
+
+    #[test]
+    fn data_lives_in_the_platform_folder() {
+        let home = data_home();
+        let expected = if cfg!(windows) { ".falog" } else { "Falog" };
+        if dirs::home_dir().is_some() && dirs::data_dir().is_some() {
+            assert_eq!(home.file_name().unwrap(), expected, "{}", home.display());
+        }
+        let legacy = Legacy::for_this_platform();
+        if let Some(preferences) = legacy.preferences {
+            assert_eq!(preferences.file_name().unwrap(), PREFERENCES_FILE);
+        }
+        assert_eq!(legacy.home.is_some(), cfg!(windows) && dirs::data_dir().is_some());
+    }
+
+    #[test]
     fn nothing_to_do_without_an_old_layout() {
         let root = TempDir::new("empty");
         let home = root.0.join(".falog");
