@@ -117,10 +117,7 @@ impl FalogApp {
             title_bar_dark: None,
         };
         app.reload();
-        // The first start speaks the computer's language; Settings › General changes it.
-        if app.prefs.language.is_none() {
-            app.prefs.language = Some(Language::suggested());
-        }
+        app.prefs.pick_language(Language::suggested);
         app
     }
 

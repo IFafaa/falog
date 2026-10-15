@@ -39,6 +39,12 @@ pub struct Prefs {
 }
 
 impl Prefs {
+    /// The first start speaks the language the computer suggests; afterwards the language saved
+    /// (from Settings › General) stays.
+    pub fn pick_language(&mut self, suggested: impl FnOnce() -> Language) {
+        self.language.get_or_insert_with(suggested);
+    }
+
     pub fn assistant_options(&self) -> AssistantOptions {
         AssistantOptions {
             language: self.voice_language,
