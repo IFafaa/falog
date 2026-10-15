@@ -14,6 +14,8 @@ mod icons;
 mod overlays;
 mod platform;
 mod prefs;
+#[cfg(test)]
+mod testing;
 mod theme;
 mod update;
 mod views;

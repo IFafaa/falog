@@ -963,6 +963,104 @@ fn too_small(size: Vec2) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::{archived, area, done, ids, in_area, task};
+
+    #[test]
+    fn archived_tasks_show_only_in_the_archive() {
+        let tasks = [task(1, "Open"), done(2, "Done", 5), archived(3, "Put away", 2)];
+        for view in [View::Board, View::List, View::Focus, View::Calendar] {
+            assert_eq!(ids(shown_tasks(&tasks, None, "", view)), [1, 2], "{view:?}");
+        }
+        assert_eq!(ids(shown_tasks(&tasks, None, "", View::Archive)), [3]);
+    }
+
+    #[test]
+    fn the_area_filter_and_the_search_narrow_every_view() {
+        let (work, home) = (area(1, "Work"), area(2, "Home"));
+        let tasks = [
+            in_area(task(1, "Send the report"), &work),
+            in_area(task(2, "Fix the sink"), &home),
+            task(3, "Call the bank"),
+            in_area(archived(4, "Old report", 2), &work),
+        ];
+        assert_eq!(ids(shown_tasks(&tasks, Some(work.id), "", View::Board)), [1]);
+        assert_eq!(ids(shown_tasks(&tasks, None, "report", View::List)), [1]);
+        assert_eq!(
+            ids(shown_tasks(&tasks, None, "home", View::List)),
+            [2],
+            "area name"
+        );
+        assert_eq!(ids(shown_tasks(&tasks, None, "#3", View::Focus)), [3], "task id");
+        assert!(
+            shown_tasks(&tasks, Some(home.id), "report", View::Board)
+                .next()
+                .is_none()
+        );
+        assert_eq!(
+            ids(shown_tasks(&tasks, Some(work.id), "report", View::Archive)),
+            [4]
+        );
+    }
+
+    // Regression: keeping the visible tasks between frames must not show a stale list once the
+    // tasks are reloaded or the area filter, the search or the view change.
+    #[test]
+    fn the_visible_tasks_follow_every_change() {
+        let work = area(1, "Work");
+        let mut tasks = vec![
+            in_area(task(1, "Send the report"), &work),
+            task(2, "Call the bank"),
+        ];
+        let mut visible = VisibleTasks::default();
+        let refresh = |visible: &mut VisibleTasks, tasks: &[Task], generation, area, search: &str, view| {
+            visible.refresh(tasks, generation, area, search, view);
+            ids(&visible.tasks)
+        };
+        assert_eq!(refresh(&mut visible, &tasks, 1, None, "", View::Board), [1, 2]);
+
+        tasks.push(task(3, "Book the dentist"));
+        assert_eq!(
+            refresh(&mut visible, &tasks, 2, None, "", View::Board),
+            [1, 2, 3],
+            "reload"
+        );
+        assert_eq!(
+            refresh(&mut visible, &tasks, 2, Some(work.id), "", View::Board),
+            [1],
+            "area"
+        );
+        assert_eq!(
+            refresh(&mut visible, &tasks, 2, None, "bank", View::Board),
+            [2],
+            "search"
+        );
+        assert_eq!(
+            refresh(&mut visible, &tasks, 2, None, "", View::Board),
+            [1, 2, 3],
+            "search cleared"
+        );
+
+        tasks[1] = archived(2, "Call the bank", 2);
+        assert_eq!(
+            refresh(&mut visible, &tasks, 3, None, "", View::Board),
+            [1, 3],
+            "archived"
+        );
+        assert_eq!(
+            refresh(&mut visible, &tasks, 3, None, "", View::Archive),
+            [2],
+            "view"
+        );
+    }
+
+    #[test]
+    fn the_visible_tasks_are_kept_while_nothing_changes() {
+        let mut visible = VisibleTasks::default();
+        visible.refresh(&[task(1, "One")], 1, None, "", View::Board);
+        // Same generation: the tasks were not reloaded, so the list is not filtered again.
+        visible.refresh(&[task(1, "One"), task(2, "Two")], 1, None, "", View::Board);
+        assert_eq!(ids(&visible.tasks), [1]);
+    }
 
     #[test]
     fn a_window_below_the_minimum_is_too_small() {
