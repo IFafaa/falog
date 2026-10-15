@@ -433,6 +433,48 @@ mod tests {
         }
     }
 
+    /// A lock opener that is denied access `denials` times, then succeeds.
+    fn denied_then_free(denials: &mut u32) -> impl FnMut() -> io::Result<()> + '_ {
+        move || {
+            if *denials == 0 {
+                return Ok(());
+            }
+            *denials -= 1;
+            Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        }
+    }
+
+    // Regression: on Windows, creating the lock while another process was still opening or deleting
+    // it failed with "access denied" instead of waiting for it.
+    #[test]
+    fn retries_the_lock_while_access_is_denied_on_windows() {
+        let root = TempDir::new("denied");
+        let mut denials = 3;
+        let deadline = SystemTime::now() + Duration::from_secs(10);
+
+        let result = acquire_lock(&root.0.join(LOCK_FILE), deadline, denied_then_free(&mut denials));
+
+        if cfg!(windows) {
+            assert!(result.is_ok(), "{result:?}");
+            assert_eq!(denials, 0);
+        } else {
+            // Elsewhere "access denied" is a real permission problem, reported at once.
+            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+            assert_eq!(denials, 2);
+        }
+    }
+
+    #[test]
+    fn gives_up_on_a_denied_lock_after_the_deadline() {
+        let root = TempDir::new("denied-late");
+        let mut denials = u32::MAX;
+        let deadline = SystemTime::now() - Duration::from_secs(1);
+
+        let result = acquire_lock(&root.0.join(LOCK_FILE), deadline, denied_then_free(&mut denials));
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+    }
+
     #[cfg(unix)]
     #[test]
     fn data_folders_are_private() {
