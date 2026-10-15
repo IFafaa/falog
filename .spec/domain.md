@@ -34,7 +34,9 @@ Append-only activity log entry: `id`, `task_id`, `body`, `created_at`. Deleted w
 
 Only done tasks can be archived. Archived tasks keep every field and their notes; they leave the Board,
 List, Focus and Calendar views and `list_tasks`, and live in the Archive view until restored. Moving an
-archived task out of `done` restores it too, since an open task belongs on the board.
+archived task out of `done` restores it too, since an open task belongs on the board. The
+assistant's `get_focus` still lists archived tasks under "Completed in the last 7 days": archiving
+tidies the board, it does not undo the work, and that list answers "what did I do this week".
 
 ## Recurring tasks
 

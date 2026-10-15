@@ -589,6 +589,23 @@ mod tests {
         assert!(!ok(&server, "list_tasks", json!({ "limit": 5 })).contains("more"));
     }
 
+    // Archiving tidies the board; it does not undo the work, so "what did I do this week" still lists it.
+    #[test]
+    fn get_focus_keeps_archived_tasks_among_the_completed() {
+        let server = server();
+        ok(
+            &server,
+            "create_task",
+            json!({ "title": "Ship v1", "status": "done" }),
+        );
+        ok(&server, "archive_tasks", json!({ "all_done": true }));
+        let focus = ok(&server, "get_focus", json!({}));
+        assert!(
+            focus.contains("## Completed in the last 7 days (1)\n- #1 [No area] Ship v1"),
+            "{focus}"
+        );
+    }
+
     #[test]
     fn get_focus_covers_every_area_or_one() {
         let server = board();
@@ -609,12 +626,16 @@ mod tests {
             ),
             "{focus}"
         );
-        assert!(
-            focus.ends_with(&format!(
-                "\n## Completed in the last 7 days (1)\n- #4 [Home] Pay the rent — completed {today}\n"
-            )),
-            "{focus}"
-        );
+        // The archived #6 still counts as work done; both finished this second, in either order.
+        let (_, completed) = focus
+            .split_once("\n## Completed in the last 7 days (2)\n")
+            .unwrap_or_else(|| panic!("{focus}"));
+        for line in [
+            format!("- #4 [Home] Pay the rent — completed {today}\n"),
+            format!("- #6 [Work] Old invoice — completed {today}\n"),
+        ] {
+            assert!(completed.contains(&line), "{focus}");
+        }
 
         let home = ok(&server, "get_focus", json!({ "area": "home" }));
         assert!(
