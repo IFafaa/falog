@@ -452,6 +452,31 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    // Regression: google.json, which holds refresh tokens and secret addresses, was readable by
+    // every user of the computer.
+    #[cfg(unix)]
+    #[test]
+    fn files_are_readable_only_by_the_user_even_over_a_crash_leftover() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("falog-calendar-mode-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mode = |name: &str| {
+            let metadata = std::fs::metadata(dir.join(name)).unwrap();
+            metadata.permissions().mode() & 0o777
+        };
+        // A temporary file left by a crash, written the way files were before.
+        std::fs::write(dir.join("google.json.tmp"), "{}").unwrap();
+        let open = std::fs::Permissions::from_mode(0o644);
+        std::fs::set_permissions(dir.join("google.json.tmp"), open).unwrap();
+
+        let files = Files::new(&dir);
+        files.save_config(&CalendarConfig::default()).unwrap();
+        files.save_cache(&EventCache::default()).unwrap();
+        let modes = (mode("google.json"), mode("events.json"));
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(modes, (0o600, 0o600));
+    }
+
     #[test]
     fn files_without_links_still_load() {
         let old = r##"{ "client": { "id": "id", "secret": "s" }, "accounts": [ { "email": "me@work.com",
