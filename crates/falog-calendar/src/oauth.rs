@@ -104,9 +104,15 @@ impl Pending {
     /// Waits for Google's redirect (until `cancel` is set or [`SIGN_IN_TIMEOUT`]) and exchanges the
     /// code for a refresh token.
     pub fn finish(self, client: &Client, cancel: &AtomicBool) -> Result<Grant> {
+        let code = self.wait(cancel, SIGN_IN_TIMEOUT)?;
+        exchange(client, &code, &self.redirect_uri, &self.verifier)
+    }
+
+    /// The authorization code of this sign-in's redirect, once the browser brings it back.
+    fn wait(&self, cancel: &AtomicBool, timeout: Duration) -> Result<String> {
         self.listener.set_nonblocking(true)?;
-        let deadline = Instant::now() + SIGN_IN_TIMEOUT;
-        let code = loop {
+        let deadline = Instant::now() + timeout;
+        loop {
             if cancel.load(Ordering::Relaxed) {
                 return Err(Error::Cancelled);
             }
@@ -116,7 +122,7 @@ impl Pending {
             match self.listener.accept() {
                 Ok((stream, _)) => {
                     if let Some(result) = self.answer(stream) {
-                        break result?;
+                        return result;
                     }
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
@@ -124,8 +130,7 @@ impl Pending {
                 }
                 Err(err) => return Err(err.into()),
             }
-        };
-        exchange(client, &code, &self.redirect_uri, &self.verifier)
+        }
     }
 
     /// Reads one browser request. `None` for requests that are not this sign-in's redirect: the
