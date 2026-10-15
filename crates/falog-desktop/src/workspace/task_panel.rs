@@ -72,6 +72,11 @@ impl Draft {
             recurrence: self.recurrence,
         })
     }
+
+    /// The day "Every week" and "Every month" start from: the due date, else today.
+    fn repeat_anchor(&self, today: NaiveDate) -> NaiveDate {
+        date::parse_due(&self.due, today).unwrap_or(today)
+    }
 }
 
 #[derive(Debug)]
@@ -279,8 +284,7 @@ fn body(
     property(ui, theme, Icon::Clock, tr("Due"), |ui| {
         due_field(ui, theme, &mut draft.due, today)
     });
-    // "Every week" and "Every month" start on the due date's weekday or day.
-    let anchor = date::parse_due(&draft.due, today).unwrap_or(today);
+    let anchor = draft.repeat_anchor(today);
     property(ui, theme, Icon::Refresh, tr("Repeats"), |ui| {
         repeat_field(ui, theme, &mut draft.recurrence, anchor, control_width);
     });
@@ -415,36 +419,11 @@ fn due_field(ui: &mut Ui, theme: &Theme, due: &mut String, today: NaiveDate) {
 /// month the rule falls on.
 fn repeat_field(ui: &mut Ui, theme: &Theme, rule: &mut Option<Recurrence>, anchor: NaiveDate, width: f32) {
     let selected = rule.map_or_else(|| tr("Never").to_owned(), i18n::recurrence_label);
-    let weekly =
-        |r: &Option<Recurrence>| matches!(r, Some(Recurrence::Weekly(days)) if *days != Weekdays::WORKDAYS);
     ComboBox::from_id_salt("panel-repeat")
         .selected_text(selected)
         .width(width)
         .show_ui(ui, |ui| {
-            let options = [
-                (tr("Never"), rule.is_none(), None),
-                (
-                    tr("Every day"),
-                    *rule == Some(Recurrence::Daily),
-                    Some(Recurrence::Daily),
-                ),
-                (
-                    tr("Every weekday"),
-                    *rule == Some(Recurrence::Weekly(Weekdays::WORKDAYS)),
-                    Some(Recurrence::Weekly(Weekdays::WORKDAYS)),
-                ),
-                (
-                    tr("Every week"),
-                    weekly(rule),
-                    Some(Recurrence::Weekly(Weekdays::single(anchor.weekday()))),
-                ),
-                (
-                    tr("Every month"),
-                    matches!(rule, Some(Recurrence::Monthly(_))),
-                    Some(Recurrence::Monthly(anchor.day())),
-                ),
-            ];
-            for (label, current, choice) in options {
+            for (label, current, choice) in repeat_options(*rule, anchor) {
                 if ui.selectable_label(current, label).clicked() && !current {
                     *rule = choice;
                 }
@@ -457,12 +436,7 @@ fn repeat_field(ui: &mut Ui, theme: &Theme, rule: &mut Option<Recurrence>, ancho
                 for day in std::iter::successors(Some(Weekday::Mon), |day| Some(day.succ())).take(7) {
                     let name = i18n::date::weekday_short_of(day);
                     if ui.selectable_label(days.contains(day), name).clicked() {
-                        let mut toggled = *days;
-                        toggled.toggle(day);
-                        // A weekly rule needs at least one day.
-                        if !toggled.is_empty() {
-                            *days = toggled;
-                        }
+                        *days = toggle_day(*days, day);
                     }
                 }
             });
@@ -475,6 +449,45 @@ fn repeat_field(ui: &mut Ui, theme: &Theme, rule: &mut Option<Recurrence>, ancho
         }
         _ => {}
     }
+}
+
+/// The repeat picker's choices: label, whether `rule` is that choice, and the rule it sets. "Every
+/// week" and "Every month" start on `anchor`'s weekday or day.
+fn repeat_options(
+    rule: Option<Recurrence>,
+    anchor: NaiveDate,
+) -> [(&'static str, bool, Option<Recurrence>); 5] {
+    let weekly = matches!(rule, Some(Recurrence::Weekly(days)) if days != Weekdays::WORKDAYS);
+    [
+        (tr("Never"), rule.is_none(), None),
+        (
+            tr("Every day"),
+            rule == Some(Recurrence::Daily),
+            Some(Recurrence::Daily),
+        ),
+        (
+            tr("Every weekday"),
+            rule == Some(Recurrence::Weekly(Weekdays::WORKDAYS)),
+            Some(Recurrence::Weekly(Weekdays::WORKDAYS)),
+        ),
+        (
+            tr("Every week"),
+            weekly,
+            Some(Recurrence::Weekly(Weekdays::single(anchor.weekday()))),
+        ),
+        (
+            tr("Every month"),
+            matches!(rule, Some(Recurrence::Monthly(_))),
+            Some(Recurrence::Monthly(anchor.day())),
+        ),
+    ]
+}
+
+/// `days` with `day` switched on or off. A weekly rule needs at least one day, so the last one stays.
+fn toggle_day(days: Weekdays, day: Weekday) -> Weekdays {
+    let mut toggled = days;
+    toggled.toggle(day);
+    if toggled.is_empty() { days } else { toggled }
 }
 
 fn small_link(ui: &mut Ui, theme: &Theme, label: &str) -> egui::Response {
