@@ -885,4 +885,45 @@ mod tests {
         );
         assert_eq!(sentence(""), "");
     }
+
+    // Regression: the events kept between frames must follow the days shown and the calendar
+    // links shown, hidden or removed, not only the accounts' calendars.
+    #[test]
+    fn shown_events_follow_the_range_and_the_links() {
+        let mut state = CalendarState::new(None);
+        let link = state
+            .config
+            .add_link("Team", "https://example.com/team.ics", None)
+            .unwrap()
+            .calendar
+            .id
+            .clone();
+        let retro = Event {
+            start: falog_calendar::EventTime::Date(day(21)),
+            end: falog_calendar::EventTime::Date(day(22)),
+            ..event("", &link, "Retro")
+        };
+        state
+            .cache_mut()
+            .events
+            .extend([event("", &link, "Standup"), retro]);
+        let titles = |state: &CalendarState, from: u32, to: u32| -> Vec<String> {
+            state
+                .events(day(from), day(to))
+                .iter()
+                .map(|e| e.title.clone())
+                .collect()
+        };
+        assert_eq!(titles(&state, 1, 15), ["Standup"]);
+        assert_eq!(titles(&state, 1, 31), ["Standup", "Retro"], "a longer range");
+        assert_eq!(titles(&state, 15, 31), ["Retro"], "another range");
+
+        state.toggle_link(0);
+        assert!(titles(&state, 1, 31).is_empty(), "hidden link");
+        state.toggle_link(0);
+        assert_eq!(titles(&state, 1, 31), ["Standup", "Retro"], "shown again");
+
+        state.remove_link(&link);
+        assert!(titles(&state, 1, 31).is_empty(), "removed link");
+    }
 }
