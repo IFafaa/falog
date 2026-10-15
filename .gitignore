@@ -2,3 +2,5 @@
 *.db
 *.db-shm
 *.db-wal
+# Worktrees made by agent sessions.
+/.claude/worktrees/
