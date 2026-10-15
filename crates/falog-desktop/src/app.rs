@@ -253,14 +253,7 @@ impl FalogApp {
             None => store.create_task(&new).map(|task| (task, None)),
         });
         if let Some((task, next)) = saved {
-            let message = match next_due(next.as_ref()) {
-                Some(date) => trf(
-                    "Saved #{id}; the next one is due {date}",
-                    &[("id", &task.id), ("date", &date)],
-                ),
-                None => trf("Saved #{id}", &[("id", &task.id)]),
-            };
-            self.notify(message, ToastKind::Success);
+            self.notify(saved_message(task.id, next.as_ref()), ToastKind::Success);
             self.open_task(task.id);
         }
     }
@@ -477,21 +470,7 @@ impl FalogApp {
         }
         let patch = TaskPatch::status(status);
         if let Some((task, next)) = self.write(|store| store.update_task_with_next(id, &patch)) {
-            let message = match next_due(next.as_ref()) {
-                Some(date) => trf(
-                    "#{id} moved to {status}; the next one is due {date}",
-                    &[
-                        ("id", &task.id),
-                        ("status", &status_label(status)),
-                        ("date", &date),
-                    ],
-                ),
-                None => trf(
-                    "#{id} moved to {status}",
-                    &[("id", &task.id), ("status", &status_label(status))],
-                ),
-            };
-            self.notify(message, ToastKind::Success);
+            self.notify(moved_message(task.id, status, next.as_ref()), ToastKind::Success);
             let panel_shows_it = self
                 .task_panel
                 .as_ref()
@@ -510,14 +489,7 @@ impl FalogApp {
         let Some(count) = self.write(|store| store.archive_tasks(ids)) else {
             return;
         };
-        let message = match (count, ids) {
-            (1, [id]) => trf("Archived #{id}; find it in the Archive (Ctrl+5)", &[("id", id)]),
-            (n, _) => trf(
-                "Archived {n} tasks; find them in the Archive (Ctrl+5)",
-                &[("n", &n)],
-            ),
-        };
-        self.notify(message, ToastKind::Success);
+        self.notify(archived_message(count, ids), ToastKind::Success);
         self.refresh_panel(ids);
     }
 
@@ -951,6 +923,42 @@ impl VisibleTasks {
 /// When the occurrence a completed recurring task created is due, for the toast.
 fn next_due(next: Option<&Task>) -> Option<String> {
     next.and_then(|task| task.due).map(i18n::date::short)
+}
+
+/// The toast after saving task `id`; `next` is the occurrence saving it as done created.
+fn saved_message(id: TaskId, next: Option<&Task>) -> String {
+    match next_due(next) {
+        Some(date) => trf(
+            "Saved #{id}; the next one is due {date}",
+            &[("id", &id), ("date", &date)],
+        ),
+        None => trf("Saved #{id}", &[("id", &id)]),
+    }
+}
+
+/// The toast after moving task `id` to `status`; `next` is the occurrence completing it created.
+fn moved_message(id: TaskId, status: Status, next: Option<&Task>) -> String {
+    match next_due(next) {
+        Some(date) => trf(
+            "#{id} moved to {status}; the next one is due {date}",
+            &[("id", &id), ("status", &status_label(status)), ("date", &date)],
+        ),
+        None => trf(
+            "#{id} moved to {status}",
+            &[("id", &id), ("status", &status_label(status))],
+        ),
+    }
+}
+
+/// The toast after archiving `count` of the tasks `ids`.
+fn archived_message(count: usize, ids: &[TaskId]) -> String {
+    match (count, ids) {
+        (1, [id]) => trf("Archived #{id}; find it in the Archive (Ctrl+5)", &[("id", id)]),
+        (n, _) => trf(
+            "Archived {n} tasks; find them in the Archive (Ctrl+5)",
+            &[("n", &n)],
+        ),
+    }
 }
 
 fn too_small(size: Vec2) -> bool {
