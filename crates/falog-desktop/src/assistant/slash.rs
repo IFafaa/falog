@@ -248,6 +248,83 @@ mod tests {
         assert_eq!(names(matching(&all, "/zzz")), Some(vec![]));
     }
 
+    /// Presses `key` in the composer showing `draft`: the completion asked for, and whether the key
+    /// was left for the text field (and the send key).
+    fn press(ctx: &egui::Context, key: Key, all: &[SlashCommand], draft: &str) -> (Option<String>, bool) {
+        let event = egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        };
+        let input = egui::RawInput {
+            events: vec![event],
+            ..Default::default()
+        };
+        let mut outcome = (None, false);
+        let _ = ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let completion = match handle_keys(ui, Id::new("composer"), all, draft) {
+                    MenuKey::Complete(draft) => Some(draft),
+                    MenuKey::None => None,
+                };
+                outcome = (completion, ui.input(|i| i.key_pressed(key)));
+            });
+        });
+        outcome
+    }
+
+    fn completes(to: &str) -> (Option<String>, bool) {
+        (Some(to.to_owned()), false)
+    }
+
+    #[test]
+    fn arrows_pick_a_command_and_tab_or_enter_completes_it() {
+        let ctx = egui::Context::default();
+        let all = commands(&["compact", "context", "review"]);
+        assert_eq!(press(&ctx, Key::Tab, &all, "/co"), completes("/compact "));
+        press(&ctx, Key::ArrowDown, &all, "/co");
+        assert_eq!(press(&ctx, Key::Enter, &all, "/co"), completes("/context "));
+        press(&ctx, Key::ArrowDown, &all, "/co");
+        assert_eq!(
+            press(&ctx, Key::Tab, &all, "/co"),
+            completes("/compact "),
+            "wraps around"
+        );
+        press(&ctx, Key::ArrowUp, &all, "/co");
+        assert_eq!(
+            press(&ctx, Key::Tab, &all, "/co"),
+            completes("/context "),
+            "and back"
+        );
+    }
+
+    #[test]
+    fn enter_on_a_whole_command_name_sends_it() {
+        let ctx = egui::Context::default();
+        let all = commands(&["compact", "context"]);
+        assert_eq!(press(&ctx, Key::Enter, &all, "/compact"), (None, true));
+    }
+
+    #[test]
+    fn escape_closes_the_menu_until_the_draft_is_no_command_name() {
+        let ctx = egui::Context::default();
+        let all = commands(&["compact"]);
+        assert_eq!(press(&ctx, Key::Escape, &all, "/co"), (None, false));
+        assert_eq!(
+            press(&ctx, Key::Tab, &all, "/com"),
+            (None, true),
+            "left to the text field"
+        );
+        assert_eq!(press(&ctx, Key::Tab, &all, "hello"), (None, true));
+        assert_eq!(
+            press(&ctx, Key::Tab, &all, "/co"),
+            completes("/compact "),
+            "open again"
+        );
+    }
+
     #[test]
     fn closes_outside_a_command_name() {
         let all = commands(&["compact"]);
