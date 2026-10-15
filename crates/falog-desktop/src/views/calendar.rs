@@ -55,11 +55,7 @@ pub fn show(
                 .is_none_or(|area| cal.config.area_of(e) == Some(area.0))
         })
         .collect();
-    let tasks: Vec<&Task> = cx
-        .tasks
-        .iter()
-        .filter(|t| t.is_open() && t.due.is_some_and(|d| from <= d && d < to))
-        .collect();
+    let tasks = due_tasks(cx.tasks, from, to);
     let mut clicked_event = false;
     match mode {
         CalendarMode::Week => week(ui, cx, cal, &events, &tasks, from, &mut clicked_event, actions),
@@ -93,6 +89,14 @@ fn range(mode: CalendarMode, anchor: NaiveDate) -> (NaiveDate, NaiveDate) {
             (start, end)
         }
     }
+}
+
+/// The open tasks due on a day shown (`from..to`), drawn on their due day.
+fn due_tasks(tasks: &[Task], from: NaiveDate, to: NaiveDate) -> Vec<&Task> {
+    tasks
+        .iter()
+        .filter(|t| t.is_open() && t.due.is_some_and(|d| from <= d && d < to))
+        .collect()
 }
 
 fn step(mode: CalendarMode, anchor: NaiveDate, forward: bool) -> NaiveDate {

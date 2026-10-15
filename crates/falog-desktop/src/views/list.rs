@@ -63,7 +63,8 @@ impl Columns {
     }
 }
 
-pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
+/// The open tasks in the chosen order, then the completed ones when the list shows them.
+fn rows<'a>(cx: &ViewCx<'a>) -> Vec<&'a Task> {
     let mut rows: Vec<&Task> = cx
         .tasks
         .iter()
@@ -71,7 +72,11 @@ pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
         .collect();
     cx.prefs.sort.sort(&mut rows);
     rows.sort_by_key(|t| !t.is_open()); // stable: completed tasks go last
+    rows
+}
 
+pub fn show(ui: &mut Ui, cx: &ViewCx<'_>, actions: &mut Actions) {
+    let rows = rows(cx);
     if rows.is_empty() {
         empty_state(ui, cx);
         return;
