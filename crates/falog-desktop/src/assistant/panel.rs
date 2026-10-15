@@ -1055,6 +1055,21 @@ mod tests {
     }
 
     #[test]
+    fn every_tool_of_the_mcp_server_has_its_own_label() {
+        crate::i18n::set(crate::i18n::Language::English);
+        for tool in crate::testing::falog_mcp_tools() {
+            for pending in [true, false] {
+                let label = tool_label(tool, pending);
+                assert!(
+                    !["Working…", "Done"].contains(&label),
+                    "{tool} (pending: {pending}) shows the generic {label:?}"
+                );
+            }
+        }
+        assert_eq!(tool_label("some_other_tool", true), "Working…");
+    }
+
+    #[test]
     fn shortens_token_counts() {
         assert_eq!(tokens(850), "850");
         assert_eq!(tokens(12_400), "12.4k");

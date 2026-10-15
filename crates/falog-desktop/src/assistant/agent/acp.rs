@@ -1391,14 +1391,7 @@ mod tests {
     #[test]
     fn knows_every_tool_of_the_mcp_server() {
         // A tool missing here is refused when an ACP agent asks to run it.
-        let catalog = include_str!("../../../../falog-mcp/src/tools/catalog.rs");
-        let tools: Vec<&str> = catalog
-            .split("\"name\": \"")
-            .skip(1)
-            .filter_map(|rest| rest.split('"').next())
-            .collect();
-        assert!(tools.len() > 10, "{tools:?}");
-        for tool in tools {
+        for tool in crate::testing::falog_mcp_tools() {
             assert_eq!(falog_tool(tool), Some(tool), "add {tool} to FALOG_TOOLS");
         }
     }

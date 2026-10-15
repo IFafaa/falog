@@ -101,6 +101,18 @@ pub fn keys_pressed(keys: &[Key]) -> RawInput {
     }
 }
 
+/// The name of every tool the MCP server offers, read from its catalog.
+pub fn falog_mcp_tools() -> Vec<&'static str> {
+    let catalog = include_str!("../../falog-mcp/src/tools/catalog.rs");
+    let tools: Vec<&str> = catalog
+        .split("\"name\": \"")
+        .skip(1)
+        .filter_map(|rest| rest.split('"').next())
+        .collect();
+    assert!(tools.len() > 10, "{tools:?}");
+    tools
+}
+
 /// The ids of `tasks`, in order.
 pub fn ids<'a>(tasks: impl IntoIterator<Item = &'a Task>) -> Vec<i64> {
     tasks.into_iter().map(|t| t.id.0).collect()
