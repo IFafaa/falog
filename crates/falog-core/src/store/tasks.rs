@@ -466,4 +466,216 @@ mod tests {
         assert_eq!(store.delete_task(task.id).unwrap().id, task.id);
         assert!(matches!(store.delete_task(task.id), Err(Error::TaskNotFound(_))));
     }
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn long_ago() -> chrono::NaiveDateTime {
+        date(2000, 1, 1).and_hms_opt(8, 0, 0).unwrap()
+    }
+
+    fn complete(store: &Store, id: TaskId) -> (Task, Option<Task>) {
+        store
+            .update_task_with_next(id, &TaskPatch::status(Status::Done))
+            .unwrap()
+    }
+
+    #[test]
+    fn creating_a_done_task_stamps_its_completion() {
+        let store = store();
+        let done = store
+            .create_task(&NewTask {
+                status: Status::Done,
+                ..NewTask::new("Paid the rent")
+            })
+            .unwrap();
+        assert_eq!(done.status, Status::Done);
+        assert_eq!(done.completed_at, Some(done.created_at));
+        let open = store.create_task(&NewTask::new("Pay the rent")).unwrap();
+        assert_eq!(open.completed_at, None);
+    }
+
+    #[test]
+    fn trims_text_fields_on_create_and_update() {
+        let store = store();
+        let task = store
+            .create_task(&NewTask {
+                description: "  Android only \n".into(),
+                requester: " Ana ".into(),
+                ..NewTask::new("\tFix login ")
+            })
+            .unwrap();
+        assert_eq!(
+            (
+                task.title.as_str(),
+                task.description.as_str(),
+                task.requester.as_str()
+            ),
+            ("Fix login", "Android only", "Ana")
+        );
+        let task = store
+            .update_task(
+                task.id,
+                &TaskPatch {
+                    title: Some(" Fix sign-in ".into()),
+                    description: Some(" iOS too ".into()),
+                    requester: Some(" Bruno ".into()),
+                    ..TaskPatch::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            (
+                task.title.as_str(),
+                task.description.as_str(),
+                task.requester.as_str()
+            ),
+            ("Fix sign-in", "iOS too", "Bruno")
+        );
+    }
+
+    #[test]
+    fn refuses_to_empty_the_title_on_update() {
+        let store = store();
+        let task = store.create_task(&NewTask::new("Fix login")).unwrap();
+        let patch = TaskPatch {
+            title: Some("  ".into()),
+            ..TaskPatch::default()
+        };
+        assert!(matches!(
+            store.update_task(task.id, &patch),
+            Err(Error::Invalid(_))
+        ));
+        assert_eq!(store.require_task(task.id).unwrap().title, "Fix login");
+    }
+
+    #[test]
+    fn updating_a_missing_task_fails() {
+        let store = store();
+        let missing = TaskId(42);
+        assert!(matches!(
+            store.update_task(missing, &TaskPatch::default()),
+            Err(Error::TaskNotFound(TaskId(42)))
+        ));
+        assert!(matches!(
+            store.set_status(missing, Status::Done),
+            Err(Error::TaskNotFound(_))
+        ));
+        assert_eq!(store.task(missing).unwrap(), None);
+    }
+
+    #[test]
+    fn archiving_or_restoring_a_missing_task_fails() {
+        let store = store();
+        let missing = TaskId(42);
+        assert!(matches!(store.archive_task(missing), Err(Error::TaskNotFound(_))));
+        assert!(matches!(store.restore_task(missing), Err(Error::TaskNotFound(_))));
+        // The batch form skips what it cannot archive, missing tasks included.
+        assert_eq!(store.archive_tasks(&[missing]).unwrap(), 0);
+    }
+
+    #[test]
+    fn editing_a_done_task_keeps_its_completion_time() {
+        let store = store();
+        let task = store.create_task(&NewTask::new("Ship it")).unwrap();
+        store.set_status(task.id, Status::Done).unwrap();
+        store
+            .conn
+            .execute(
+                "UPDATE tasks SET completed_at = ?1 WHERE id = ?2",
+                params![long_ago(), task.id],
+            )
+            .unwrap();
+        let edited = store
+            .update_task(
+                task.id,
+                &TaskPatch {
+                    title: Some("Shipped".into()),
+                    ..TaskPatch::status(Status::Done)
+                },
+            )
+            .unwrap();
+        assert_eq!(edited.completed_at, Some(long_ago()));
+    }
+
+    #[test]
+    fn a_full_patch_resets_every_field() {
+        let store = store();
+        let task = weekly_report(&store);
+        let reset = store
+            .update_task(task.id, &TaskPatch::from(NewTask::new("Plain")))
+            .unwrap();
+        assert_eq!(reset.title, "Plain");
+        assert_eq!(reset.description, "");
+        assert_eq!(reset.area, None);
+        assert_eq!(reset.priority, Priority::Medium);
+        assert_eq!(reset.due, None);
+        assert_eq!(reset.requester, "");
+        assert_eq!(reset.recurrence, None);
+    }
+
+    #[test]
+    fn completing_through_a_full_patch_repeats_too() {
+        let store = store();
+        let task = weekly_report(&store);
+        let form = NewTask {
+            title: task.title.clone(),
+            description: task.description.clone(),
+            area_id: task.area_id(),
+            status: Status::Done,
+            priority: task.priority,
+            due: task.due,
+            requester: task.requester.clone(),
+            recurrence: task.recurrence,
+        };
+        let (done, next) = store
+            .update_task_with_next(task.id, &TaskPatch::from(form))
+            .unwrap();
+        assert_eq!(done.recurrence, None);
+        let next = next.expect("a next occurrence");
+        assert_eq!(next.due, Some(date(2099, 1, 9)));
+        assert_eq!(next.recurrence, task.recurrence);
+    }
+
+    #[test]
+    fn a_monthly_task_on_the_31st_uses_the_last_day_of_shorter_months() {
+        let store = store();
+        let task = store
+            .create_task(&NewTask {
+                due: Some(date(2099, 1, 31)),
+                recurrence: Some(Recurrence::Monthly(31)),
+                ..NewTask::new("Pay the card")
+            })
+            .unwrap();
+        let february = complete(&store, task.id).1.unwrap();
+        assert_eq!(february.due, Some(date(2099, 2, 28)));
+        let march = complete(&store, february.id).1.unwrap();
+        assert_eq!(march.due, Some(date(2099, 3, 31)));
+    }
+
+    #[test]
+    fn a_task_completed_late_is_not_born_overdue() {
+        let store = store();
+        let rule = Recurrence::parse("every friday", date(2000, 1, 7));
+        let task = store
+            .create_task(&NewTask {
+                due: Some(date(2000, 1, 7)),
+                recurrence: rule,
+                ..NewTask::new("Send the weekly report")
+            })
+            .unwrap();
+        let next = complete(&store, task.id).1.unwrap();
+        let today = crate::date::today();
+        assert!(next.due.unwrap() > today, "{:?}", next.due);
+        assert_eq!(next.due, rule.map(|rule| rule.following(task.due, today)));
+    }
+
+    #[test]
+    fn completing_a_task_without_a_rule_creates_nothing() {
+        let store = store();
+        let task = store.create_task(&NewTask::new("Call the bank")).unwrap();
+        assert_eq!(complete(&store, task.id).1, None);
+        assert_eq!(store.tasks().unwrap().len(), 1);
+    }
 }
