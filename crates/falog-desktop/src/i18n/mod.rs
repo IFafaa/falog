@@ -141,10 +141,19 @@ mod tests {
 
     #[test]
     fn fills_placeholders_in_either_language() {
+        let archived = |n: usize| {
+            trf(
+                "Archived {n} tasks; find them in the Archive (Ctrl+5)",
+                &[("n", &n)],
+            )
+        };
         set(Language::English);
-        assert_eq!(trf("Archived {n} tasks", &[("n", &3)]), "Archived 3 tasks");
+        assert_eq!(archived(3), "Archived 3 tasks; find them in the Archive (Ctrl+5)");
         set(Language::Portuguese);
-        assert_eq!(trf("Archived {n} tasks", &[("n", &3)]), "3 tarefas arquivadas");
+        assert_eq!(
+            archived(3),
+            "3 tarefas arquivadas; elas ficam no Arquivo (Ctrl+5)"
+        );
         set(Language::English);
     }
 
@@ -181,6 +190,54 @@ mod tests {
         missing.sort();
         missing.dedup();
         assert!(missing.is_empty(), "no Portuguese for:\n{}", missing.join("\n"));
+    }
+
+    /// Every Portuguese entry translates a text that the app's code (not only a test) still passes
+    /// to `tr` or `trf`.
+    #[test]
+    fn every_portuguese_entry_is_still_used() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut used = std::collections::HashSet::new();
+        visit(&src, &mut |source| used.extend(texts_in(app_code(source))));
+        let entries = std::fs::read_to_string(src.join("i18n").join("pt.rs")).unwrap();
+        let entries = entries_in(&entries);
+        assert!(entries.len() > 300, "{} entries read", entries.len());
+        let stale: Vec<&String> = entries
+            .iter()
+            .filter(|english| !used.contains(*english))
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "Portuguese for texts no longer shown: {stale:#?}"
+        );
+    }
+
+    /// `source` up to its `#[cfg(test)] mod tests`, which ends every file that has tests.
+    fn app_code(source: &str) -> &str {
+        source
+            .match_indices("#[cfg(test)]")
+            .find(|(at, attribute)| {
+                source[at + attribute.len()..]
+                    .trim_start()
+                    .starts_with("mod tests")
+            })
+            .map_or(source, |(at, _)| &source[..at])
+    }
+
+    /// The English keys of the match in `pt::text`: a literal starting a line, followed by `=>`.
+    fn entries_in(source: &str) -> Vec<String> {
+        source
+            .lines()
+            .filter_map(|line| {
+                let rest = line.trim_start().strip_prefix('"')?;
+                let end = string_end(&rest.chars().collect::<Vec<_>>(), 0);
+                let after: String = rest.chars().skip(end).collect();
+                after.trim_start().starts_with("=>").then(|| {
+                    let literal: String = rest.chars().take(end - 1).collect();
+                    literal.replace("\\\"", "\"").replace("\\\\", "\\")
+                })
+            })
+            .collect()
     }
 
     fn visit(dir: &Path, check: &mut impl FnMut(&str)) {

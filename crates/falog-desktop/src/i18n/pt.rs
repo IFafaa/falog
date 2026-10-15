@@ -292,7 +292,6 @@ pub fn text(english: &str) -> Option<&'static str> {
         "Medium" => "Média",
         "High" => "Alta",
         "Urgent" => "Urgente",
-        "Archived {n} tasks" => "{n} tarefas arquivadas",
         // ---- overlays/areas ----
         "Areas" => "Áreas",
         "The parts of your life you organize: work, personal, health, home... The color marks their tasks everywhere." => {
