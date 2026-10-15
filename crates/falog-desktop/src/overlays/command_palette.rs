@@ -362,3 +362,113 @@ fn row(ui: &mut Ui, theme: &Theme, item: &Item, selected: bool) -> egui::Respons
         .galley(pos2(left, y - galley.size().y / 2.0), galley, theme.text);
     response.on_hover_cursor(CursorIcon::PointingHand)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::{Language, set};
+    use crate::testing::{area, done, noon, task};
+
+    fn theme() -> &'static Theme {
+        Theme::current(&egui::Context::default())
+    }
+
+    fn palette(mode: Mode, query: &str) -> CommandPalette {
+        CommandPalette {
+            query: query.into(),
+            ..CommandPalette::new(mode)
+        }
+    }
+
+    fn command_labels(query: &str, areas: &[Area]) -> Vec<String> {
+        set(Language::English);
+        let items = palette(Mode::Commands, query).commands(theme(), areas);
+        items.into_iter().map(|item| item.label).collect()
+    }
+
+    #[test]
+    fn commands_match_every_word_typed() {
+        assert_eq!(command_labels("view arch", &[]), ["view: archive"]);
+        assert_eq!(
+            command_labels("theme", &[]),
+            ["theme: system", "theme: dark", "theme: light"]
+        );
+        assert!(command_labels("zzz", &[]).is_empty());
+        assert_eq!(
+            command_labels("filter", &[area(1, "Work"), area(2, "Home")]),
+            ["areas: filter by Work", "areas: filter by Home"]
+        );
+    }
+
+    #[test]
+    fn the_task_finder_lists_open_tasks_first_then_the_latest_changed() {
+        let changed = |id, title, day| Task {
+            updated_at: noon(day),
+            ..task(id, title)
+        };
+        let tasks = [
+            changed(1, "Pay rent", 2),
+            done(2, "Pay the gym", 20),
+            changed(3, "Pay taxes", 9),
+            changed(4, "Call the bank", 30),
+        ];
+        let actions: Vec<Action> = palette(Mode::Tasks, "pay")
+            .tasks(theme(), &tasks)
+            .into_iter()
+            .map(|item| item.action)
+            .collect();
+        let open = |id| Action::OpenTask(falog_core::domain::TaskId(id));
+        assert_eq!(actions, [open(3), open(1), open(2)]);
+
+        let many: Vec<Task> = (1..=60).map(|id| task(id, "Same title")).collect();
+        assert_eq!(
+            palette(Mode::Tasks, "same").tasks(theme(), &many).len(),
+            MAX_TASKS
+        );
+    }
+
+    /// Shows the palette for one frame with `keys` pressed.
+    fn show_with(palette: &mut CommandPalette, ctx: &egui::Context, keys: &[Key]) -> Outcome {
+        let events = keys
+            .iter()
+            .map(|&key| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            })
+            .collect();
+        let input = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        let mut outcome = Outcome::Pending;
+        let _ = ctx.run(input, |ctx| outcome = palette.show(ctx, &[], &[]));
+        outcome
+    }
+
+    #[test]
+    fn arrows_pick_a_command_enter_runs_it_and_escape_closes() {
+        let ctx = egui::Context::default();
+        set(Language::English);
+        let mut open = palette(Mode::Commands, "view");
+        assert_eq!(show_with(&mut open, &ctx, &[]), Outcome::Pending);
+        assert_eq!(
+            show_with(&mut open, &ctx, &[Key::Enter]),
+            Outcome::Run(Action::SetView(View::Board))
+        );
+        show_with(&mut open, &ctx, &[Key::ArrowUp]);
+        assert_eq!(
+            show_with(&mut open, &ctx, &[Key::Enter]),
+            Outcome::Run(Action::SetView(View::Archive)),
+            "up from the first wraps to the last"
+        );
+        show_with(&mut open, &ctx, &[Key::ArrowDown]);
+        assert_eq!(
+            show_with(&mut open, &ctx, &[Key::Enter]),
+            Outcome::Run(Action::SetView(View::Board))
+        );
+        assert_eq!(show_with(&mut open, &ctx, &[Key::Escape]), Outcome::Dismissed);
+    }
+}
