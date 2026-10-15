@@ -126,8 +126,11 @@ pub fn focus(tasks: &[Task], today: NaiveDate) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Weekday;
     use falog_core::Store;
-    use falog_core::domain::NewTask;
+    use falog_core::domain::{
+        Area, AreaId, NewTask, NoteId, Priority, Recurrence, Rgb, Status, TaskId, Weekdays,
+    };
 
     #[test]
     fn focus_lists_open_buckets() {
@@ -143,5 +146,118 @@ mod tests {
         assert!(text.contains("## Due today (1)"), "{text}");
         assert!(text.contains("Ship hotfix"));
         assert!(!text.contains(focus::Bucket::Overdue.title()));
+    }
+
+    fn tuesday() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 10, 6).unwrap()
+    }
+
+    /// A task with only the required facts: no area, due date, rule or requester.
+    fn bare_task() -> Task {
+        let at = tuesday().and_hms_opt(9, 0, 0).unwrap();
+        Task {
+            id: TaskId(3),
+            title: "Call the bank".into(),
+            description: String::new(),
+            area: None,
+            status: Status::Todo,
+            priority: Priority::Medium,
+            due: None,
+            requester: String::new(),
+            note_count: 0,
+            created_at: at,
+            updated_at: at,
+            completed_at: None,
+            archived_at: None,
+            recurrence: None,
+        }
+    }
+
+    #[test]
+    fn task_line_with_only_the_required_facts() {
+        assert_eq!(
+            task_line(&bare_task(), tuesday()),
+            "#3 [No area] Call the bank — Medium · To do"
+        );
+    }
+
+    #[test]
+    fn task_line_with_every_fact() {
+        let done_at = tuesday().and_hms_opt(18, 0, 0);
+        let task = Task {
+            id: TaskId(12),
+            title: "Fix login".into(),
+            area: Some(Area {
+                id: AreaId(1),
+                name: "Work".into(),
+                color: Rgb::new(0x74, 0xad, 0xe8),
+            }),
+            status: Status::Done,
+            priority: Priority::High,
+            due: NaiveDate::from_ymd_opt(2026, 10, 9),
+            requester: "Ana".into(),
+            completed_at: done_at,
+            archived_at: done_at,
+            recurrence: Some(Recurrence::Weekly(Weekdays::single(Weekday::Fri))),
+            ..bare_task()
+        };
+        assert_eq!(
+            task_line(&task, tuesday()),
+            "#12 [Work] Fix login — High · due 2026-10-09 (Fri Oct 9) · repeats every Friday · Done · \
+             archived · requested by Ana"
+        );
+    }
+
+    #[test]
+    fn task_line_describes_the_due_date_relative_to_today() {
+        let task = Task {
+            due: NaiveDate::from_ymd_opt(2026, 10, 1),
+            status: Status::Waiting,
+            ..bare_task()
+        };
+        assert_eq!(
+            task_line(&task, tuesday()),
+            "#3 [No area] Call the bank — Medium · due 2026-10-01 (5d overdue) · Waiting"
+        );
+    }
+
+    #[test]
+    fn details_show_every_field_and_the_activity_log() {
+        let task = Task {
+            description: "Ask about the fee".into(),
+            due: Some(tuesday()),
+            requester: "Ana".into(),
+            recurrence: Some(Recurrence::Monthly(5)),
+            ..bare_task()
+        };
+        let note = Note {
+            id: NoteId(1),
+            task_id: task.id,
+            body: "they close at 4".into(),
+            created_at: task.created_at,
+        };
+        assert_eq!(
+            task_details(&task, &[note], tuesday()),
+            "#3 Call the bank\n\
+             Area: No area | Status: To do | Priority: Medium\n\
+             Due: 2026-10-06 (today)\n\
+             Repeats: monthly on day 5\n\
+             Requested by: Ana\n\
+             Created: 2026-10-06 09:00:00 | Updated: 2026-10-06 09:00:00\n\
+             \nDescription:\nAsk about the fee\n\
+             \nActivity:\n\
+             - 2026-10-06 09:00:00 — they close at 4"
+        );
+    }
+
+    #[test]
+    fn focus_without_open_tasks_says_so() {
+        let text = focus(&[], tuesday());
+        assert_eq!(
+            text,
+            "# Focus — Tuesday, October 6, 2026\n\n\
+             Open: 0 (0 overdue, 0 due today, 0 more due this week)\n\
+             \nNothing open.\n"
+        );
     }
 }
