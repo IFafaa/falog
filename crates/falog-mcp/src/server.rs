@@ -719,4 +719,178 @@ mod tests {
             "Archived 2 tasks. They stay in the Archive view until restored."
         );
     }
+
+    /// A server with task #1, "Call the bank", and nothing else.
+    fn one_task() -> Server {
+        let server = server();
+        ok(&server, "create_task", json!({ "title": "Call the bank" }));
+        server
+    }
+
+    #[test]
+    fn task_ids_accept_numbers_and_strings_in_every_tool() {
+        let server = one_task();
+        for id in [json!(1), json!("1"), json!("#1"), json!(" #1 ")] {
+            assert!(ok(&server, "get_task", json!({ "id": id })).starts_with("#1 Call the bank"));
+            ok(&server, "add_note", json!({ "id": id, "note": "on hold" }));
+            ok(&server, "update_task", json!({ "id": id, "status": "done" }));
+            ok(&server, "archive_tasks", json!({ "ids": [id] }));
+            ok(&server, "restore_task", json!({ "id": id }));
+        }
+        let invalid = fails(&server, "get_task", json!({ "id": "one" }));
+        assert!(invalid.starts_with("Error: invalid arguments: "), "{invalid}");
+        assert_eq!(
+            ok(&server, "delete_task", json!({ "id": "#1" })),
+            "Deleted #1 [No area] Call the bank"
+        );
+    }
+
+    #[test]
+    fn priorities_accept_synonyms_and_numbers() {
+        let server = one_task();
+        for (priority, label) in [
+            (json!("urgente"), "Urgent"),
+            (json!("critical"), "Urgent"),
+            (json!("ASAP"), "Urgent"),
+            (json!(4), "Urgent"),
+            (json!("alta"), "High"),
+            (json!("importante"), "High"),
+            (json!(3), "High"),
+            (json!("média"), "Medium"),
+            (json!("normal"), "Medium"),
+            (json!("2"), "Medium"),
+            (json!("baixa"), "Low"),
+            (json!("whenever"), "Low"),
+            (json!(1), "Low"),
+        ] {
+            let created = ok(
+                &server,
+                "create_task",
+                json!({ "title": "T", "priority": priority }),
+            );
+            assert!(
+                created.ends_with(&format!("] T — {label} · To do")),
+                "{priority}: {created}"
+            );
+            let updated = ok(&server, "update_task", json!({ "id": 1, "priority": priority }));
+            assert!(
+                updated.contains(&format!(" — {label} · ")),
+                "{priority}: {updated}"
+            );
+        }
+        assert_eq!(
+            fails(&server, "update_task", json!({ "id": 1, "priority": "very" })),
+            "Error: unknown priority \"very\""
+        );
+    }
+
+    #[test]
+    fn statuses_accept_synonyms_in_english_and_portuguese() {
+        let server = one_task();
+        for (status, label) in [
+            ("doing", "In progress"),
+            ("fazendo", "In progress"),
+            ("em andamento", "In progress"),
+            ("blocked", "Waiting"),
+            ("em review", "Waiting"),
+            ("aguardando", "Waiting"),
+            ("finished", "Done"),
+            ("feito", "Done"),
+            ("concluído", "Done"),
+            ("pending", "To do"),
+            ("a fazer", "To do"),
+            ("in_progress", "In progress"),
+        ] {
+            let updated = ok(&server, "update_task", json!({ "id": 1, "status": status }));
+            assert!(updated.ends_with(&format!(" · {label}")), "{status}: {updated}");
+        }
+        let created = ok(
+            &server,
+            "create_task",
+            json!({ "title": "T", "status": "pronto" }),
+        );
+        assert!(created.ends_with(" · Done"), "{created}");
+        assert_eq!(
+            fails(&server, "update_task", json!({ "id": 1, "status": "someday" })),
+            "Error: unknown status \"someday\""
+        );
+    }
+
+    #[test]
+    fn rejects_an_invalid_due_date_with_a_hint() {
+        let server = one_task();
+        let expected = "Error: invalid due date \"someday\"; use YYYY-MM-DD";
+        assert_eq!(
+            fails(
+                &server,
+                "create_task",
+                json!({ "title": "T", "due_date": "someday" })
+            ),
+            expected
+        );
+        assert_eq!(
+            fails(&server, "update_task", json!({ "id": 1, "due_date": "someday" })),
+            expected
+        );
+    }
+
+    #[test]
+    fn words_for_no_date_clear_the_due_date() {
+        let server = one_task();
+        for word in ["sem prazo", "none", "null", "No due date", ""] {
+            ok(
+                &server,
+                "update_task",
+                json!({ "id": 1, "due_date": "2099-01-02" }),
+            );
+            let updated = ok(&server, "update_task", json!({ "id": 1, "due_date": word }));
+            assert_eq!(
+                updated, "Updated #1 [No area] Call the bank — Medium · To do",
+                "{word}"
+            );
+        }
+        let created = ok(
+            &server,
+            "create_task",
+            json!({ "title": "T", "due_date": "sem prazo" }),
+        );
+        assert!(!created.contains("due"), "{created}");
+    }
+
+    #[test]
+    fn natural_due_dates_resolve_against_today() {
+        let server = one_task();
+        let tomorrow = falog_core::date::today().succ_opt().unwrap();
+        for word in ["tomorrow", "amanhã"] {
+            let updated = ok(&server, "update_task", json!({ "id": 1, "due_date": word }));
+            assert!(
+                updated.contains(&format!(" · due {tomorrow} (tomorrow) · ")),
+                "{word}: {updated}"
+            );
+        }
+    }
+
+    #[test]
+    fn never_stops_a_task_repeating() {
+        let server = one_task();
+        for word in ["never", "nunca", "não repete", "none"] {
+            let repeating = ok(
+                &server,
+                "update_task",
+                json!({ "id": 1, "due_date": "2099-01-05", "recurrence": "every monday" }),
+            );
+            assert!(repeating.contains(" · repeats every Monday · "), "{repeating}");
+            let stopped = ok(&server, "update_task", json!({ "id": 1, "recurrence": word }));
+            assert!(!stopped.contains("repeats"), "{word}: {stopped}");
+        }
+        let invalid = fails(
+            &server,
+            "update_task",
+            json!({ "id": 1, "recurrence": "every 2 weeks" }),
+        );
+        assert!(
+            invalid.starts_with("Error: invalid recurrence \"every 2 weeks\"; use daily"),
+            "{invalid}"
+        );
+    }
 }
