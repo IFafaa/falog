@@ -394,3 +394,320 @@ fn errors_never_contain_the_address() {
         .to_string();
     assert!(!error.contains("s3cr3t"), "{error}");
 }
+
+/// The events of a feed written inline (lines joined with `\n`), read in UTC.
+fn utc_events(lines: &[&str], from: NaiveDate, to: NaiveDate) -> Vec<Event> {
+    let text = format!("BEGIN:VCALENDAR\n{}\nEND:VCALENDAR\n", lines.join("\n"));
+    parse(&text).events_in(&chrono::Utc, "x", from, to)
+}
+
+fn starts(events: &[Event], title: &str) -> Vec<EventTime> {
+    let mut starts: Vec<EventTime> = find(events, title).iter().map(|e| e.start).collect();
+    starts.sort();
+    starts
+}
+
+#[test]
+fn keeps_meetings_on_their_wall_clock_across_a_dst_change() {
+    // New York leaves daylight saving time on Nov 1, 2026: 10:00 is 14:00 UTC before, 15:00 after.
+    let events = utc_events(
+        &[
+            "BEGIN:VEVENT",
+            "UID:weekly@example.com",
+            "SUMMARY:Weekly",
+            "DTSTART;TZID=America/New_York:20261026T100000",
+            "DURATION:PT1H",
+            "RRULE:FREQ=WEEKLY;COUNT=2",
+            "END:VEVENT",
+            "BEGIN:VEVENT",
+            "UID:night@example.com",
+            "SUMMARY:Night shift",
+            "DTSTART;TZID=America/New_York:20261031T230000",
+            "DTEND;TZID=America/New_York:20261101T030000",
+            "END:VEVENT",
+        ],
+        day(10, 26),
+        day(11, 9),
+    );
+    let mut weekly: Vec<(EventTime, EventTime)> =
+        find(&events, "Weekly").iter().map(|e| (e.start, e.end)).collect();
+    weekly.sort();
+    assert_eq!(
+        weekly,
+        vec![
+            (at(10, 26, 14, 0), at(10, 26, 15, 0)),
+            (at(11, 2, 15, 0), at(11, 2, 16, 0))
+        ]
+    );
+    // 23:00 to 03:00 on the night the clocks go back is five hours long.
+    let night = find(&events, "Night shift")[0];
+    assert_eq!((night.start, night.end), (at(11, 1, 3, 0), at(11, 1, 8, 0)));
+}
+
+#[test]
+fn a_time_skipped_by_dst_moves_forward_an_hour() {
+    let skipped = NaiveDate::from_ymd_opt(2027, 3, 14)
+        .unwrap()
+        .and_hms_opt(2, 30, 0)
+        .unwrap();
+    let moved = zoned(chrono_tz::America::New_York, skipped);
+    assert_eq!(moved.naive_local(), skipped + chrono::Duration::hours(1));
+    assert_eq!(moved.naive_utc().format("%H:%M").to_string(), "07:30");
+}
+
+#[test]
+fn recurrence_takes_extra_dates_counts_and_cancelled_occurrences() {
+    let events = utc_events(
+        &[
+            "BEGIN:VEVENT",
+            "UID:gym@example.com",
+            "SUMMARY:Gym",
+            "DTSTART;VALUE=DATE:20261005",
+            "RRULE:FREQ=WEEKLY;COUNT=3",
+            "EXDATE;VALUE=DATE:20261012",
+            "RDATE;VALUE=DATE:20261015",
+            "END:VEVENT",
+            "BEGIN:VEVENT",
+            "UID:review0123@google.com",
+            "SUMMARY:Review",
+            "DTSTART:20261006T150000Z",
+            "DTEND:20261006T160000Z",
+            "RRULE:FREQ=DAILY;COUNT=4",
+            "END:VEVENT",
+            // Google lists an occurrence deleted from a series as a cancelled override.
+            "BEGIN:VEVENT",
+            "UID:review0123@google.com",
+            "RECURRENCE-ID:20261007T150000Z",
+            "STATUS:CANCELLED",
+            "SUMMARY:Review",
+            "DTSTART:20261007T150000Z",
+            "DTEND:20261007T160000Z",
+            "END:VEVENT",
+        ],
+        day(10, 5),
+        day(10, 26),
+    );
+    let date = |d| EventTime::Date(day(10, d));
+    // Weekly three times from Oct 5 (Oct 12 deleted), plus Oct 15; all-day without an end lasts a day.
+    assert_eq!(starts(&events, "Gym"), vec![date(5), date(15), date(19)]);
+    let gym = find(&events, "Gym");
+    assert!(
+        gym.iter()
+            .all(|e| e.end == EventTime::Date(e.start.date() + Days::new(1)))
+    );
+    assert!(gym.iter().any(|e| e.id == "gym@example.com_20261005"));
+
+    assert_eq!(
+        starts(&events, "Review"),
+        vec![at(10, 6, 15, 0), at(10, 8, 15, 0), at(10, 9, 15, 0)]
+    );
+    let review = find(&events, "Review");
+    assert!(review.iter().any(|e| e.id == "review0123_20261008T150000Z"));
+}
+
+#[test]
+fn lengths_come_from_the_end_the_duration_or_the_kind_of_start() {
+    let events = utc_events(
+        &[
+            "BEGIN:VEVENT\nUID:a\nSUMMARY:Reminder\nDTSTART:20261007T090000Z\nEND:VEVENT",
+            "BEGIN:VEVENT\nUID:b\nSUMMARY:Retreat\nDTSTART;VALUE=DATE:20261007\nDURATION:P2D\nEND:VEVENT",
+            "BEGIN:VEVENT\nUID:c\nSUMMARY:Backwards\nDTSTART:20261007T100000Z\nDTEND:20261007T090000Z\nEND:VEVENT",
+        ],
+        day(10, 5),
+        day(10, 12),
+    );
+    let reminder = find(&events, "Reminder")[0];
+    assert_eq!(reminder.end, reminder.start);
+    let retreat = find(&events, "Retreat")[0];
+    assert_eq!(retreat.first_and_last_day(), (day(10, 7), day(10, 8)));
+    let backwards = find(&events, "Backwards")[0];
+    assert_eq!(backwards.end, backwards.start);
+}
+
+#[test]
+fn only_events_touching_the_range_are_listed() {
+    let events = utc_events(
+        &[
+            // Ends (exclusively) on the first day of the range.
+            "BEGIN:VEVENT\nUID:a\nSUMMARY:Before\nDTSTART;VALUE=DATE:20261004\nDTEND;VALUE=DATE:20261005\nEND:VEVENT",
+            // Ends at midnight as the range starts.
+            "BEGIN:VEVENT\nUID:b\nSUMMARY:Late\nDTSTART:20261004T220000Z\nDTEND:20261005T000000Z\nEND:VEVENT",
+            "BEGIN:VEVENT\nUID:c\nSUMMARY:Inside\nDTSTART:20261011T235900Z\nDTEND:20261012T003000Z\nEND:VEVENT",
+            // Starts on the day after the range.
+            "BEGIN:VEVENT\nUID:d\nSUMMARY:After\nDTSTART;VALUE=DATE:20261012\nEND:VEVENT",
+        ],
+        day(10, 5),
+        day(10, 12),
+    );
+    let titles: Vec<&str> = events.iter().map(|e| e.title.as_str()).collect();
+    assert_eq!(titles, vec!["Inside"]);
+}
+
+#[test]
+fn opens_only_web_links_from_a_feed() {
+    let events = utc_events(
+        &[
+            "BEGIN:VEVENT",
+            "UID:a@example.com",
+            "SUMMARY:Shared",
+            "DTSTART:20261007T100000Z",
+            "URL:file://attacker/share/x.html",
+            "X-GOOGLE-CONFERENCE:javascript:alert(1)",
+            "END:VEVENT",
+            "BEGIN:VEVENT",
+            "UID:b@example.com",
+            "SUMMARY:Linked",
+            "DTSTART:20261007T110000Z",
+            "URL:https://example.com/event/b",
+            "LOCATION:Room 2 https://teams.microsoft.com/l/meetup-join/19%3ameeting,",
+            "DESCRIPTION:Notes: http://meet.google.com/plain-http",
+            "END:VEVENT",
+        ],
+        day(10, 5),
+        day(10, 12),
+    );
+    let shared = find(&events, "Shared")[0];
+    assert_eq!((&shared.html_link, &shared.join_link), (&None, &None));
+    let linked = find(&events, "Linked")[0];
+    assert_eq!(linked.html_link.as_deref(), Some("https://example.com/event/b"));
+    // Only https meeting links count; a trailing comma is not part of the link.
+    assert_eq!(
+        linked.join_link.as_deref(),
+        Some("https://teams.microsoft.com/l/meetup-join/19%3ameeting")
+    );
+}
+
+#[test]
+fn names_untitled_events_and_reads_escaped_calendar_names() {
+    let text = "BEGIN:VCALENDAR\nX-WR-CALNAME:Team\\, Ops\nBEGIN:VEVENT\nUID:a\nSUMMARY:  \n\
+                DTSTART:20261007T100000Z\nEND:VEVENT\nEND:VCALENDAR\n";
+    let feed = parse(text);
+    assert_eq!(feed.name.as_deref(), Some("Team, Ops"));
+    let events = feed.events_in(&chrono::Utc, "x", day(10, 5), day(10, 12));
+    assert_eq!(events[0].title, "(No title)");
+    assert_eq!(
+        parse("BEGIN:VCALENDAR\nX-WR-CALNAME: \nEND:VCALENDAR\n").name,
+        None
+    );
+}
+
+#[test]
+fn reads_names_in_any_case_and_skips_what_it_cannot_read() {
+    let text = "begin:vcalendar\nbegin:vevent\nuid:a\nsummary:Lower case\ndtstart:20261007T100000z\n\
+                end:vevent\nnot a property\nBEGIN:VEVENT\nUID:b\nSUMMARY:Bad start\nDTSTART:2026-10-07\n\
+                END:VEVENT\nend:vcalendar\n";
+    let feed = parse(text);
+    assert_eq!(feed.entries.len(), 1);
+    assert_eq!(feed.entries[0].summary, "Lower case");
+    assert_eq!(
+        feed.entries[0].start,
+        Some(Moment::Utc(day(10, 7).and_hms_opt(10, 0, 0).unwrap()))
+    );
+}
+
+#[test]
+fn declines_are_matched_on_the_owner_s_address_in_any_case() {
+    let lines = [
+        "BEGIN:VEVENT",
+        "UID:a",
+        "SUMMARY:Declined",
+        "DTSTART:20261007T100000Z",
+        "ATTENDEE;PARTSTAT=DECLINED:MAILTO:Me@Example.com",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:b",
+        "SUMMARY:No answer",
+        "DTSTART:20261007T110000Z",
+        "ATTENDEE:mailto:me@example.com",
+        "ATTENDEE;PARTSTAT=DECLINED:mailto:someone@example.com",
+        "END:VEVENT",
+    ];
+    let text = format!("BEGIN:VCALENDAR\n{}\nEND:VCALENDAR\n", lines.join("\n"));
+    let mut feed = parse(&text);
+    feed.owner = Some("me@example.com".into());
+    let events = feed.events_in(&chrono::Utc, "x", day(10, 5), day(10, 12));
+    let titles: Vec<&str> = events.iter().map(|e| e.title.as_str()).collect();
+    assert_eq!(titles, vec!["No answer"]);
+}
+
+#[test]
+fn parses_more_values() {
+    let hours = chrono::Duration::hours;
+    assert_eq!(parse_duration("P1DT2H"), Some(hours(26)));
+    assert_eq!(parse_duration("+PT5M"), Some(chrono::Duration::minutes(5)));
+    assert_eq!(parse_duration("PT90S"), Some(chrono::Duration::seconds(90)));
+    assert_eq!(parse_duration("P1Y"), None);
+    assert_eq!(unescape("ends with \\"), "ends with \\");
+    assert_eq!(hex_color("ff8800"), None);
+    assert_eq!(hex_color("#fff"), None);
+    assert_eq!(time_zone("Europe/Berlin"), Some(chrono_tz::Europe::Berlin));
+    assert_eq!(
+        time_zone("/softwarestudio.org/Olson_20011030_5/America/Argentina/Buenos_Aires"),
+        Some(chrono_tz::America::Argentina::Buenos_Aires)
+    );
+    assert_eq!(
+        parse_moment("20261007T100000z", false, None),
+        Some(Moment::Utc(day(10, 7).and_hms_opt(10, 0, 0).unwrap()))
+    );
+    assert_eq!(parse_moment("20261307", true, None), None);
+}
+
+#[test]
+fn masks_any_address() {
+    assert_eq!(
+        masked(" webcal://example.com/private/s3cr3t/cal.ics "),
+        "example.com/…/cal.ics"
+    );
+    assert_eq!(masked("example.com/a/b.ics"), "example.com/…/b.ics");
+    assert_eq!(masked("https://example.com/s3cr3t/"), "example.com/…");
+    let long = "https://example.com/feed/0123456789abcdef0123456789abcdef";
+    assert_eq!(masked(long), "example.com/…");
+    assert_eq!(masked("https://example.com"), "example.com");
+}
+
+#[test]
+fn accepts_only_web_addresses() {
+    assert_eq!(
+        web_address("  https://example.com/a.ics\n").unwrap(),
+        "https://example.com/a.ics"
+    );
+    for url in [
+        "ftp://example.com/a.ics",
+        "file:///home/me/a.ics",
+        "javascript:alert(1)",
+        "",
+    ] {
+        match web_address(url) {
+            Err(Error::Link(message)) => assert!(message.contains("https://"), "{message}"),
+            other => panic!("{url} gave {other:?}"),
+        }
+    }
+    let group =
+        "https://calendar.google.com/calendar/ical/abc%40group.calendar.google.com/private-x/basic.ics";
+    assert_eq!(
+        google_calendar_id(group).as_deref(),
+        Some("abc@group.calendar.google.com")
+    );
+    assert_eq!(
+        google_calendar_id("https://calendar.google.com/calendar/ical//basic.ics"),
+        None
+    );
+}
+
+#[test]
+fn explains_refused_and_failing_links_without_the_address() {
+    for (status, hint) in [
+        ("401 Unauthorized", "refused"),
+        ("403 Forbidden", "refused"),
+        ("410 Gone", "not found"),
+        ("500 Internal Server Error", "answered 500"),
+    ] {
+        match fetch(&serve_once(status, "")) {
+            Err(Error::Link(message)) => {
+                assert!(message.contains(hint), "{status}: {message}");
+                assert!(!message.contains("s3cr3t"), "{status}: {message}");
+            }
+            other => panic!("{status} gave {other:?}"),
+        }
+    }
+}
