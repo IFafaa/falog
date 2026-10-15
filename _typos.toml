@@ -5,6 +5,10 @@
 [files]
 extend-exclude = ["Cargo.lock", "tools/icon/Cargo.lock"]
 
+[default]
+# Short commit hashes quoted in the specs (`7ba899c`) are not words.
+extend-ignore-re = ["`[0-9a-f]{7}`"]
+
 [default.extend-words]
 # Dictated input may be Portuguese (conventions.md, "Language"): due dates, weekdays, statuses and
 # priorities in the parsing tables of falog-core and their tests.

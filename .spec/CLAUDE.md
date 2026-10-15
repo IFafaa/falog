@@ -16,6 +16,7 @@ when behavior or structure changes.
 | [mcp.md](mcp.md) | add or change an MCP tool or its output |
 | [design-system.md](design-system.md) | build or restyle any UI |
 | [conventions.md](conventions.md) | write code, tests or commits (always) |
+| [testing.md](testing.md) | add a test, fix a bug (its regression test goes in the table) or wonder what is covered |
 | [releases.md](releases.md) | bump the version, cut a release or change the downloads |
 | [roadmap.md](roadmap.md) | pick the next thing to build |
 | [tasks/](tasks/README.md) | plan a feature: one spec file per task |
@@ -39,7 +40,7 @@ On macOS and Linux the scripts are `./scripts/seed-demo.sh`, `./scripts/install.
 CI (`.github/workflows/ci.yml`) is a strict quality gate: fmt; clippy and tests on Windows, macOS and
 Ubuntu with and without voice, and clippy with `--features falog-desktop/gpu` on macOS (Metal) and
 Ubuntu (Vulkan); rustdoc; coverage; the minimum Rust version; cargo-deny and unused dependencies; duplicated code; CodeQL static
-analysis; SonarQube Cloud (once its token is set); secrets, naming and spelling; commit messages. Code behind `cfg(windows)`/`cfg(target_os = ...)` must stay warning-free on all
+analysis; SonarQube Cloud (once its token is set); secrets, naming and spelling; the site's tests and build; a smoke test of the install scripts; commit messages. Code behind `cfg(windows)`/`cfg(target_os = ...)` must stay warning-free on all
 three. What each job checks and how to fix it: [conventions.md](conventions.md#ci).
 
 ## Rules that always apply

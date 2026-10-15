@@ -44,7 +44,8 @@ what the feature is about.
 - Unit tests next to the code (`#[cfg(test)] mod tests`).
 - Store tests use `Store::open_in_memory()`; date tests pin `today` explicitly.
 - MCP behavior is tested through `Server::handle_line`, the same path real clients use.
-- Every bug fix comes with a test that fails without it.
+- Every bug fix comes with a test that fails without it. Mark it with a `// Regression: what broke.` comment
+  and add its row to [testing.md](testing.md#regression-tests).
 
 ## Commits
 
@@ -72,13 +73,15 @@ when installed: `cargo install --locked cargo-deny typos-cli`).
 | `lint` | `cargo clippy --workspace --all-targets -- -D warnings` on Windows, macOS and Ubuntu, with `--no-default-features`, default features and `--features falog-desktop/gpu` (macOS and Ubuntu only: the Windows runner has no Vulkan SDK) | Fix the warning; `#[allow]` only with a comment saying why. Code behind `cfg(windows)` / `cfg(target_os)` is only linted on its OS, so read the log of the failing one |
 | `docs` | `cargo doc --workspace --no-deps --document-private-items` with `RUSTDOCFLAGS=-D warnings` | Usually a broken or ambiguous intra-doc link: link `` [`name()`] `` for a function, `` [`mod@name`] `` for a module |
 | `test` | `cargo test --workspace` on the three OSes, with and without default features | Reproduce with the same features locally; on another OS, read the test's assertion in the log |
-| `coverage` | `cargo llvm-cov` on Ubuntu without default features; the lcov report is the `lcov` artifact of the run; fails under `MIN_LINE_COVERAGE` (42%, set at 44.9% measured on 2026-10-07) | Add tests for the code you changed. The minimum only goes up: raise it when coverage grows, never lower it to let a change pass |
+| `coverage` | `cargo llvm-cov` on Ubuntu without default features; the lcov report is the `lcov` artifact of the run; fails under `MIN_LINE_COVERAGE` (60%, set at 63.6% measured on 2026-10-15) | Add tests for the code you changed. The minimum only goes up: raise it when coverage grows, never lower it to let a change pass |
 | `msrv` | `cargo check --workspace --all-targets` with the `rust-version` of `Cargo.toml` (1.88: let chains) | Avoid the newer API or language feature, or raise `rust-version` on purpose in its own commit |
 | `dependencies` | `cargo machete` (unused dependencies) and `cargo deny check` with [`deny.toml`](../deny.toml): advisories (vulnerabilities, yanked, unmaintained direct dependencies), licenses compatible with MIT distribution, wildcard versions, sources other than crates.io; duplicate versions are warnings | Update the crate (`cargo update -p name`). An advisory that does not apply goes in `ignore` with the reason; a new license only after checking it allows shipping Falog under MIT |
 | `duplication` | [jscpd](https://github.com/kucherenko/jscpd) over `crates` and `tools` with [`.jscpd.json`](../.jscpd.json): blocks of 8+ lines repeated anywhere; fails above 1% of the lines | Move the shared code into one function or module; tests repeating a setup can share a helper |
 | `codeql` | [CodeQL](https://codeql.github.com) static analysis of the Rust code with the `security-and-quality` queries (likely bugs, vulnerabilities, dead or suspicious code); fails on any result of level error or warning, listed in the log and in the repository's Security tab | Fix the code. A false positive is excluded by its rule id under `query-filters` in a `.github/codeql/codeql-config.yml` (passed to the init step as `config-file`), with a comment saying why |
 | `sonar` | [SonarQube Cloud](https://sonarcloud.io) with [`sonar-project.properties`](../sonar-project.properties): bugs, code smells, duplication and its own quality gate, on its dashboard. Skipped (passing) until the `SONAR_TOKEN` secret exists | Read the issue on the dashboard and fix it |
 | `policy` | [`scripts/check-policy.sh`](../scripts/check-policy.sh): secrets (Google client secrets, OAuth tokens and secret iCal addresses, private keys, GitHub, Anthropic, AWS and Slack tokens), database and credential files, other apps named as design models ([Naming other products](#naming-other-products)), merge conflict markers; typos with [`_typos.toml`](../_typos.toml); shellcheck; actionlint | Remove the secret and rotate it (it is public once pushed); rephrase the text on Falog's own terms; for a word typos gets wrong on purpose (a Portuguese parsing word), add it to `_typos.toml` with the reason |
+| `site` | `npm ci`, `npm test` (Vitest: roadmap and release parsing, dates, markdown, every English text has a Portuguese entry) and `npm run build` in `site/` on Node 22 | Run `npm test` in `site/` (Node 22.12+); a build failure is usually a type or import error in a page |
+| `scripts` | [`scripts/test-install.sh`](../scripts/test-install.sh) on Ubuntu and macOS: `install.sh`, `uninstall.sh` (with and without `--remove-data`) and, on Linux, `install-release.sh` in temporary home folders with stand-ins for cargo, claude and the downloads | Run `sh scripts/test-install.sh`; it prints which check failed |
 | `commits` | Pull requests only: [`scripts/check-commits.sh`](../scripts/check-commits.sh) on the commits the PR adds ([Commits](#commits)) | `git rebase -i` and reword the commit |
 
 Coverage, the minimum Rust version and the operating systems other than yours run only in CI. So do CodeQL and SonarQube Cloud.
