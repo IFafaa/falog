@@ -168,6 +168,79 @@ mod tests {
         set(Language::English);
     }
 
+    #[test]
+    fn fills_every_occurrence_and_leaves_unknown_placeholders() {
+        set(Language::English);
+        // Not a literal, so the scan for texts to translate does not ask Portuguese for it.
+        const TEXT: &str = "{n} of {n} for {who}";
+        assert_eq!(trf(TEXT, &[("n", &2)]), "2 of 2 for {who}");
+    }
+
+    #[test]
+    fn a_text_without_portuguese_falls_back_to_english_without_its_note() {
+        const TEXT: &str = "Only in English|a note";
+        set(Language::Portuguese);
+        assert_eq!(tr(TEXT), "Only in English");
+        set(Language::English);
+        assert_eq!(tr(TEXT), "Only in English");
+    }
+
+    #[test]
+    fn names_every_status_and_priority_in_either_language() {
+        set(Language::English);
+        let english: Vec<&str> = Status::ALL.into_iter().map(status_label).collect();
+        assert_eq!(english, ["To do", "In progress", "Waiting", "Done"]);
+        let english: Vec<&str> = Priority::ALL.into_iter().map(priority_label).collect();
+        assert_eq!(english, ["Urgent", "High", "Medium", "Low"]);
+        set(Language::Portuguese);
+        let portuguese: Vec<&str> = Status::ALL.into_iter().map(status_label).collect();
+        assert_eq!(portuguese, ["A fazer", "Em andamento", "Aguardando", "Concluída"]);
+        let portuguese: Vec<&str> = Priority::ALL.into_iter().map(priority_label).collect();
+        assert_eq!(portuguese, ["Urgente", "Alta", "Média", "Baixa"]);
+        set(Language::English);
+    }
+
+    #[test]
+    fn describes_how_a_task_repeats_in_either_language() {
+        use chrono::Weekday;
+        let mut mon_thu = Weekdays::single(Weekday::Mon);
+        mon_thu.insert(Weekday::Thu);
+        let rules = [
+            Recurrence::Daily,
+            Recurrence::Weekly(Weekdays::WORKDAYS),
+            Recurrence::Weekly(mon_thu),
+            Recurrence::Monthly(5),
+        ];
+        set(Language::English);
+        let english: Vec<String> = rules.into_iter().map(recurrence_label).collect();
+        assert_eq!(
+            english,
+            [
+                "Every day",
+                "Every weekday",
+                "Weekly on Mon, Thu",
+                "Monthly on day 5"
+            ]
+        );
+        set(Language::Portuguese);
+        let portuguese: Vec<String> = rules.into_iter().map(recurrence_label).collect();
+        assert_eq!(
+            portuguese,
+            ["Todo dia", "Dias úteis", "Semanal: seg, qui", "Mensal, dia 5"]
+        );
+        set(Language::English);
+    }
+
+    #[test]
+    fn only_a_missing_area_is_translated() {
+        let mut task = crate::testing::task(1, "Call the bank");
+        set(Language::Portuguese);
+        assert_eq!(area_name(&task), "Sem área");
+        task.area = Some(crate::testing::area(1, "Work"));
+        assert_eq!(area_name(&task), "Work", "user data stays as written");
+        set(Language::English);
+    }
+
     /// Every text passed to `tr` and `trf` in the app's code has a Portuguese entry with the
     /// same placeholders.
     #[test]

@@ -173,4 +173,95 @@ mod tests {
         assert_eq!(month_year(date), "Março de 2026");
         set(Language::English);
     }
+
+    /// `f` of the first day of each month of 2026, in `language`.
+    fn each_month(language: Language, f: fn(NaiveDate) -> &'static str) -> Vec<&'static str> {
+        set(language);
+        let names = (1..=12)
+            .map(|month| f(NaiveDate::from_ymd_opt(2026, month, 1).unwrap()))
+            .collect();
+        set(Language::English);
+        names
+    }
+
+    /// `f` of each day of the week from Monday, October 5, 2026, in `language`.
+    fn each_weekday(language: Language, f: fn(NaiveDate) -> &'static str) -> Vec<&'static str> {
+        set(language);
+        let names = (5..=11).map(|d| f(crate::testing::day(d))).collect();
+        set(Language::English);
+        names
+    }
+
+    #[test]
+    fn names_months_and_weekdays_in_either_language() {
+        assert_eq!(
+            each_month(Language::English, month_short),
+            [
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+            ]
+        );
+        assert_eq!(each_month(Language::Portuguese, month_long)[4], "maio");
+        assert_eq!(
+            each_month(Language::Portuguese, month_short),
+            [
+                "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"
+            ]
+        );
+        assert_eq!(
+            each_weekday(Language::English, weekday_short),
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        );
+        // Abbreviations cut after three letters, not three bytes: "sábado" is "sáb".
+        assert_eq!(
+            each_weekday(Language::Portuguese, weekday_short),
+            ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+        );
+        assert_eq!(each_weekday(Language::Portuguese, weekday_long)[5], "sábado");
+        set(Language::Portuguese);
+        assert_eq!(weekday_short_of(Weekday::Sat), "sáb");
+        set(Language::English);
+        assert_eq!(weekday_short_of(Weekday::Sat), "Sat");
+    }
+
+    #[test]
+    fn writes_short_dates_and_times_in_either_language() {
+        let date = NaiveDate::from_ymd_opt(2026, 10, 6).unwrap();
+        let at = date.and_hms_opt(14, 30, 0).unwrap();
+        set(Language::English);
+        assert_eq!(short(date), "Oct 6");
+        assert_eq!(short_with_year(date), "Oct 6, 2026");
+        assert_eq!(short_time(at), "Oct 6, 14:30");
+        assert_eq!(with_weekday_time(at), "Tue, Oct 6, 14:30");
+        assert_eq!(month_year(date), "October 2026");
+        set(Language::Portuguese);
+        assert_eq!(short(date), "6 de out");
+        assert_eq!(short_with_year(date), "6 de out de 2026");
+        assert_eq!(short_time(at), "6 de out, 14:30");
+        assert_eq!(with_weekday_time(at), "ter, 6 de out, 14:30");
+        set(Language::English);
+    }
+
+    #[test]
+    fn describes_when_a_task_is_due_in_either_language() {
+        use crate::testing::day;
+        // Thursday, October 15, 2026.
+        let today = day(15);
+        let due = |date| describe_due(date, today);
+        let next_year = NaiveDate::from_ymd_opt(2027, 1, 5).unwrap();
+        set(Language::English);
+        assert_eq!(due(day(12)), "3d overdue");
+        assert_eq!(due(today), "today");
+        assert_eq!(due(day(16)), "tomorrow");
+        assert_eq!(due(day(21)), "Wed, Oct 21", "within six days");
+        assert_eq!(due(day(22)), "Oct 22");
+        assert_eq!(due(next_year), "Jan 5, 2027");
+        set(Language::Portuguese);
+        assert_eq!(due(day(12)), "3d de atraso");
+        assert_eq!(due(today), "hoje");
+        assert_eq!(due(day(16)), "amanhã");
+        assert_eq!(due(day(21)), "qua, 21 de out");
+        assert_eq!(due(day(22)), "22 de out");
+        assert_eq!(due(next_year), "5 de jan de 2027");
+        set(Language::English);
+    }
 }
