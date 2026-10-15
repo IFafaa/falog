@@ -954,6 +954,8 @@ fn moved_message(id: TaskId, status: Status, next: Option<&Task>) -> String {
 fn archived_message(count: usize, ids: &[TaskId]) -> String {
     match (count, ids) {
         (1, [id]) => trf("Archived #{id}; find it in the Archive (Ctrl+5)", &[("id", id)]),
+        // One of several: the others were not done or already archived.
+        (1, _) => tr("Archived 1 task; find it in the Archive (Ctrl+5)").to_owned(),
         (n, _) => trf(
             "Archived {n} tasks; find them in the Archive (Ctrl+5)",
             &[("n", &n)],
@@ -1127,6 +1129,11 @@ mod tests {
         assert_eq!(
             archived_message(2, &[TaskId(3), TaskId(8)]),
             "Archived 2 tasks; find them in the Archive (Ctrl+5)"
+        );
+        // Regression: one task archived out of several said "Archived 1 tasks".
+        assert_eq!(
+            archived_message(1, &[TaskId(3), TaskId(8)]),
+            "Archived 1 task; find it in the Archive (Ctrl+5)"
         );
     }
 

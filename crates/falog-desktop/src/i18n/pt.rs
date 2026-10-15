@@ -46,6 +46,9 @@ pub fn text(english: &str) -> Option<&'static str> {
         "Saved #{id}; the next one is due {date}" => "#{id} salva; a próxima vence {date}",
         "No done tasks to archive" => "Nenhuma tarefa concluída para arquivar",
         "Archived #{id}; find it in the Archive (Ctrl+5)" => "#{id} arquivada; ela fica no Arquivo (Ctrl+5)",
+        "Archived 1 task; find it in the Archive (Ctrl+5)" => {
+            "1 tarefa arquivada; ela fica no Arquivo (Ctrl+5)"
+        }
         "Archived {n} tasks; find them in the Archive (Ctrl+5)" => {
             "{n} tarefas arquivadas; elas ficam no Arquivo (Ctrl+5)"
         }
