@@ -42,9 +42,7 @@ pub struct FalogApp {
     tasks: Vec<Task>,
     /// Bumped on every reload, so the visible tasks know when to refresh.
     tasks_generation: u64,
-    /// [`Self::visible_tasks`], kept between frames, and what it was computed for.
-    visible: Vec<Task>,
-    visible_for: Option<(u64, Option<AreaId>, String, View)>,
+    visible: VisibleTasks,
     areas: Vec<Area>,
     data_version: i64,
     last_poll: Instant,
@@ -95,8 +93,7 @@ impl FalogApp {
             store: store.map_err(|err| err.to_string()),
             tasks: Vec::new(),
             tasks_generation: 0,
-            visible: Vec::new(),
-            visible_for: None,
+            visible: VisibleTasks::default(),
             areas: Vec::new(),
             data_version: 0,
             last_poll: Instant::now(),
@@ -205,33 +202,6 @@ impl FalogApp {
             kind,
             shown_at: Instant::now(),
         });
-    }
-
-    /// Tasks after the area filter and the search box; only the Archive view shows archived ones.
-    fn visible_tasks(&self) -> Vec<Task> {
-        let archive = self.prefs.view == View::Archive;
-        self.tasks
-            .iter()
-            .filter(|t| t.is_archived() == archive)
-            .filter(|t| self.prefs.area.is_none() || t.area_id() == self.prefs.area)
-            .filter(|t| t.matches(&self.search))
-            .cloned()
-            .collect()
-    }
-
-    /// Refreshes [`Self::visible`] when the tasks, the area filter, the search or the view changed,
-    /// instead of filtering and copying every task on every frame.
-    fn refresh_visible(&mut self) {
-        let key = (
-            self.tasks_generation,
-            self.prefs.area,
-            self.search.clone(),
-            self.prefs.view,
-        );
-        if self.visible_for.as_ref() != Some(&key) {
-            self.visible = self.visible_tasks();
-            self.visible_for = Some(key);
-        }
     }
 
     fn scope_label(&self) -> String {
@@ -429,12 +399,8 @@ impl FalogApp {
             Action::RestoreTask(id) => self.restore_task(id),
             Action::ArchiveDone => {
                 // What the board shows, whichever view is open.
-                let done: Vec<TaskId> = self
-                    .tasks
-                    .iter()
-                    .filter(|t| t.status == Status::Done && !t.is_archived())
-                    .filter(|t| self.prefs.area.is_none() || t.area_id() == self.prefs.area)
-                    .filter(|t| t.matches(&self.search))
+                let done: Vec<TaskId> = shown_tasks(&self.tasks, self.prefs.area, &self.search, View::Board)
+                    .filter(|t| t.status == Status::Done)
                     .map(|t| t.id)
                     .collect();
                 self.archive_tasks(&done);
@@ -868,7 +834,13 @@ impl eframe::App for FalogApp {
             toolbar::show(ctx, theme, &mut self.prefs, &mut self.search, &scope);
         }
 
-        self.refresh_visible();
+        self.visible.refresh(
+            &self.tasks,
+            self.tasks_generation,
+            self.prefs.area,
+            &self.search,
+            self.prefs.view,
+        );
         let margin = Margin {
             left: 12.0,
             right: 12.0,
@@ -884,7 +856,7 @@ impl eframe::App for FalogApp {
                 let cx = ViewCx {
                     theme,
                     today: self.today,
-                    tasks: &self.visible,
+                    tasks: &self.visible.tasks,
                     areas: &self.areas,
                     prefs: &self.prefs,
                     selected: self.task_panel.as_ref().and_then(|p| p.id),
@@ -942,6 +914,41 @@ fn startup_error(ctx: &egui::Context, theme: &Theme, error: &str) {
             );
             ui.label(RichText::new(hint).color(theme.text_placeholder));
         });
+}
+
+/// Tasks after the area filter and the search box; only the Archive view shows archived ones.
+fn shown_tasks<'a>(
+    tasks: &'a [Task],
+    area: Option<AreaId>,
+    search: &'a str,
+    view: View,
+) -> impl Iterator<Item = &'a Task> {
+    let archive = view == View::Archive;
+    tasks
+        .iter()
+        .filter(move |t| t.is_archived() == archive)
+        .filter(move |t| area.is_none() || t.area_id() == area)
+        .filter(move |t| t.matches(search))
+}
+
+/// [`shown_tasks`], kept between frames with what they were computed for.
+#[derive(Debug, Default)]
+struct VisibleTasks {
+    tasks: Vec<Task>,
+    /// The tasks' generation, the area filter, the search and the view.
+    key: Option<(u64, Option<AreaId>, String, View)>,
+}
+
+impl VisibleTasks {
+    /// Filters `tasks` again when they were reloaded (a new `generation`) or the area filter, the
+    /// search or the view changed, instead of filtering and copying every task on every frame.
+    fn refresh(&mut self, tasks: &[Task], generation: u64, area: Option<AreaId>, search: &str, view: View) {
+        let key = (generation, area, search.to_owned(), view);
+        if self.key.as_ref() != Some(&key) {
+            self.tasks = shown_tasks(tasks, area, search, view).cloned().collect();
+            self.key = Some(key);
+        }
+    }
 }
 
 /// When the occurrence a completed recurring task created is due, for the toast.
