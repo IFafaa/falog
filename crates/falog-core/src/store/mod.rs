@@ -111,4 +111,56 @@ mod tests {
             let _ = std::fs::remove_file(dir.join(format!("{name}{suffix}")));
         }
     }
+
+    /// A folder in the temp dir with a unique name, removed with its contents when dropped.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("falog-store-{}-{name}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            Self(dir)
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn data_version_changes_only_when_another_connection_writes() {
+        let dir = TempDir::new("data-version");
+        let path = dir.0.join("falog.db");
+        let app = Store::open(&path).unwrap();
+        let server = Store::open(&path).unwrap();
+        let before = app.data_version().unwrap();
+
+        app.create_area("Work", None).unwrap();
+        assert_eq!(app.data_version().unwrap(), before, "its own write");
+
+        server.create_area("Home", None).unwrap();
+        let after = app.data_version().unwrap();
+        assert_ne!(after, before, "another connection's write");
+        assert_eq!(app.areas().unwrap().len(), 2);
+        assert_eq!(app.data_version().unwrap(), after, "reading changes nothing");
+    }
+
+    #[test]
+    fn opening_creates_the_missing_folders() {
+        let dir = TempDir::new("nested");
+        let path = dir.0.join("a").join("b").join("falog.db");
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.path(), Some(path.as_path()));
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn in_memory_stores_have_no_path_and_start_empty() {
+        let store = Store::open_in_memory().unwrap();
+        assert_eq!(store.path(), None);
+        assert!(store.tasks().unwrap().is_empty());
+        assert!(store.areas().unwrap().is_empty());
+    }
 }
