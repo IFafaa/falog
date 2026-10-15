@@ -45,6 +45,33 @@ pub enum UpdateBadge {
     Ready(String),
 }
 
+impl UpdateBadge {
+    /// What the status bar says.
+    fn label(&self) -> String {
+        match self {
+            Self::Available(version) => trf("Update to {version}", &[("version", version)]),
+            Self::Downloading(Some(done)) => {
+                let percent = format!("{:.0}", done * 100.0);
+                trf("Downloading update {percent}%", &[("percent", &percent)])
+            }
+            Self::Downloading(None) => tr("Downloading update…").to_owned(),
+            Self::Ready(_) => tr("Restart to update").to_owned(),
+        }
+    }
+
+    /// What clicking it does, on hover.
+    fn tooltip(&self) -> Option<String> {
+        match self {
+            Self::Available(_) => Some(tr("Download the new version of Falog").to_owned()),
+            Self::Downloading(_) => None,
+            Self::Ready(version) => Some(trf(
+                "Install Falog {version} and start it again",
+                &[("version", version)],
+            )),
+        }
+    }
+}
+
 pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mut Actions) {
     TopBottomPanel::bottom("status_bar")
         .exact_height(28.0)
@@ -79,44 +106,23 @@ pub fn show(ctx: &egui::Context, theme: &Theme, bar: StatusBar<'_>, actions: &mu
                     {
                         actions.push(Action::ToggleAssistant);
                     }
-                    match &bar.update {
-                        Some(UpdateBadge::Available(version)) => {
-                            let label = trf("Update to {version}", &[("version", version)]);
-                            let clicked = item(ui, theme, Icon::ArrowDown, theme.text_accent, &label)
-                                .on_hover_text(tr("Download the new version of Falog"))
-                                .clicked();
-                            if clicked {
-                                actions.push(Action::DownloadUpdate);
+                    if let Some(badge) = &bar.update {
+                        let (icon, color, action) = match badge {
+                            UpdateBadge::Available(_) => {
+                                (Icon::ArrowDown, theme.text_accent, Some(Action::DownloadUpdate))
                             }
-                        }
-                        Some(UpdateBadge::Downloading(progress)) => {
-                            let label = match progress {
-                                Some(done) => {
-                                    let percent = format!("{:.0}", done * 100.0);
-                                    trf("Downloading update {percent}%", &[("percent", &percent)])
-                                }
-                                None => tr("Downloading update…").to_owned(),
-                            };
-                            item(ui, theme, Icon::ArrowDown, theme.icon_muted, &label);
-                        }
-                        Some(UpdateBadge::Ready(version)) => {
-                            let clicked = item(
-                                ui,
-                                theme,
-                                Icon::Refresh,
-                                theme.text_accent,
-                                tr("Restart to update"),
-                            )
-                            .on_hover_text(trf(
-                                "Install Falog {version} and start it again",
-                                &[("version", version)],
-                            ))
-                            .clicked();
-                            if clicked {
-                                actions.push(Action::InstallUpdate);
+                            UpdateBadge::Downloading(_) => (Icon::ArrowDown, theme.icon_muted, None),
+                            UpdateBadge::Ready(_) => {
+                                (Icon::Refresh, theme.text_accent, Some(Action::InstallUpdate))
                             }
+                        };
+                        let mut response = item(ui, theme, icon, color, &badge.label());
+                        if let Some(tooltip) = badge.tooltip() {
+                            response = response.on_hover_text(tooltip);
                         }
-                        None => {}
+                        if let (true, Some(action)) = (response.clicked(), action) {
+                            actions.push(action);
+                        }
                     }
                     if bar.listening && item(ui, theme, Icon::Mic, theme.error, tr("Listening")).clicked() {
                         actions.push(Action::ToggleDictation);
