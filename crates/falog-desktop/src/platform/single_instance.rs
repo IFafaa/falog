@@ -109,7 +109,9 @@ mod tests {
 
         let mut stranger = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
         stranger.write_all(b"GET / HTTP/1.1\r\n").unwrap();
-        stranger.shutdown(std::net::Shutdown::Write).unwrap();
+        // Falog reads one chunk and hangs up, maybe before anything else happens on this side, so
+        // no shutdown here (it fails on a socket already closed) and a reset counts as no reply.
+        stranger.set_read_timeout(Some(TIMEOUT)).unwrap();
         let mut reply = Vec::new();
         let _ = stranger.read_to_end(&mut reply);
         assert!(reply.is_empty(), "no greeting for a stranger");
