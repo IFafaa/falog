@@ -45,4 +45,26 @@ mod tests {
         assert!(fuzzy_contains("anything", ""));
         assert!(!fuzzy_contains("login", "logout"));
     }
+
+    #[test]
+    fn strips_every_handled_diacritic_in_both_cases() {
+        let folded = "aaaaaa eeee iiii ooooo uuuu c n";
+        assert_eq!(fold("áàâãäå éèêë íìîï óòôõö úùûü ç ñ"), folded);
+        assert_eq!(fold("ÁÀÂÃÄÅ ÉÈÊË ÍÌÎÏ ÓÒÔÕÖ ÚÙÛÜ Ç Ñ"), folded);
+    }
+
+    #[test]
+    fn keeps_other_characters_and_inner_spaces() {
+        assert_eq!(fold("ø ß #12 2026-10-09"), "ø ß #12 2026-10-09");
+        assert_eq!(fold("\t Ana  Lúcia \n"), "ana  lucia");
+        assert_eq!(fold("   "), "");
+    }
+
+    #[test]
+    fn fuzzy_contains_folds_both_sides() {
+        assert!(fuzzy_contains("SAÚDE", "saude"));
+        assert!(fuzzy_contains("saude", " SAÚDE "));
+        assert!(fuzzy_contains("anything", "   "));
+        assert!(!fuzzy_contains("", "a"));
+    }
 }
