@@ -92,4 +92,26 @@ mod tests {
         assert_eq!(SavedAgents::load(&path), saved);
         let _ = std::fs::remove_dir_all(dir);
     }
+
+    #[test]
+    fn an_unreadable_or_older_file_remembers_what_it_can() {
+        let dir = std::env::temp_dir().join(format!("falog-agents-older-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("agents.json");
+        std::fs::write(&path, "{ not json").unwrap();
+        let unreadable = SavedAgents::load(&path);
+        // Written before the last choice and what agents reported were remembered.
+        std::fs::write(
+            &path,
+            r#"{"custom":[{"id":"custom-goose","name":"Goose","command":"goose"}]}"#,
+        )
+        .unwrap();
+        let older = SavedAgents::load(&path);
+        let _ = std::fs::remove_dir_all(dir);
+        assert_eq!(unreadable, SavedAgents::default());
+        assert_eq!(older.custom.len(), 1);
+        assert!(older.custom[0].args.is_empty() && older.custom[0].env.is_empty());
+        assert_eq!(older.last, None);
+        assert!(older.known.is_empty());
+    }
 }

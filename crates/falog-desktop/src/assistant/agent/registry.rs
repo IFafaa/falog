@@ -315,6 +315,29 @@ mod tests {
     }
 
     #[test]
+    fn a_custom_agent_cannot_take_a_presets_place() {
+        let custom = vec![AgentConfig {
+            id: AgentId("gemini".into()),
+            name: "My Gemini".into(),
+            command: "my-gemini".into(),
+            args: Vec::new(),
+            env: BTreeMap::new(),
+        }];
+        assert_eq!(all(&custom).len(), presets().len());
+        let gemini = find(&custom, &AgentId("gemini".into())).unwrap();
+        assert_eq!(gemini.name(), "Gemini CLI");
+        assert!(gemini.builtin);
+    }
+
+    #[test]
+    fn knows_which_agents_are_claude() {
+        assert!(is_claude(&AgentId::default()));
+        assert!(is_claude(&AgentId("claude".into())));
+        assert!(!is_claude(&AgentId("gemini".into())));
+        assert!(!is_claude(&AgentId("custom-claude".into())));
+    }
+
+    #[test]
     fn makes_unique_ids_for_custom_agents() {
         let taken = vec![AgentConfig {
             id: AgentId("custom-my-agent".into()),

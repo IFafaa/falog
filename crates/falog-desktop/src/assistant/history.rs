@@ -78,6 +78,26 @@ mod tests {
     }
 
     #[test]
+    fn keeps_only_the_newest_threads() {
+        let path = temp_path("full");
+        let mut records: Vec<_> = (1..=MAX_THREADS as u64 + 5)
+            .map(|id| record(id, id as i64))
+            .collect();
+        save(&path, &mut records).unwrap();
+        let loaded = load(&path);
+        let leftover = path.with_extension("json.tmp").exists();
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        assert!(!leftover, "the temporary file was renamed");
+        assert_eq!(loaded.len(), MAX_THREADS);
+        assert_eq!(loaded.first().unwrap().id, ThreadId(MAX_THREADS as u64 + 5));
+        assert_eq!(
+            loaded.last().unwrap().id,
+            ThreadId(6),
+            "the five oldest are dropped"
+        );
+    }
+
+    #[test]
     fn missing_file_means_no_history() {
         assert!(load(&temp_path("missing")).is_empty());
     }
