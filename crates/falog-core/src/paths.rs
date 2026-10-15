@@ -134,31 +134,14 @@ pub fn migrate(home: &Path, legacy: &Legacy, wait: Duration) -> Result<()> {
     };
     create_private_dir(home).map_err(failed)?;
     let lock = home.join(LOCK_FILE);
-    let deadline = SystemTime::now() + wait;
-    loop {
-        match fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
-            Ok(_) => break,
-            Err(err) if is_transient(&err) && SystemTime::now() <= deadline => {
-                thread::sleep(Duration::from_millis(20));
-            }
-            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                if is_stale(&lock) {
-                    let _ = fs::remove_file(&lock);
-                } else if SystemTime::now() > deadline {
-                    return Err(failed(io::Error::new(
-                        io::ErrorKind::TimedOut,
-                        format!(
-                            "another Falog process is still moving data ({} exists)",
-                            lock.display()
-                        ),
-                    )));
-                } else {
-                    thread::sleep(Duration::from_millis(100));
-                }
-            }
-            Err(err) => return Err(failed(err)),
-        }
-    }
+    acquire_lock(&lock, SystemTime::now() + wait, || {
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock)
+            .map(drop)
+    })
+    .map_err(failed)?;
     // Another process may have finished while this one waited: re-check under the lock.
     let result = legacy
         .pending(home)
@@ -166,6 +149,39 @@ pub fn migrate(home: &Path, legacy: &Legacy, wait: Duration) -> Result<()> {
         .try_for_each(|(from, to)| move_item(&from, &to));
     let _ = fs::remove_file(&lock);
     result
+}
+
+/// Creates `lock` with `create`, waiting while another process holds it (taking it over when stale)
+/// until `deadline`. `create` must fail with `AlreadyExists` when the lock is held.
+fn acquire_lock(
+    lock: &Path,
+    deadline: SystemTime,
+    mut create: impl FnMut() -> io::Result<()>,
+) -> io::Result<()> {
+    loop {
+        match create() {
+            Ok(()) => return Ok(()),
+            Err(err) if is_transient(&err) && SystemTime::now() <= deadline => {
+                thread::sleep(Duration::from_millis(20));
+            }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                if is_stale(lock) {
+                    let _ = fs::remove_file(lock);
+                } else if SystemTime::now() > deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!(
+                            "another Falog process is still moving data ({} exists)",
+                            lock.display()
+                        ),
+                    ));
+                } else {
+                    thread::sleep(Duration::from_millis(100));
+                }
+            }
+            Err(err) => return Err(err),
+        }
+    }
 }
 
 /// Windows answers "access denied" to creating the lock while another process is still opening or
