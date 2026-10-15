@@ -69,6 +69,29 @@ mod tests {
     }
 
     #[test]
+    fn encodes_bytes_and_keeps_unreserved_characters() {
+        assert_eq!(encode("ação"), "a%C3%A7%C3%A3o");
+        assert_eq!(encode("AZaz09-._~"), "AZaz09-._~");
+        assert_eq!(encode("a+b=c&d"), "a%2Bb%3Dc%26d");
+    }
+
+    #[test]
+    fn decodes_either_case_and_replaces_invalid_text() {
+        assert_eq!(decode("%2f%2F"), "//");
+        assert_eq!(decode("%FF"), "\u{FFFD}");
+        assert_eq!(decode("%4"), "%4");
+    }
+
+    #[test]
+    fn query_pairs_skip_empty_parts_and_allow_bare_keys() {
+        assert_eq!(
+            query_pairs("&&flag&a+b=c+d&"),
+            vec![("flag".into(), String::new()), ("a b".into(), "c d".into())]
+        );
+        assert!(query_pairs("").is_empty());
+    }
+
+    #[test]
     fn splits_queries() {
         let pairs = query_pairs("code=4%2F0Ab&state=xyz&scope=");
         assert_eq!(

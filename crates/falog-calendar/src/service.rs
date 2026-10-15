@@ -151,6 +151,52 @@ mod tests {
     }
 
     #[test]
+    fn read_only_accounts_neither_change_nor_delete() {
+        let tokens = Tokens::default();
+        let patch = EventPatch::default();
+        let (client, account) = (Client::default(), account(false));
+        let changed = update_event(&client, &account, &tokens, "primary", "e1", &patch);
+        assert!(matches!(changed, Err(Error::ReadOnly(_))));
+        let deleted = delete_event(&client, &account, &tokens, "primary", "e1");
+        assert!(matches!(deleted, Err(Error::ReadOnly(_))));
+    }
+
+    #[test]
+    fn reuses_a_fresh_access_token_and_forgets_it() {
+        let tokens = Tokens::default();
+        let account = account(true);
+        tokens.insert(
+            &account.email,
+            AccessToken {
+                token: "cached".into(),
+                expires_at: std::time::Instant::now() + std::time::Duration::from_secs(3600),
+            },
+        );
+        // A fresh token is used as is: with no OAuth client, refreshing it would fail.
+        let token = tokens.access_token(&Client::default(), &account);
+        assert_eq!(token.unwrap(), "cached");
+        tokens.forget(&account.email);
+        assert!(tokens.0.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn only_a_forbidden_scope_error_means_read_only() {
+        let api = |status: u16, message: &str| Error::Api {
+            status,
+            message: message.into(),
+        };
+        let shouting = api(403, "INSUFFICIENT PERMISSION");
+        assert!(matches!(read_only(shouting, &account(true)), Error::ReadOnly(_)));
+        let other_status = api(401, "insufficient authentication scopes");
+        assert!(matches!(
+            read_only(other_status, &account(true)),
+            Error::Api { status: 401, .. }
+        ));
+        let network = Error::Network("timed out".into());
+        assert!(matches!(read_only(network, &account(true)), Error::Network(_)));
+    }
+
+    #[test]
     fn names_a_missing_write_scope() {
         let scopes = Error::Api {
             status: 403,

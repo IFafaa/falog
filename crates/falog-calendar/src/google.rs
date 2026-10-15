@@ -448,6 +448,85 @@ mod tests {
     }
 
     #[test]
+    fn keeps_others_declines_and_drops_events_without_times() {
+        let day = json!({ "date": "2026-10-09" });
+        let next = json!({ "date": "2026-10-10" });
+        let json = json!({ "items": [
+            { "id": "a", "summary": "Kept", "start": day, "end": next,
+              "attendees": [ { "email": "ana@work.example", "responseStatus": "declined" },
+                             { "self": true, "responseStatus": "accepted" } ] },
+            { "id": "b", "summary": "No end", "start": day },
+            { "id": "c", "summary": "Bad date", "start": { "date": "09/10/2026" }, "end": next },
+        ]});
+        let events = parse_events(&json, "me@work.example", "primary");
+        let titles: Vec<&str> = events.iter().map(|e| e.title.as_str()).collect();
+        assert_eq!(titles, vec!["Kept"]);
+        assert_eq!(events[0].account, "me@work.example");
+        assert!(parse_events(&json!({}), "me@work.example", "primary").is_empty());
+    }
+
+    #[test]
+    fn opens_only_web_links_from_google() {
+        let day = json!({ "date": "2026-10-09" });
+        let json = json!({ "items": [
+            { "id": "a", "summary": "  ", "start": day, "end": day,
+              "htmlLink": "javascript:alert(1)", "hangoutLink": "file://share/x",
+              "conferenceData": { "entryPoints": [ { "entryPointType": "video", "uri": "https://zoom.us/j/2" } ] } },
+            { "id": "b", "start": day, "end": day,
+              "conferenceData": { "entryPoints": [ { "entryPointType": "video", "uri": "file://share/y" } ] } },
+        ]});
+        let events = parse_events(&json, "me@work.example", "primary");
+        assert_eq!(events[0].title, "(No title)");
+        assert_eq!(events[0].html_link, None);
+        // A link with another scheme is skipped for the next way to join.
+        assert_eq!(events[0].join_link.as_deref(), Some("https://zoom.us/j/2"));
+        assert_eq!(events[1].join_link, None);
+    }
+
+    #[test]
+    fn names_calendars_by_their_override_only_when_set() {
+        let json = json!({ "items": [
+            { "id": "team", "summary": "Team", "summaryOverride": "", "backgroundColor": "#16a765" },
+        ]});
+        let calendars = parse_calendars(&json);
+        assert_eq!(calendars[0].name, "Team");
+        assert!(!calendars[0].primary);
+        assert_eq!(account_email(&calendars), None);
+        assert!(parse_calendars(&json!({ "error": {} })).is_empty());
+    }
+
+    #[test]
+    fn sends_only_the_fields_given() {
+        let plain = insert_body(&NewEvent {
+            title: "Focus time".into(),
+            ..NewEvent::default()
+        });
+        assert_eq!(plain, json!({ "summary": "Focus time" }));
+        let detailed = insert_body(&NewEvent {
+            title: "Visit".into(),
+            description: "Bring the badge".into(),
+            location: "Office".into(),
+            ..NewEvent::default()
+        });
+        assert_eq!(detailed["description"], "Bring the badge");
+        assert_eq!(detailed["location"], "Office");
+        assert!(detailed.get("attendees").is_none() && detailed.get("conferenceData").is_none());
+
+        assert_eq!(patch_body(&EventPatch::default()), json!({}));
+        let day = NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();
+        let moved = patch_body(&EventPatch {
+            start: Some(EventTime::Date(day)),
+            end: Some(EventTime::Date(day.succ_opt().unwrap())),
+            description: Some(String::new()),
+            ..EventPatch::default()
+        });
+        assert_eq!(
+            moved,
+            json!({ "start": { "date": "2026-10-08" }, "end": { "date": "2026-10-09" }, "description": "" })
+        );
+    }
+
+    #[test]
     fn asks_for_local_midnight() {
         let day = NaiveDate::from_ymd_opt(2026, 10, 7).unwrap();
         let text = rfc3339(day);
