@@ -74,4 +74,60 @@ mod tests {
         assert!(store.notes(task.id).unwrap().is_empty());
         assert!(store.add_note(task.id, "orphan").is_err());
     }
+
+    /// A task whose `updated_at` is far in the past, so a bump is visible within the same second.
+    fn stale_task(store: &Store) -> crate::domain::Task {
+        let task = store.create_task(&NewTask::new("A")).unwrap();
+        let long_ago = chrono::NaiveDate::from_ymd_opt(2000, 1, 1)
+            .and_then(|d| d.and_hms_opt(8, 0, 0))
+            .unwrap();
+        store
+            .conn
+            .execute(
+                "UPDATE tasks SET updated_at = ?1 WHERE id = ?2",
+                rusqlite::params![long_ago, task.id],
+            )
+            .unwrap();
+        store.require_task(task.id).unwrap()
+    }
+
+    #[test]
+    fn adding_a_note_bumps_the_task_update_time() {
+        let store = Store::open_in_memory().unwrap();
+        let task = stale_task(&store);
+        let note = store.add_note(task.id, "waiting on the vendor").unwrap();
+        let bumped = store.require_task(task.id).unwrap();
+        assert!(bumped.updated_at > task.updated_at);
+        assert_eq!(bumped.updated_at, note.created_at);
+    }
+
+    #[test]
+    fn rejects_empty_notes_without_touching_the_task() {
+        let store = Store::open_in_memory().unwrap();
+        let task = stale_task(&store);
+        assert!(matches!(
+            store.add_note(task.id, " \n "),
+            Err(crate::Error::Invalid(_))
+        ));
+        assert_eq!(store.require_task(task.id).unwrap(), task);
+        assert!(store.notes(task.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn lists_notes_oldest_first() {
+        let store = Store::open_in_memory().unwrap();
+        let task = store.create_task(&NewTask::new("A")).unwrap();
+        let other = store.create_task(&NewTask::new("B")).unwrap();
+        store.add_note(task.id, "first").unwrap();
+        store.add_note(other.id, "elsewhere").unwrap();
+        store.add_note(task.id, "second").unwrap();
+        let bodies: Vec<String> = store
+            .notes(task.id)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.body)
+            .collect();
+        assert_eq!(bodies, ["first", "second"]);
+        assert_eq!(store.require_task(task.id).unwrap().note_count, 2);
+    }
 }

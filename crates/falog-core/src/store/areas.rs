@@ -169,4 +169,116 @@ mod tests {
         store.delete_area(area.id).unwrap();
         assert!(store.areas().unwrap().is_empty());
     }
+
+    #[test]
+    fn names_are_unique_ignoring_case_and_accents() {
+        let store = store();
+        store.create_area("Saúde", None).unwrap();
+        for name in ["SAUDE", "saúde", " Saude "] {
+            assert!(
+                matches!(store.create_area(name, None), Err(Error::DuplicateArea(_))),
+                "{name}"
+            );
+        }
+        let err = store.create_area("SAUDE", None).unwrap_err();
+        assert_eq!(err.to_string(), "area \"SAUDE\" already exists");
+        assert_eq!(store.areas().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn refuses_to_rename_onto_another_area() {
+        let store = store();
+        store.create_area("Work", None).unwrap();
+        let home = store.create_area("Home", None).unwrap();
+        for name in ["work", "WÓRK"] {
+            assert!(
+                matches!(
+                    store.update_area(home.id, name, home.color),
+                    Err(Error::DuplicateArea(_))
+                ),
+                "{name}"
+            );
+        }
+        assert_eq!(store.area(home.id).unwrap(), Some(home.clone()));
+        // Its own name in another case is fine.
+        let recased = store.update_area(home.id, " HOME ", home.color).unwrap();
+        assert_eq!(recased.name, "HOME");
+        assert!(store.update_area(home.id, "", home.color).is_err());
+    }
+
+    #[test]
+    fn trims_names_and_keeps_explicit_colors() {
+        let store = store();
+        let color = Rgb::new(0x39, 0xff, 0x14);
+        let area = store.create_area("  Home ", Some(color)).unwrap();
+        assert_eq!((area.name.as_str(), area.color), ("Home", color));
+        assert_eq!(store.area(area.id).unwrap(), Some(area));
+    }
+
+    #[test]
+    fn palette_colors_wrap_around() {
+        let store = store();
+        let colors: Vec<Rgb> = (0..PALETTE.len() + 1)
+            .map(|n| store.create_area(&format!("Area {n}"), None).unwrap().color)
+            .collect();
+        assert_eq!(colors[..PALETTE.len()], PALETTE);
+        assert_eq!(colors[PALETTE.len()], PALETTE[0]);
+    }
+
+    #[test]
+    fn lists_areas_alphabetically_ignoring_case() {
+        let store = store();
+        for name in ["beta", "Gamma", "alpha"] {
+            store.create_area(name, None).unwrap();
+        }
+        let names: Vec<String> = store.areas().unwrap().into_iter().map(|a| a.name).collect();
+        assert_eq!(names, ["alpha", "beta", "Gamma"]);
+    }
+
+    #[test]
+    fn finds_an_area_named_inside_a_longer_query() {
+        let store = store();
+        let work = store.create_area("Work", None).unwrap();
+        store.create_area("Home", None).unwrap();
+        assert_eq!(store.find_area("work stuff").unwrap(), work);
+    }
+
+    #[test]
+    fn an_exact_name_wins_over_fragments() {
+        let store = store();
+        let work = store.create_area("Work", None).unwrap();
+        store.create_area("Work Admin", None).unwrap();
+        assert_eq!(store.find_area("work").unwrap(), work);
+    }
+
+    #[test]
+    fn not_found_errors_list_the_registered_areas() {
+        let store = store();
+        let err = store.find_area("studies").unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "area \"studies\" not found (no areas registered yet)"
+        );
+        store.create_area("Work", None).unwrap();
+        store.create_area("Home", None).unwrap();
+        let err = store.find_area("studies").unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "area \"studies\" not found; registered areas: Home, Work"
+        );
+        assert!(matches!(store.find_area(""), Err(Error::AreaNotFound { .. })));
+    }
+
+    #[test]
+    fn ambiguous_errors_list_the_candidates() {
+        let store = store();
+        store.create_area("Work Projects", None).unwrap();
+        store.create_area("Work Admin", None).unwrap();
+        store.create_area("Home", None).unwrap();
+        let err = store.find_area("work").unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "\"work\" matches more than one area: Work Admin, Work Projects"
+        );
+    }
 }
