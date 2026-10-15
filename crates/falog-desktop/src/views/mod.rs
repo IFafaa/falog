@@ -176,3 +176,48 @@ pub fn section_header<K: Eq + Hash>(
     ui.add_space(2.0);
     expanded
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testing::{area, day, ids, in_area, task};
+    use falog_core::domain::Priority;
+
+    fn sorted(order: SortOrder, tasks: &[Task]) -> Vec<i64> {
+        let mut refs: Vec<&Task> = tasks.iter().collect();
+        order.sort(&mut refs);
+        ids(refs)
+    }
+
+    #[test]
+    fn sorts_by_urgency_due_date_area_or_newest() {
+        let (work, lab) = (area(1, "Work"), area(2, "Área 51"));
+        let tasks = [
+            in_area(
+                Task {
+                    due: Some(day(20)),
+                    ..task(1, "Due later")
+                },
+                &work,
+            ),
+            in_area(
+                Task {
+                    priority: Priority::Urgent,
+                    ..task(2, "Urgent")
+                },
+                &work,
+            ),
+            Task {
+                due: Some(day(16)),
+                ..task(3, "Due soon, no area")
+            },
+            in_area(task(4, "Undated"), &lab),
+        ];
+        assert_eq!(sorted(SortOrder::Urgency, &tasks), [2, 3, 1, 4]);
+        assert_eq!(sorted(SortOrder::DueDate, &tasks), [3, 1, 2, 4], "undated last");
+        // Area names compare without case or accents ("Área" as "area"); a task without an area
+        // sorts as "No area". Within an area, by urgency.
+        assert_eq!(sorted(SortOrder::Area, &tasks), [4, 3, 2, 1]);
+        assert_eq!(sorted(SortOrder::Newest, &tasks), [4, 3, 2, 1]);
+    }
+}

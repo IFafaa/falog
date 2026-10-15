@@ -318,3 +318,82 @@ fn paint_drag_preview(ctx: &egui::Context, theme: &Theme, pointer: Pos2, task: &
     );
     painter.galley(rect.min + vec2(10.0, 7.0), galley, theme.text);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prefs::Prefs;
+    use crate::testing::{day, done, ids, task, view_cx};
+    use crate::views::SortOrder;
+
+    fn column(tasks: &[Task], prefs: &Prefs, status: Status) -> (Vec<i64>, usize) {
+        let cx = view_cx(tasks, prefs, day(15));
+        let (shown, hidden) = column_tasks(&cx, status);
+        (ids(shown), hidden)
+    }
+
+    #[test]
+    fn each_column_holds_the_tasks_of_its_status() {
+        let tasks = [
+            task(1, "To do"),
+            Task {
+                status: Status::InProgress,
+                ..task(2, "Doing")
+            },
+            Task {
+                status: Status::Waiting,
+                ..task(3, "Blocked")
+            },
+            done(4, "Finished", 14),
+            task(5, "Also to do"),
+        ];
+        let prefs = Prefs::default();
+        assert_eq!(column(&tasks, &prefs, Status::Todo), (vec![1, 5], 0));
+        assert_eq!(column(&tasks, &prefs, Status::InProgress), (vec![2], 0));
+        assert_eq!(column(&tasks, &prefs, Status::Waiting), (vec![3], 0));
+        assert_eq!(column(&tasks, &prefs, Status::Done), (vec![4], 0));
+    }
+
+    #[test]
+    fn done_hides_what_was_completed_more_than_a_week_ago() {
+        // Today is the 15th: the 8th is a week ago, the 7th more than that.
+        let tasks = [
+            done(1, "A week ago", 8),
+            done(2, "Yesterday", 14),
+            done(3, "Eight days ago", 7),
+            done(4, "Long ago", 1),
+        ];
+        let mut prefs = Prefs::default();
+        assert_eq!(
+            column(&tasks, &prefs, Status::Done),
+            (vec![2, 1], 2),
+            "newest first, the old ones counted"
+        );
+        prefs.show_old_completed = true;
+        assert_eq!(column(&tasks, &prefs, Status::Done), (vec![2, 1, 3, 4], 0));
+    }
+
+    #[test]
+    fn open_columns_follow_the_sort_order() {
+        let tasks = [
+            Task {
+                due: Some(day(20)),
+                ..task(1, "Later")
+            },
+            Task {
+                priority: Priority::Urgent,
+                ..task(2, "Urgent")
+            },
+            Task {
+                due: Some(day(16)),
+                ..task(3, "Tomorrow")
+            },
+        ];
+        let mut prefs = Prefs::default();
+        assert_eq!(column(&tasks, &prefs, Status::Todo).0, [2, 3, 1]);
+        prefs.sort = SortOrder::DueDate;
+        assert_eq!(column(&tasks, &prefs, Status::Todo).0, [3, 1, 2]);
+        prefs.sort = SortOrder::Newest;
+        assert_eq!(column(&tasks, &prefs, Status::Todo).0, [3, 2, 1]);
+    }
+}

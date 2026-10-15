@@ -1103,4 +1103,26 @@ mod tests {
             day(2026, 2, 28)
         );
     }
+
+    #[test]
+    fn shows_the_open_tasks_due_on_the_days_shown() {
+        use crate::testing::{done, ids, task};
+        let due = |id, title, date| Task {
+            due: Some(date),
+            ..task(id, title)
+        };
+        let tasks = [
+            due(1, "Before", day(2026, 10, 3)),
+            due(2, "First day", day(2026, 10, 4)),
+            due(3, "Last day", day(2026, 10, 10)),
+            due(4, "Next week", day(2026, 10, 11)),
+            Task {
+                due: Some(day(2026, 10, 5)),
+                ..done(5, "Already done", 2)
+            },
+            task(6, "No due date"),
+        ];
+        let (from, to) = range(CalendarMode::Week, day(2026, 10, 7));
+        assert_eq!(ids(due_tasks(&tasks, from, to)), [2, 3]);
+    }
 }

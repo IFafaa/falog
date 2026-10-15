@@ -1,5 +1,8 @@
 //! Builders shared by the tests.
 
+use crate::prefs::Prefs;
+use crate::theme::Theme;
+use crate::views::ViewCx;
 use chrono::{NaiveDate, NaiveDateTime};
 use falog_core::domain::{Area, AreaId, Priority, Rgb, Status, Task, TaskId};
 
@@ -63,6 +66,19 @@ pub fn in_area(task: Task, area: &Area) -> Task {
     Task {
         area: Some(area.clone()),
         ..task
+    }
+}
+
+/// What a view gets for `tasks` on `today`, with `prefs`.
+pub fn view_cx<'a>(tasks: &'a [Task], prefs: &'a Prefs, today: NaiveDate) -> ViewCx<'a> {
+    ViewCx {
+        theme: Theme::current(&eframe::egui::Context::default()),
+        today,
+        tasks,
+        areas: &[],
+        prefs,
+        selected: None,
+        has_any_task: !tasks.is_empty(),
     }
 }
 

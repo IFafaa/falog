@@ -272,3 +272,39 @@ fn empty_state(ui: &mut Ui, cx: &ViewCx<'_>) {
         ui.label(RichText::new(hint).size(13.0).color(cx.theme.text_placeholder));
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prefs::Prefs;
+    use crate::testing::{day, done, ids, task, view_cx};
+    use crate::views::SortOrder;
+    use falog_core::domain::Priority;
+
+    #[test]
+    fn lists_open_tasks_then_completed_ones_when_asked() {
+        let tasks = [
+            done(1, "Shipped", 14),
+            Task {
+                priority: Priority::High,
+                ..task(2, "Review the PR")
+            },
+            Task {
+                status: Status::Waiting,
+                ..task(3, "Waiting on legal")
+            },
+            done(4, "Paid", 10),
+        ];
+        let mut prefs = Prefs::default();
+        assert_eq!(ids(rows(&view_cx(&tasks, &prefs, day(15)))), [2, 3]);
+
+        prefs.show_completed = true;
+        assert_eq!(ids(rows(&view_cx(&tasks, &prefs, day(15)))), [2, 3, 1, 4]);
+        prefs.sort = SortOrder::Newest;
+        assert_eq!(
+            ids(rows(&view_cx(&tasks, &prefs, day(15)))),
+            [3, 2, 4, 1],
+            "sorted among the open and among the completed ones"
+        );
+    }
+}
