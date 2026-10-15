@@ -156,19 +156,55 @@ mod tests {
         assert_eq!(response["result"], json!({}));
     }
 
+    /// Every tool mcp.md documents, in the order `tools/list` offers them.
+    const TOOLS: [&str; 16] = [
+        "get_focus",
+        "list_areas",
+        "create_area",
+        "update_area",
+        "create_task",
+        "update_task",
+        "add_note",
+        "list_tasks",
+        "archive_tasks",
+        "restore_task",
+        "get_task",
+        "delete_task",
+        "list_events",
+        "create_event",
+        "update_event",
+        "delete_event",
+    ];
+
+    // Regression: the focus tool was renamed from get_agenda to get_focus; the catalog and the
+    // dispatcher must offer and answer the same names, and the old one no longer exists.
     #[test]
-    fn lists_every_tool() {
-        let response = server()
+    fn offers_exactly_the_catalog_tools() {
+        let server = server();
+        let response = server
             .handle_line(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)
             .unwrap();
-        let names: Vec<&str> = response["result"]["tools"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|t| t["name"].as_str().unwrap())
-            .collect();
-        assert_eq!(names.len(), 16);
-        assert!(names.contains(&"create_task") && names.contains(&"get_focus"));
+        let tools = response["result"]["tools"].as_array().unwrap();
+        let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        assert_eq!(names, TOOLS);
+        for tool in tools {
+            assert!(
+                tool["description"].as_str().is_some_and(|d| !d.is_empty()),
+                "{tool}"
+            );
+            assert_eq!(tool["inputSchema"]["type"], "object", "{tool}");
+        }
+        for name in TOOLS {
+            let result = call(&server, 4, name, json!({}));
+            assert!(
+                !text(&result).contains("unknown tool"),
+                "{name}: {}",
+                text(&result)
+            );
+        }
+        let old = call(&server, 5, "get_agenda", json!({}));
+        assert_eq!(old["isError"], true);
+        assert_eq!(text(&old), "Error: unknown tool \"get_agenda\"");
     }
 
     #[test]
