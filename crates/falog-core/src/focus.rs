@@ -230,4 +230,155 @@ mod tests {
         assert_eq!(summary.due_today, 1);
         assert_eq!(summary.completed_last_7_days, 1);
     }
+
+    fn ids(tasks: &[&Task]) -> Vec<i64> {
+        tasks.iter().map(|t| t.id.0).collect()
+    }
+
+    fn completed(id: i64, on: NaiveDate) -> Task {
+        Task {
+            completed_at: on.and_hms_opt(12, 0, 0),
+            ..task(id, Status::Done, None, Priority::Medium)
+        }
+    }
+
+    #[test]
+    fn checks_the_buckets_in_order() {
+        // Tuesday; the week ends on Sunday the 11th.
+        let today = day(6);
+        let cases = [
+            (Status::InProgress, Some(day(5)), Some(Bucket::Overdue)),
+            (Status::Waiting, Some(day(5)), Some(Bucket::Overdue)),
+            (Status::InProgress, Some(day(6)), Some(Bucket::DueToday)),
+            (Status::Waiting, Some(day(6)), Some(Bucket::DueToday)),
+            (Status::InProgress, Some(day(11)), Some(Bucket::DueThisWeek)),
+            (Status::Waiting, Some(day(11)), Some(Bucket::DueThisWeek)),
+            (Status::InProgress, Some(day(12)), Some(Bucket::InProgress)),
+            (Status::InProgress, None, Some(Bucket::InProgress)),
+            (Status::Waiting, Some(day(12)), Some(Bucket::Waiting)),
+            (Status::Waiting, None, Some(Bucket::Waiting)),
+            (Status::Todo, Some(day(12)), Some(Bucket::Upcoming)),
+            (Status::Todo, None, Some(Bucket::Backlog)),
+            (Status::Done, Some(day(5)), None),
+            (Status::Done, Some(day(6)), None),
+            (Status::Done, None, None),
+        ];
+        for (status, due, expected) in cases {
+            let task = task(1, status, due, Priority::Medium);
+            assert_eq!(Bucket::of(&task, today), expected, "{status:?} due {due:?}");
+        }
+    }
+
+    #[test]
+    fn the_week_ends_on_sunday() {
+        let sunday = day(11);
+        let monday = task(1, Status::Todo, Some(day(12)), Priority::Medium);
+        assert_eq!(Bucket::of(&monday, sunday), Some(Bucket::Upcoming));
+        let next_sunday = task(2, Status::Todo, Some(day(18)), Priority::Medium);
+        assert_eq!(Bucket::of(&next_sunday, day(12)), Some(Bucket::DueThisWeek));
+        assert_eq!(Bucket::of(&next_sunday, sunday), Some(Bucket::Upcoming));
+    }
+
+    #[test]
+    fn done_and_archived_tasks_are_in_no_bucket() {
+        let archived = Task {
+            archived_at: day(5).and_hms_opt(19, 0, 0),
+            ..task(2, Status::Done, Some(day(2)), Priority::Urgent)
+        };
+        let tasks = vec![task(1, Status::Done, Some(day(2)), Priority::Urgent), archived];
+        assert!(sections(&tasks, day(6)).iter().all(|s| s.tasks.is_empty()));
+    }
+
+    #[test]
+    fn lists_every_bucket_in_order_even_when_empty() {
+        let buckets: Vec<Bucket> = sections(&[], day(6)).iter().map(|s| s.bucket).collect();
+        assert_eq!(buckets, Bucket::ALL);
+        let titles: Vec<&str> = Bucket::ALL.iter().map(|b| b.title()).collect();
+        assert_eq!(
+            titles,
+            [
+                "Overdue",
+                "Due today",
+                "Due this week",
+                "In progress",
+                "Waiting on others",
+                "Upcoming",
+                "Backlog"
+            ]
+        );
+    }
+
+    #[test]
+    fn sorts_overdue_by_due_date_first() {
+        let tasks = vec![
+            task(1, Status::Todo, Some(day(1)), Priority::Low),
+            task(2, Status::Todo, Some(day(3)), Priority::Urgent),
+            task(3, Status::Todo, Some(day(1)), Priority::High),
+            task(4, Status::Todo, Some(day(1)), Priority::High),
+        ];
+        let overdue = &sections(&tasks, day(6))[0];
+        assert_eq!(overdue.bucket, Bucket::Overdue);
+        assert_eq!(ids(&overdue.tasks), [3, 4, 1, 2]);
+    }
+
+    #[test]
+    fn sorts_other_buckets_by_priority_then_due_date_then_id() {
+        let tasks = vec![
+            task(1, Status::Todo, Some(day(30)), Priority::Medium),
+            task(2, Status::Todo, Some(day(31)), Priority::High),
+            task(3, Status::Todo, Some(day(20)), Priority::Medium),
+            task(4, Status::Todo, Some(day(20)), Priority::Medium),
+        ];
+        let upcoming = &sections(&tasks, day(6))[5];
+        assert_eq!(upcoming.bucket, Bucket::Upcoming);
+        assert_eq!(ids(&upcoming.tasks), [2, 3, 4, 1]);
+    }
+
+    #[test]
+    fn earlier_due_dates_come_first_and_none_last() {
+        assert_eq!(cmp_due(Some(day(1)), Some(day(2))), Ordering::Less);
+        assert_eq!(cmp_due(Some(day(2)), None), Ordering::Less);
+        assert_eq!(cmp_due(None, Some(day(2))), Ordering::Greater);
+        assert_eq!(cmp_due(None, None), Ordering::Equal);
+    }
+
+    #[test]
+    fn recently_completed_covers_the_window_most_recent_first() {
+        let today = day(8);
+        let tasks = vec![
+            completed(1, day(1)),
+            completed(2, day(8)),
+            completed(3, NaiveDate::from_ymd_opt(2026, 9, 30).unwrap()),
+            completed(4, day(4)),
+            task(5, Status::Todo, None, Priority::Medium),
+        ];
+        assert_eq!(ids(&recently_completed(&tasks, today, 7)), [2, 4, 1]);
+        assert_eq!(ids(&recently_completed(&tasks, today, 0)), [2]);
+    }
+
+    #[test]
+    fn summary_counts_each_kind() {
+        let today = day(6);
+        let tasks = vec![
+            task(1, Status::Waiting, Some(day(1)), Priority::Medium),
+            task(2, Status::Todo, Some(day(6)), Priority::Medium),
+            task(3, Status::InProgress, Some(day(6)), Priority::Medium),
+            task(4, Status::Todo, Some(day(11)), Priority::Medium),
+            task(5, Status::InProgress, None, Priority::Medium),
+            task(6, Status::Todo, Some(day(12)), Priority::Medium),
+            completed(7, day(6)),
+            completed(8, NaiveDate::from_ymd_opt(2026, 9, 1).unwrap()),
+        ];
+        assert_eq!(
+            summary(&tasks, today),
+            Summary {
+                open: 6,
+                overdue: 1,
+                due_today: 2,
+                due_this_week: 1,
+                completed_last_7_days: 1,
+            }
+        );
+        assert_eq!(summary(&[], today), Summary::default());
+    }
 }
