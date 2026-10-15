@@ -156,6 +156,21 @@ mod tests {
         assert!(path.exists());
     }
 
+    // Regression: the folders holding the database were created with the default umask, so other
+    // users on the machine could read it.
+    #[cfg(unix)]
+    #[test]
+    fn the_folders_it_creates_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new("private");
+        let path = dir.0.join("a").join("falog.db");
+        Store::open(&path).unwrap();
+        for folder in [dir.0.join("a"), dir.0.clone()] {
+            let mode = std::fs::metadata(&folder).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700, "{}", folder.display());
+        }
+    }
+
     #[test]
     fn in_memory_stores_have_no_path_and_start_empty() {
         let store = Store::open_in_memory().unwrap();
