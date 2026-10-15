@@ -824,9 +824,22 @@ mod tests {
     fn signing_in_again_replaces_the_waiting_attempt() {
         let ctx = egui::Context::default();
         let mut state = CalendarState::new(None);
+        // A client, so the real attempts wait for the browser instead of failing at once and
+        // racing the failures this test sends.
+        state.config.client = Client {
+            id: "test.apps.googleusercontent.com".into(),
+            secret: "test".into(),
+        };
         state.connect();
+        let first = state.connecting.as_ref().map(|(_, cancel)| cancel.clone());
         state.connect();
+        let second = state.connecting.as_ref().map(|(_, cancel)| cancel.clone());
         assert!(state.is_connecting());
+        assert!(
+            first
+                .as_ref()
+                .is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+        );
 
         // The first attempt was given up: its late failure leaves the second one waiting.
         let _ = state.sender.send(Update::ConnectFailed {
@@ -844,6 +857,10 @@ mod tests {
         state.poll(&ctx);
         assert!(!state.is_connecting());
         assert!(state.error.is_some());
+        // Let the second attempt's thread stop waiting.
+        if let Some(cancel) = second {
+            cancel.store(true, Ordering::Relaxed);
+        }
     }
 
     #[test]
