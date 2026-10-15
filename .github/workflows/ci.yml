@@ -134,10 +134,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      # 44.86% of lines on 2026-10-07 (measured on Windows, same flags), minus a margin for the
+      # 63.59% of lines on 2026-10-15 (measured on Windows, same flags), minus a margin for the
       # code that differs per OS. A ratchet: raise it as tests are added, never lower it to let a
       # change pass.
-      MIN_LINE_COVERAGE: 42
+      MIN_LINE_COVERAGE: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
