@@ -367,7 +367,7 @@ fn row(ui: &mut Ui, theme: &Theme, item: &Item, selected: bool) -> egui::Respons
 mod tests {
     use super::*;
     use crate::i18n::{Language, set};
-    use crate::testing::{area, done, noon, task};
+    use crate::testing::{area, done, keys_pressed, noon, task};
 
     fn theme() -> &'static Theme {
         Theme::current(&egui::Context::default())
@@ -429,22 +429,8 @@ mod tests {
 
     /// Shows the palette for one frame with `keys` pressed.
     fn show_with(palette: &mut CommandPalette, ctx: &egui::Context, keys: &[Key]) -> Outcome {
-        let events = keys
-            .iter()
-            .map(|&key| egui::Event::Key {
-                key,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: Modifiers::NONE,
-            })
-            .collect();
-        let input = egui::RawInput {
-            events,
-            ..Default::default()
-        };
         let mut outcome = Outcome::Pending;
-        let _ = ctx.run(input, |ctx| outcome = palette.show(ctx, &[], &[]));
+        let _ = ctx.run(keys_pressed(keys), |ctx| outcome = palette.show(ctx, &[], &[]));
         outcome
     }
 

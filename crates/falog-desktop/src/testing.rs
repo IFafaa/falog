@@ -4,6 +4,7 @@ use crate::prefs::Prefs;
 use crate::theme::Theme;
 use crate::views::ViewCx;
 use chrono::{NaiveDate, NaiveDateTime};
+use eframe::egui::{Event, Key, Modifiers, RawInput};
 use falog_core::domain::{Area, AreaId, Priority, Rgb, Status, Task, TaskId};
 
 /// A day of October 2026.
@@ -79,6 +80,24 @@ pub fn view_cx<'a>(tasks: &'a [Task], prefs: &'a Prefs, today: NaiveDate) -> Vie
         prefs,
         selected: None,
         has_any_task: !tasks.is_empty(),
+    }
+}
+
+/// One frame's input: `keys` pressed without modifiers.
+pub fn keys_pressed(keys: &[Key]) -> RawInput {
+    let events = keys
+        .iter()
+        .map(|&key| Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        })
+        .collect();
+    RawInput {
+        events,
+        ..RawInput::default()
     }
 }
 

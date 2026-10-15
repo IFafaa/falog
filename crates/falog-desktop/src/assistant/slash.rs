@@ -251,19 +251,8 @@ mod tests {
     /// Presses `key` in the composer showing `draft`: the completion asked for, and whether the key
     /// was left for the text field (and the send key).
     fn press(ctx: &egui::Context, key: Key, all: &[SlashCommand], draft: &str) -> (Option<String>, bool) {
-        let event = egui::Event::Key {
-            key,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: Modifiers::NONE,
-        };
-        let input = egui::RawInput {
-            events: vec![event],
-            ..Default::default()
-        };
         let mut outcome = (None, false);
-        let _ = ctx.run(input, |ctx| {
+        let _ = ctx.run(crate::testing::keys_pressed(&[key]), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 let completion = match handle_keys(ui, Id::new("composer"), all, draft) {
                     MenuKey::Complete(draft) => Some(draft),
