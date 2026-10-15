@@ -390,6 +390,10 @@ pub fn text(english: &str) -> Option<&'static str> {
         "Client secret" => "Chave secreta",
         "Save client" => "Salvar cliente",
         "Finish signing in in your browser…" => "Termine de entrar no navegador…",
+        "Open again" => "Abrir de novo",
+        "Closed the browser tab? Start the sign-in over" => {
+            "Fechou a aba do navegador? Comece o login de novo"
+        }
         "Connect Google account" => "Conectar conta do Google",
         "needs to sign in again" => "precisa entrar de novo",
         "Sign in" => "Entrar",

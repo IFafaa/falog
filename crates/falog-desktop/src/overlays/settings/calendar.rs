@@ -362,6 +362,12 @@ impl SettingsDialog {
                 if button(ui, ButtonStyle::Ghost, None, tr("Cancel")).clicked() {
                     events.push(SettingsEvent::CancelGoogleConnect);
                 }
+                if button(ui, ButtonStyle::Filled, None, tr("Open again"))
+                    .on_hover_text(tr("Closed the browser tab? Start the sign-in over"))
+                    .clicked()
+                {
+                    events.push(SettingsEvent::ConnectGoogle);
+                }
                 muted(ui, tr("Finish signing in in your browser…"));
             } else if calendar.has_client()
                 && !changed

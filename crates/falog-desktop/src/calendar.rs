@@ -57,8 +57,15 @@ pub struct Selected {
 
 enum Update {
     OpenUrl(String),
-    Connected(Account),
-    ConnectFailed(Error),
+    /// A sign-in finished; `attempt` tells a current one from one already given up.
+    Connected {
+        attempt: u64,
+        account: Account,
+    },
+    ConnectFailed {
+        attempt: u64,
+        error: Error,
+    },
     Fetched {
         from: NaiveDate,
         to: NaiveDate,
@@ -89,8 +96,10 @@ pub struct CalendarState {
     sender: Sender<Update>,
     receiver: Receiver<Update>,
     refreshing: bool,
-    /// Set while the browser sign-in is open; storing `true` cancels it.
-    connecting: Option<Arc<AtomicBool>>,
+    /// The sign-in waiting for the browser, by attempt number; storing `true` cancels it.
+    connecting: Option<(u64, Arc<AtomicBool>)>,
+    /// Number of the last sign-in started.
+    attempts: u64,
     /// Set while a pasted link is being checked.
     adding_link: bool,
     /// Why the last pasted link was refused.
@@ -143,6 +152,7 @@ impl CalendarState {
             receiver,
             refreshing: false,
             connecting: None,
+            attempts: 0,
             adding_link: false,
             link_error: None,
             last_fetch: None,
@@ -407,30 +417,41 @@ impl CalendarState {
 
     // ---- sign-in ------------------------------------------------------------------------------
 
-    /// Opens Google's consent page in the browser and waits for it in the background.
+    /// Opens Google's consent page in the browser and waits for it in the background. Called again
+    /// while waiting, it gives up the open sign-in and starts over: the browser tab may have been
+    /// closed, and a new consent page is the only way to try again.
     pub fn connect(&mut self) {
-        if self.connecting.is_some() {
-            return;
-        }
+        self.cancel_connect();
+        self.attempts += 1;
+        let attempt = self.attempts;
         let client = self.config.client.clone();
         let cancel = Arc::new(AtomicBool::new(false));
-        self.connecting = Some(cancel.clone());
+        self.connecting = Some((attempt, cancel.clone()));
         self.error = None;
         let sender = self.sender.clone();
         let tokens = self.tokens.clone();
         std::thread::spawn(move || {
             let result = sign_in(&client, &cancel, &sender, &tokens);
             let _ = sender.send(match result {
-                Ok(account) => Update::Connected(account),
-                Err(err) => Update::ConnectFailed(err),
+                Ok(account) => Update::Connected { attempt, account },
+                Err(error) => Update::ConnectFailed { attempt, error },
             });
         });
     }
 
     pub fn cancel_connect(&mut self) {
-        if let Some(cancel) = self.connecting.take() {
+        if let Some((_, cancel)) = self.connecting.take() {
             cancel.store(true, Ordering::Relaxed);
         }
+    }
+
+    /// Clears the waiting sign-in if `attempt` is it; returns whether it was.
+    fn finish_attempt(&mut self, attempt: u64) -> bool {
+        let current = self.connecting.as_ref().is_some_and(|(id, _)| *id == attempt);
+        if current {
+            self.connecting = None;
+        }
+        current
     }
 
     // ---- fetching -----------------------------------------------------------------------------
@@ -526,16 +547,16 @@ impl CalendarState {
             changed = true;
             match update {
                 Update::OpenUrl(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
-                Update::Connected(account) => {
-                    self.connecting = None;
+                Update::Connected { attempt, account } => {
+                    self.finish_attempt(attempt);
                     self.config.upsert(account);
                     self.save_config();
                     self.last_fetch = None;
                 }
-                Update::ConnectFailed(err) => {
-                    self.connecting = None;
-                    if !matches!(err, Error::Cancelled) {
-                        self.error = Some(err.to_string());
+                // An attempt given up for a newer one fails as cancelled; only the current one reports.
+                Update::ConnectFailed { attempt, error } => {
+                    if self.finish_attempt(attempt) && !matches!(error, Error::Cancelled) {
+                        self.error = Some(error.to_string());
                     }
                 }
                 Update::Fetched {
@@ -797,6 +818,32 @@ mod tests {
 
         state.config.set_visible("me@work.example", "team", false);
         assert!(titles(&state).is_empty(), "hidden calendar");
+    }
+
+    #[test]
+    fn signing_in_again_replaces_the_waiting_attempt() {
+        let ctx = egui::Context::default();
+        let mut state = CalendarState::new(None);
+        state.connect();
+        state.connect();
+        assert!(state.is_connecting());
+
+        // The first attempt was given up: its late failure leaves the second one waiting.
+        let _ = state.sender.send(Update::ConnectFailed {
+            attempt: 1,
+            error: Error::Parse("closed".into()),
+        });
+        state.poll(&ctx);
+        assert!(state.is_connecting());
+        assert_eq!(state.error, None);
+
+        let _ = state.sender.send(Update::ConnectFailed {
+            attempt: 2,
+            error: Error::Parse("denied".into()),
+        });
+        state.poll(&ctx);
+        assert!(!state.is_connecting());
+        assert!(state.error.is_some());
     }
 
     #[test]

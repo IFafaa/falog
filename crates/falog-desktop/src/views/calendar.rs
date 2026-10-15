@@ -241,6 +241,12 @@ fn connect_banner(ui: &mut Ui, theme: &Theme, cal: &mut CalendarState, actions: 
                         if button(ui, ButtonStyle::Ghost, None, tr("Cancel")).clicked() {
                             cal.cancel_connect();
                         }
+                        if button(ui, ButtonStyle::Filled, None, tr("Open again"))
+                            .on_hover_text(tr("Closed the browser tab? Start the sign-in over"))
+                            .clicked()
+                        {
+                            cal.connect();
+                        }
                         ui.label(
                             RichText::new(tr("Finish signing in in your browser…"))
                                 .size(12.5)
