@@ -1,8 +1,9 @@
 #!/bin/sh
 # Runs the CI quality gate (.github/workflows/ci.yml) on this machine before you push: format,
-# clippy, tests, docs and the repository policy, plus cargo-deny, typos, shellcheck and the commit
-# messages of unpushed commits when those tools are installed. Coverage, the minimum Rust version and
-# the other operating systems run only in CI. See the CI section of .spec/conventions.md.
+# clippy, tests, docs, the repository policy and the install smoke test, plus cargo-deny, typos, the
+# shell script lint, the site's tests (Node.js 22.12 or newer) and the commit messages of unpushed
+# commits when those tools are installed. Coverage, the minimum Rust version and the other operating
+# systems run only in CI. See the CI section of .spec/conventions.md.
 #
 #   ./scripts/check.sh              # with and without voice input
 #   ./scripts/check.sh --no-voice   # only without voice (no CMake or libclang needed)
@@ -16,7 +17,7 @@ for arg in "$@"; do
         --no-voice) voice=false ;;
         --gpu) gpu=true ;;
         -h | --help)
-            sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -46,6 +47,14 @@ have() {
 }
 docs() {
     RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --document-private-items --locked "$@"
+}
+# The site's tool chain (Astro, Vitest) needs Node.js 22.12 or newer.
+node_for_site() {
+    have npm && node -e 'const [major, minor] = process.versions.node.split(".").map(Number);
+        process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)' 2>/dev/null
+}
+site_tests() {
+    (cd site && npm ci --no-audit --no-fund --silent && npm test)
 }
 
 step format cargo fmt --all -- --check
@@ -92,6 +101,12 @@ if have shellcheck; then
     step shellcheck shellcheck --severity=warning scripts/*.sh
 else
     skip shellcheck 'not installed'
+fi
+step install sh scripts/test-install.sh
+if node_for_site; then
+    step site site_tests
+else
+    skip site 'needs Node.js 22.12 or newer'
 fi
 if git rev-parse --verify --quiet origin/main >/dev/null; then
     step commits sh scripts/check-commits.sh origin/main..HEAD

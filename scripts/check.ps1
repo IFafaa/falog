@@ -1,7 +1,8 @@
 # Runs the CI quality gate (.github/workflows/ci.yml) on this machine before you push: format,
-# clippy, tests, docs and the repository policy, plus cargo-deny, typos and the commit messages of
-# unpushed commits when those tools are installed. Coverage, the minimum Rust version and the other
-# operating systems run only in CI. See the CI section of .spec/conventions.md.
+# clippy, tests, docs and the repository policy, plus cargo-deny, typos, the install smoke test, the
+# site's tests (Node.js 22.12 or newer) and the commit messages of unpushed commits when those tools
+# are installed. Coverage, the minimum Rust version and the other operating systems run only in CI.
+# See the CI section of .spec/conventions.md.
 #
 #   .\scripts\check.ps1              # with and without voice input
 #   .\scripts\check.ps1 -NoVoice     # only without voice (no CMake or LLVM needed)
@@ -92,6 +93,28 @@ if (Get-Command typos -ErrorAction SilentlyContinue) {
     Step 'typos' { typos }
 } else {
     Skip 'typos' 'install it with: cargo install --locked typos-cli'
+}
+# The install scripts are for macOS and Linux; under Git Bash the smoke test checks the Linux layout.
+if ($bash) {
+    Step 'install' { & $bash scripts/test-install.sh }
+} else {
+    Skip 'install' 'needs Git for Windows (bash)'
+}
+# The site's tool chain (Astro, Vitest) needs Node.js 22.12 or newer.
+$nodeVersion = $null
+if (Get-Command node -ErrorAction SilentlyContinue) {
+    $nodeVersion = [version]((node --version) -replace '^v', '')
+}
+if ($nodeVersion -and $nodeVersion -ge [version]'22.12') {
+    Step 'site' {
+        Push-Location site
+        try {
+            npm ci --no-audit --no-fund --silent
+            if ($LASTEXITCODE -eq 0) { npm test }
+        } finally { Pop-Location }
+    }
+} else {
+    Skip 'site' 'needs Node.js 22.12 or newer'
 }
 git rev-parse --verify --quiet origin/main *> $null
 if ($LASTEXITCODE -eq 0 -and $bash) {
