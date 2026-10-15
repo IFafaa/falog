@@ -119,3 +119,115 @@ impl From<NewTask> for TaskPatch {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::{Rgb, Weekdays};
+    use chrono::Weekday;
+
+    fn task() -> Task {
+        let at = NaiveDate::from_ymd_opt(2026, 10, 6)
+            .and_then(|d| d.and_hms_opt(9, 0, 0))
+            .unwrap();
+        Task {
+            id: TaskId(12),
+            title: "Prepare the reunião deck".into(),
+            description: "Slides for the quarterly review".into(),
+            area: Some(Area {
+                id: AreaId(1),
+                name: "Saúde".into(),
+                color: Rgb::new(1, 2, 3),
+            }),
+            status: Status::Todo,
+            priority: Priority::Medium,
+            due: None,
+            requester: "Ana Lúcia".into(),
+            note_count: 0,
+            created_at: at,
+            updated_at: at,
+            completed_at: None,
+            archived_at: None,
+            recurrence: None,
+        }
+    }
+
+    #[test]
+    fn matches_the_id_with_or_without_hash() {
+        let task = task();
+        assert!(task.matches("12"));
+        assert!(task.matches("#12"));
+        assert!(task.matches(" #12 "));
+        assert!(!task.matches("#1"));
+        assert!(!task.matches("#123"));
+    }
+
+    #[test]
+    fn matches_every_text_field_ignoring_case_and_accents() {
+        let task = task();
+        for query in ["REUNIAO", "quarterly", "ana lucia", "saude", "Saúde"] {
+            assert!(task.matches(query), "{query}");
+        }
+        assert!(!task.matches("budget"));
+    }
+
+    #[test]
+    fn an_empty_query_matches_everything() {
+        assert!(task().matches(""));
+        assert!(task().matches("   "));
+    }
+
+    #[test]
+    fn tasks_without_an_area_match_the_unassigned_label() {
+        let task = Task { area: None, ..task() };
+        assert_eq!(task.area_name(), UNASSIGNED);
+        assert!(task.matches("no area"));
+        assert!(!task.matches("saude"));
+    }
+
+    #[test]
+    fn a_patch_from_a_new_task_overwrites_every_field() {
+        let new = NewTask {
+            title: "Title".into(),
+            description: "Description".into(),
+            area_id: Some(AreaId(3)),
+            status: Status::Waiting,
+            priority: Priority::Urgent,
+            due: NaiveDate::from_ymd_opt(2026, 10, 9),
+            requester: "Ana".into(),
+            recurrence: Some(Recurrence::Weekly(Weekdays::single(Weekday::Fri))),
+        };
+        assert_eq!(
+            TaskPatch::from(new.clone()),
+            TaskPatch {
+                title: Some(new.title),
+                description: Some(new.description),
+                area_id: Some(new.area_id),
+                status: Some(new.status),
+                priority: Some(new.priority),
+                due: Some(new.due),
+                requester: Some(new.requester),
+                recurrence: Some(new.recurrence),
+            }
+        );
+        // Empty optional fields clear the task's values instead of keeping them.
+        let cleared = TaskPatch::from(NewTask::new("Title"));
+        assert_eq!(cleared.area_id, Some(None));
+        assert_eq!(cleared.due, Some(None));
+        assert_eq!(cleared.recurrence, Some(None));
+    }
+
+    #[test]
+    fn new_tasks_default_to_todo_and_medium() {
+        let new = NewTask::new("Call the bank");
+        assert_eq!((new.status, new.priority), (Status::Todo, Priority::Medium));
+        let patch = TaskPatch::status(Status::Done);
+        assert_eq!(
+            patch,
+            TaskPatch {
+                status: Some(Status::Done),
+                ..TaskPatch::default()
+            }
+        );
+    }
+}
