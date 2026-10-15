@@ -81,7 +81,10 @@ fn parse_keyword(text: &str, today: NaiveDate) -> Option<NaiveDate> {
 
 fn parse_numeric(text: &str, today: NaiveDate) -> Option<NaiveDate> {
     for format in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y"] {
-        if let Ok(date) = NaiveDate::parse_from_str(text, format) {
+        // `%Y` also reads a two-digit year ("09/10/26" as the year 26), which is never meant.
+        if let Ok(date) = NaiveDate::parse_from_str(text, format)
+            && date.year() >= 1000
+        {
             return Some(date);
         }
     }
@@ -191,6 +194,15 @@ mod tests {
         assert_eq!(parse_due("20/10/2026", today()), Some(d(2026, 10, 20)));
         assert_eq!(parse_due("15/10", today()), Some(d(2026, 10, 15)));
         assert_eq!(parse_due("05/01", today()), Some(d(2027, 1, 5)));
+    }
+
+    #[test]
+    fn reads_two_digit_years_in_this_century() {
+        assert_eq!(parse_due("09/10/26", today()), Some(d(2026, 10, 9)));
+        assert_eq!(parse_due("20/10/26", today()), Some(d(2026, 10, 20)));
+        assert_eq!(parse_due("05/01/27", today()), Some(d(2027, 1, 5)));
+        // Not ISO with a two-digit year either.
+        assert_eq!(parse_due("26-10-20", today()), None);
     }
 
     #[test]
