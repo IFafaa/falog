@@ -1372,6 +1372,22 @@ mod tests {
         );
     }
 
+    // Regression: Claude's ACP adapter also loaded every MCP server the user had set up (tens of
+    // thousands of tokens of tool definitions, and tools the assistant must not use).
+    #[test]
+    fn claude_over_acp_gets_only_falogs_mcp_server() {
+        let (_session, mut agent) = connect(setup(None, None));
+        handshake(&mut agent, json!({}), "@agentclientprotocol/claude-agent-acp");
+        let new = agent.expect("session/new");
+        let servers = new["params"]["mcpServers"].as_array().unwrap();
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0]["name"], "falog");
+        let options = &new["params"]["_meta"]["claudeCode"]["options"];
+        assert_eq!(options["strictMcpConfig"], true);
+        assert_eq!(options["settingSources"], json!([]), "no user settings");
+        assert_eq!(options["tools"], json!([]), "no built-in tools");
+    }
+
     #[test]
     fn knows_every_tool_of_the_mcp_server() {
         // A tool missing here is refused when an ACP agent asks to run it.
