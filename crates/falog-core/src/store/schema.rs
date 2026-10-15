@@ -71,6 +71,7 @@ fn applied(conn: &Connection) -> Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::types::Value;
 
     #[test]
     fn migrations_are_idempotent() {
@@ -97,5 +98,102 @@ mod tests {
             )
             .unwrap();
         assert_eq!(area, "Work");
+    }
+
+    /// A database left by an older build: its first `version` migrations and some data.
+    fn old_database(version: usize) -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in &MIGRATIONS[..version] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", version as i64).unwrap();
+        conn.execute_batch(
+            "INSERT INTO areas (id, name, color, created_at)
+                 VALUES (1, 'Work', '#74ade8', '2026-10-01 09:00:00');
+             INSERT INTO tasks (id, title, description, area_id, status, priority, due_date, requester,
+                                created_at, updated_at, completed_at)
+                 VALUES (1, 'Fix login', 'Android only', 1, 'done', 3, '2026-10-09', 'Ana',
+                         '2026-10-01 09:00:00', '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
+                        (2, 'Call the bank', '', NULL, 'todo', 2, NULL, '',
+                         '2026-10-01 09:30:00', '2026-10-01 09:30:00', NULL);
+             INSERT INTO notes (id, task_id, body, created_at)
+                 VALUES (1, 1, 'reproduced on the emulator', '2026-10-02 09:00:00');",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn rows(conn: &Connection, sql: &str) -> Vec<Vec<Value>> {
+        let mut stmt = conn.prepare(sql).unwrap();
+        let columns = stmt.column_count();
+        stmt.query_map([], |row| (0..columns).map(|i| row.get(i)).collect())
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    }
+
+    /// Every row of the tables as the first migration defined them.
+    fn snapshot(conn: &Connection) -> Vec<Vec<Vec<Value>>> {
+        [
+            "SELECT * FROM areas ORDER BY id",
+            "SELECT id, title, description, area_id, status, priority, due_date, requester, created_at,
+                    updated_at, completed_at FROM tasks ORDER BY id",
+            "SELECT * FROM notes ORDER BY id",
+        ]
+        .into_iter()
+        .map(|sql| rows(conn, sql))
+        .collect()
+    }
+
+    #[test]
+    fn upgrading_an_old_database_keeps_every_row() {
+        for version in 1..MIGRATIONS.len() {
+            let conn = old_database(version);
+            let archived_at = "2026-10-03 11:00:00";
+            if version >= 3 {
+                conn.execute("UPDATE tasks SET archived_at = ?1 WHERE id = 1", [archived_at])
+                    .unwrap();
+            }
+            let before = snapshot(&conn);
+
+            migrate(&conn).unwrap();
+
+            assert_eq!(applied(&conn).unwrap(), MIGRATIONS.len(), "from {version}");
+            assert_eq!(snapshot(&conn), before, "from {version}");
+            let added = rows(&conn, "SELECT archived_at, recurrence FROM tasks ORDER BY id");
+            let kept_archive = if version >= 3 {
+                Value::Text(archived_at.into())
+            } else {
+                Value::Null
+            };
+            assert_eq!(
+                added,
+                [vec![kept_archive, Value::Null], vec![Value::Null, Value::Null]],
+                "from {version}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_upgraded_database_reads_back_as_tasks() {
+        let conn = old_database(3);
+        migrate(&conn).unwrap();
+        let store = crate::Store { conn, path: None };
+
+        let tasks = store.tasks().unwrap();
+        assert_eq!(tasks.len(), 2);
+        let task = &tasks[0];
+        assert_eq!(task.title, "Fix login");
+        assert_eq!(task.area_name(), "Work");
+        assert_eq!(task.status, crate::domain::Status::Done);
+        assert_eq!(task.priority, crate::domain::Priority::High);
+        assert_eq!(task.due, chrono::NaiveDate::from_ymd_opt(2026, 10, 9));
+        assert_eq!(task.note_count, 1);
+        assert!(task.completed_at.is_some());
+        assert_eq!((task.archived_at, task.recurrence), (None, None));
+        assert_eq!(
+            store.notes(task.id).unwrap()[0].body,
+            "reproduced on the emulator"
+        );
     }
 }
