@@ -368,4 +368,56 @@ mod tests {
         let result = pending.finish(&client(), &AtomicBool::new(true));
         assert!(matches!(result, Err(Error::Cancelled)));
     }
+
+    /// Sends `request` to the sign-in's listener as a browser would, and returns what the sign-in
+    /// made of it and the HTTP answer the browser got.
+    fn ask(pending: &Pending, request: &str) -> (Option<Result<String>>, String) {
+        let port = pending.listener.local_addr().unwrap().port();
+        let mut browser = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        browser.write_all(request.as_bytes()).unwrap();
+        let (stream, _) = pending.listener.accept().unwrap();
+        let result = pending.answer(stream);
+        let mut answer = String::new();
+        browser.read_to_string(&mut answer).unwrap();
+        (result, answer)
+    }
+
+    // Regression: any local process could end a Google sign-in by sending an error without its state.
+    #[test]
+    fn turns_away_redirects_without_this_sign_ins_state() {
+        let pending = begin(&client()).unwrap();
+        for forged in [
+            "/?error=access_denied",
+            "/?error=access_denied&state=another",
+            "/?state=another&code=stolen",
+        ] {
+            let (result, answer) = ask(&pending, &format!("GET {forged} HTTP/1.1\r\n\r\n"));
+            assert!(result.is_none(), "{forged} ended the sign-in");
+            assert!(answer.starts_with("HTTP/1.1 400"), "{forged}: {answer}");
+        }
+        // The real redirect still gets through afterwards.
+        let real = format!("GET /?state={}&code=4%2Fabc HTTP/1.1\r\n\r\n", pending.state);
+        let (result, answer) = ask(&pending, &real);
+        assert_eq!(result.unwrap().unwrap(), "4/abc");
+        assert!(answer.contains("can now read"), "{answer}");
+    }
+
+    // Regression: the sign-in read a request line of any length, so a local process could make it
+    // read without end.
+    #[test]
+    fn reads_at_most_8_kb_of_a_request_line() {
+        let pending = begin(&client()).unwrap();
+        let port = pending.listener.local_addr().unwrap().port();
+        let mut browser = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        // The state and code come after 8 KB, so a capped read never sees them.
+        let padding = "x".repeat(9000);
+        write!(
+            browser,
+            "GET /?padding={padding}&state={}&code=c HTTP/1.1\r\n\r\n",
+            pending.state
+        )
+        .unwrap();
+        let (stream, _) = pending.listener.accept().unwrap();
+        assert!(pending.answer(stream).is_none());
+    }
 }
