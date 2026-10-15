@@ -91,6 +91,21 @@ GitHub, import the repository (organization `ifafaa`, project `IFafaa_falog`; if
 `sonar-project.properties`), turn off its *Automatic Analysis* (CI runs the scan), create a token under
 *My Account › Security*, and add it to the GitHub repository as the Actions secret `SONAR_TOKEN`.
 
+## CD
+
+CI checks; it never publishes. [`.github/workflows/cd.yml`](../.github/workflows/cd.yml) publishes the
+public site to GitHub Pages, and only a commit CI passed on:
+
+| Trigger | Publishes |
+|---|---|
+| CI finished on a push to `main` | That commit, if CI passed; nothing when it failed or was cancelled |
+| `release.yml` after publishing a release, *Run workflow* by hand, or daily at 06:17 UTC | `main`'s latest commit, if its CI run passed; nothing while it is still running (its own CD run follows) |
+
+A `gate` job picks the commit and checks CI's verdict; `build` checks out exactly that commit and
+builds the site with the workflow's token (the releases are baked in); `deploy` publishes it.
+Deployments run one at a time and never cancel each other. Apps are not deployed: they ship through
+releases ([releases.md](releases.md)).
+
 ## Workflow for a task
 
 1. Write or update a task spec in [tasks/](tasks/README.md) (goal, scope, acceptance criteria).

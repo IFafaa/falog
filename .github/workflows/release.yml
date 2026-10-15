@@ -166,7 +166,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
-      # Starts pages.yml below, so the public site lists the new release.
+      # Starts cd.yml below, so the public site lists the new release.
       actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -218,4 +218,4 @@ jobs:
       - name: Update the site
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+        run: gh workflow run cd.yml --repo "$GITHUB_REPOSITORY" --ref main

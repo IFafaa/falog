@@ -58,9 +58,9 @@ use Falog. Edit the body on the release page to add a summary.
    ```
 
 5. The Release workflow checks the tag, builds on Windows, macOS (Apple silicon and Intel) and Ubuntu,
-   and creates the GitHub Release in the tag's channel with the release notes. It then starts the Pages
+   and creates the GitHub Release in the tag's channel with the release notes. It then starts the CD
    workflow, which rebuilds the public site with the new release on its download and release pages.
-   An edited release body reaches the site with the daily Pages run, or run Pages by hand.
+   An edited release body reaches the site with the daily CD run, or run CD by hand.
 
 If a build fails before anything is published, fix it on `main`, delete the tag
 (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`) and tag again. Once a release is public, ship

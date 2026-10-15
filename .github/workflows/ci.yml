@@ -2,6 +2,7 @@
 # requires only the `quality-gate` job, which fails when any other job did. What each job checks and
 # how to fix a failure: the CI section of .spec/conventions.md. scripts/check.ps1 and
 # scripts/check.sh run the same checks locally.
+# Deploying is not CI's job: cd.yml publishes the site once CI has passed on main.
 #
 # Actions are pinned to commit SHAs (the comment says which release); update them together.
 name: CI
@@ -295,7 +296,7 @@ jobs:
 
   # The public site: unit tests of its build-time code (Vitest), then the build. Without a token the
   # build reads the releases anonymously and, when GitHub refuses or is down, makes pages without
-  # them instead of failing; pages.yml builds with a token, so a failed read stops the deploy there.
+  # them instead of failing; cd.yml builds with a token, so a failed read stops the deploy there.
   site:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -308,7 +309,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Node 22 is the oldest the site supports (package.json engines); pages.yml deploys with 24.
+      # Node 22 is the oldest the site supports (package.json engines); cd.yml deploys with 24.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22

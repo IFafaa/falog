@@ -1,0 +1,123 @@
+# Continuous deployment: publishes the public site (https://ifafaa.github.io/falog/) to GitHub Pages
+# once CI has passed on main. CI (ci.yml) only checks, on pushes and pull requests; this workflow only
+# publishes, and only a commit CI approved.
+#
+# The site is the Astro project in site/, which also reads the fonts and icon from
+# crates/falog-desktop/assets and the roadmap from .spec/roadmap.md. Releases are read from the
+# GitHub API while building (with the workflow's token) and baked into the pages, so visitors never
+# hit the API.
+#
+# When it runs:
+#   - CI finished on a push to main: publishes that commit if CI passed, nothing otherwise.
+#   - release.yml started it after publishing a release (a release made with GITHUB_TOKEN starts no
+#     workflow by itself), by hand (Actions › CD › Run workflow), or the daily run that catches a
+#     release edited by hand: publishes main's latest commit if CI passed on it.
+#
+# One-time setup: repository Settings › Pages › Source: GitHub Actions.
+# Actions are pinned to commit SHAs (the comment says which release); update them together.
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
+
+# One deployment at a time; a newer run waits for the running one and never cancels it.
+concurrency:
+  group: cd
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ASTRO_TELEMETRY_DISABLED: 1
+
+jobs:
+  # Picks the commit to publish and checks that CI passed on it.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      sha: ${{ steps.pick.outputs.sha }}
+      publish: ${{ steps.pick.outputs.publish }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          if [ "$EVENT" = workflow_run ]; then
+            sha=$RUN_SHA
+            # Only pushes to main: a pull request from a branch named main must never publish.
+            if [ "$RUN_EVENT" = push ]; then
+              conclusion=$RUN_CONCLUSION
+            else
+              conclusion="from a $RUN_EVENT, not a push"
+            fi
+          else
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+            conclusion=$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=1" \
+              --jq '.workflow_runs[0] | if . == null then "missing" elif .status != "completed" then .status else .conclusion end')
+          fi
+          if [ "$conclusion" = success ]; then
+            echo "Publishing $sha: CI passed on it."
+            publish=true
+          else
+            echo "::notice::Not publishing $sha: its CI run is $conclusion."
+            publish=false
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Exactly the commit CI approved, even if main moved since.
+          ref: ${{ needs.gate.outputs.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          # Reads the releases (5,000 requests an hour instead of 60); a failed read fails the build.
+          GITHUB_TOKEN: ${{ github.token }}
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

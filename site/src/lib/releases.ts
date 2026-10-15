@@ -1,6 +1,6 @@
 // The releases, read from the GitHub API once when the site is built and rendered into the pages, so
-// visitors never wait on (or get rate limited by) the API. pages.yml rebuilds the site when a release
-// is published and once a day.
+// visitors never wait on (or get rate limited by) the API. cd.yml rebuilds the site after every push
+// to main that passes CI, when a release is published and once a day.
 //
 // With GITHUB_TOKEN set (CI) a failed request fails the build, so a broken list is never deployed.
 // Without it (local builds) the pages are built without releases and say where to find them.

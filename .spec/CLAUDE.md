@@ -41,7 +41,9 @@ CI (`.github/workflows/ci.yml`) is a strict quality gate: fmt; clippy and tests 
 Ubuntu with and without voice, and clippy with `--features falog-desktop/gpu` on macOS (Metal) and
 Ubuntu (Vulkan); rustdoc; coverage; the minimum Rust version; cargo-deny and unused dependencies; duplicated code; CodeQL static
 analysis; SonarQube Cloud (once its token is set); secrets, naming and spelling; the site's tests and build; a smoke test of the install scripts; commit messages. Code behind `cfg(windows)`/`cfg(target_os = ...)` must stay warning-free on all
-three. What each job checks and how to fix it: [conventions.md](conventions.md#ci).
+three. What each job checks and how to fix it: [conventions.md](conventions.md#ci). CD
+(`.github/workflows/cd.yml`) publishes the public site only after CI has passed on `main`
+([conventions.md](conventions.md#cd)).
 
 ## Rules that always apply
 
