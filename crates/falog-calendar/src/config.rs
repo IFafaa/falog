@@ -537,6 +537,187 @@ mod tests {
         assert_eq!(config.links.len(), 1);
     }
 
+    /// A folder of its own under the system's temporary folder, removed when dropped.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(test: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("falog-calendar-{test}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            Self(dir)
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn event_from(account: &str, calendar_id: &str) -> Event {
+        let day = NaiveDate::from_ymd_opt(2026, 10, 7).unwrap();
+        Event {
+            account: account.into(),
+            calendar_id: calendar_id.into(),
+            id: "e".into(),
+            ical_uid: String::new(),
+            title: "Review".into(),
+            start: crate::EventTime::Date(day),
+            end: crate::EventTime::Date(day.succ_opt().unwrap()),
+            location: String::new(),
+            description: String::new(),
+            join_link: None,
+            html_link: None,
+        }
+    }
+
+    #[test]
+    fn a_client_needs_both_an_id_and_a_secret() {
+        let client = |id: &str, secret: &str| Client {
+            id: id.into(),
+            secret: secret.into(),
+        };
+        assert!(client("id", "secret").is_set());
+        assert!(!client("id", "  ").is_set());
+        assert!(!client(" ", "secret").is_set());
+        assert!(!Client::default().is_set());
+    }
+
+    #[test]
+    fn links_have_an_area_until_it_is_deleted() {
+        let mut config = CalendarConfig::default();
+        let link = config
+            .add_link("Team", "https://example.com/team.ics", None)
+            .unwrap()
+            .calendar
+            .id
+            .clone();
+        config.set_area(&link, Some(4));
+        assert_eq!(config.area_of(&event_from("", &link)), Some(4));
+        // Nothing matches an unknown email or link id.
+        config.set_area("nobody@work.example", Some(5));
+        assert_eq!(config.area_of(&event_from("nobody@work.example", "x")), None);
+        assert_eq!(config.area_of(&event_from("", "link-gone")), None);
+
+        config.forget_area(4);
+        assert_eq!(config.area_of(&event_from("", &link)), None);
+    }
+
+    #[test]
+    fn reconnecting_takes_google_s_calendars_and_a_newly_chosen_area() {
+        let mut config = CalendarConfig::default();
+        config.upsert(account(
+            "me@work.example",
+            vec![calendar("work", true), calendar("old", true)],
+        ));
+        config.set_visible("me@work.example", "work", false);
+        config.set_area("me@work.example", Some(1));
+
+        let mut again = account(
+            "me@work.example",
+            vec![calendar("work", true), calendar("new", false)],
+        );
+        again.area = Some(2);
+        again.can_write = true;
+        config.upsert(again);
+        let reconnected = &config.accounts[0];
+        let ids: Vec<(&str, bool)> = reconnected
+            .calendars
+            .iter()
+            .map(|c| (c.id.as_str(), c.visible))
+            .collect();
+        // A calendar gone from Google goes; a new one keeps Google's checkbox.
+        assert_eq!(ids, vec![("work", false), ("new", false)]);
+        assert_eq!(reconnected.area, Some(2));
+        assert!(reconnected.can_write);
+        assert!(config.remove("nobody@work.example").is_none());
+    }
+
+    #[test]
+    fn link_colors_skip_used_ones_in_any_case_and_wrap_when_all_are_taken() {
+        let mut config = CalendarConfig::default();
+        let mut taken = calendar("work", true);
+        taken.color = LINK_COLORS[0].to_uppercase();
+        config.upsert(account("me@work.example", vec![taken]));
+        let first = config.add_link("A", "https://example.com/a.ics", None).unwrap();
+        assert_eq!(first.calendar.color, LINK_COLORS[1]);
+        let chosen = config
+            .add_link("B", "https://example.com/b.ics", Some("#123456".into()))
+            .unwrap();
+        assert_eq!(chosen.calendar.color, "#123456");
+
+        let mut full = CalendarConfig::default();
+        for (i, color) in LINK_COLORS.iter().enumerate() {
+            let url = format!("https://example.com/{i}.ics");
+            full.add_link("x", &url, Some((*color).to_owned())).unwrap();
+        }
+        let next = full.add_link("y", "https://example.com/y.ics", None).unwrap();
+        assert_eq!(next.calendar.color, LINK_COLORS[0]);
+    }
+
+    #[test]
+    fn link_addresses_are_kept_trimmed() {
+        let mut config = CalendarConfig::default();
+        let url = "https://example.com/team.ics";
+        config.add_link("Team", &format!("  {url}\n"), None).unwrap();
+        assert_eq!(config.links[0].url, url);
+        assert!(config.has_link(&format!(" {url} ")));
+        assert!(!config.has_link("https://example.com/other.ics"));
+        assert!(config.remove_link("link-gone").is_none());
+    }
+
+    #[test]
+    fn calendars_of_links_and_accounts_can_be_changed_and_hidden() {
+        let mut config = CalendarConfig::default();
+        config.upsert(account("me@work.example", vec![calendar("work", true)]));
+        let link = config
+            .add_link("Team", "https://example.com/team.ics", None)
+            .unwrap()
+            .calendar
+            .id
+            .clone();
+        config.calendar_mut("", &link).unwrap().name = "Squad".into();
+        config.calendar_mut("me@work.example", "work").unwrap().visible = false;
+        assert_eq!(config.links[0].calendar.name, "Squad");
+        assert!(config.calendar_mut("me@work.example", &link).is_none());
+        assert!(config.calendar_mut("nobody@work.example", "work").is_none());
+
+        assert!(!config.is_visible(&event_from("me@work.example", "work")));
+        config.set_visible("me@work.example", "work", true);
+        assert!(config.is_visible(&event_from("me@work.example", "work")));
+        assert!(config.is_visible(&event_from("", &link)));
+        assert!(!config.is_visible(&event_from("nobody@work.example", "work")));
+    }
+
+    #[test]
+    fn a_broken_cache_is_set_aside_and_saving_leaves_no_temporary_file() {
+        let dir = TempDir::new("cache");
+        let files = Files::new(&dir.0);
+        assert_eq!(files.load_cache(), EventCache::default());
+        let cache = EventCache {
+            from: NaiveDate::from_ymd_opt(2026, 10, 1),
+            to: NaiveDate::from_ymd_opt(2026, 11, 1),
+            events: vec![event_from("me@work.example", "work")],
+        };
+        files.save_cache(&cache).unwrap();
+        assert_eq!(files.load_cache(), cache);
+        assert!(!dir.0.join("events.json.tmp").exists());
+
+        std::fs::write(dir.0.join("events.json"), "[1, 2").unwrap();
+        assert_eq!(files.load_cache(), EventCache::default());
+        assert!(dir.0.join("events.json.bak").exists());
+        assert!(!dir.0.join("events.json").exists());
+    }
+
+    #[test]
+    fn marks_when_events_changed_elsewhere() {
+        let dir = TempDir::new("changed");
+        let files = Files::new(&dir.0);
+        assert_eq!(files.changed_at(), None);
+        files.mark_changed().unwrap();
+        assert!(files.changed_at().is_some());
+    }
+
     #[test]
     fn cache_knows_its_range() {
         let day = |d| NaiveDate::from_ymd_opt(2026, 10, d).unwrap();
