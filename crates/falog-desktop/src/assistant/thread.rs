@@ -689,6 +689,137 @@ mod tests {
         assert_eq!(*sent.borrow(), vec!["model=opus".to_owned()]);
     }
 
+    /// A session whose agent is gone: every message fails.
+    #[derive(Debug)]
+    struct Unreachable;
+
+    impl Session for Unreachable {
+        fn send(&mut self, _text: &str) -> std::io::Result<()> {
+            Err(std::io::ErrorKind::BrokenPipe.into())
+        }
+        fn try_recv(&mut self) -> Option<AgentEvent> {
+            None
+        }
+        fn cancel(&mut self) -> bool {
+            false
+        }
+    }
+
+    /// Sends `text` in `thread` without starting any agent.
+    fn send(thread: &mut Thread, text: &str) -> bool {
+        let launcher = Launcher { database: None };
+        thread.send(&egui::Context::default(), text.into(), &launcher, None)
+    }
+
+    #[test]
+    fn sends_trimmed_messages_one_turn_at_a_time() {
+        let sent = std::rc::Rc::default();
+        let mut thread = Thread::new(ThreadId(1));
+        thread.session = Some(Box::new(FakeSession {
+            sent: std::rc::Rc::clone(&sent),
+            live_options: false,
+        }));
+        assert!(!send(&mut thread, "   "), "nothing to send");
+        assert!(send(&mut thread, "  Move #4 to done  "));
+        assert!(thread.busy);
+        assert!(!send(&mut thread, "and #5"), "the turn is still running");
+        assert_eq!(*sent.borrow(), ["Move #4 to done"]);
+        assert_eq!(thread.title(), "Move #4 to done");
+    }
+
+    #[test]
+    fn says_why_a_message_could_not_reach_the_agent() {
+        crate::i18n::set(crate::i18n::Language::English);
+        let mut thread = Thread::new(ThreadId(1));
+        thread.agent_name = "Goose".into();
+        assert!(send(&mut thread, "hi"), "kept in the thread");
+        assert!(!thread.busy);
+        assert!(
+            matches!(thread.items.last(), Some(Item::Error(text)) if text.starts_with("Goose is no longer set up"))
+        );
+
+        thread.session = Some(Box::new(Unreachable));
+        send(&mut thread, "hello?");
+        assert!(thread.session.is_none(), "the next message starts it again");
+        assert!(!thread.busy);
+        assert!(
+            matches!(thread.items.last(), Some(Item::Error(text)) if text.starts_with("Could not reach Goose"))
+        );
+        assert_eq!(thread.message_count(), 2);
+    }
+
+    #[test]
+    fn a_tool_call_reported_again_is_updated_in_place() {
+        let mut thread = Thread::new(ThreadId(1));
+        thread.apply(AgentEvent::ToolUse {
+            id: "t1".into(),
+            name: "create_task".into(),
+            input: json!({ "title": "Pay rent" }),
+        });
+        // ACP agents report a call again once its arguments are known, or with none at all.
+        thread.apply(AgentEvent::ToolUse {
+            id: "t1".into(),
+            name: "mcp__falog__create_task".into(),
+            input: serde_json::Value::Null,
+        });
+        assert_eq!(thread.items.len(), 1);
+        assert!(matches!(&thread.items[0], Item::Tool(call)
+            if call.name == "create_task" && call.input == json!({ "title": "Pay rent" })));
+    }
+
+    #[test]
+    fn an_agent_ending_between_turns_is_no_error() {
+        let mut thread = Thread::new(ThreadId(1));
+        thread.session = Some(Box::new(FakeSession::default()));
+        thread.apply(AgentEvent::Exited { stderr: "bye".into() });
+        assert!(thread.session.is_none());
+        assert!(thread.items.is_empty());
+
+        thread.busy = true;
+        thread.apply(AgentEvent::TurnFinished {
+            is_error: true,
+            message: None,
+        });
+        assert!(
+            matches!(thread.items.last(), Some(Item::Error(text)) if text == "The assistant stopped with an error.")
+        );
+    }
+
+    #[test]
+    fn stopping_keeps_a_session_only_if_it_can_go_on() {
+        let mut thread = Thread::new(ThreadId(1));
+        thread.stop();
+        assert!(thread.items.is_empty(), "nothing to stop");
+
+        for (live, kept) in [(true, true), (false, false)] {
+            thread.session = Some(Box::new(FakeSession {
+                live_options: live,
+                ..FakeSession::default()
+            }));
+            thread.busy = true;
+            thread.stop();
+            assert_eq!(thread.session.is_some(), kept);
+            assert!(!thread.busy);
+            assert!(matches!(thread.items.last(), Some(Item::Notice(_))));
+        }
+
+        thread.session = Some(Box::new(FakeSession::default()));
+        thread.busy = true;
+        thread.release_session();
+        assert!(thread.session.is_some(), "a running turn is not cut short");
+    }
+
+    #[test]
+    fn explains_why_an_agent_exited() {
+        crate::i18n::set(crate::i18n::Language::English);
+        assert_eq!(explain_exit("Codex", ""), "Codex exited unexpectedly.");
+        assert_eq!(
+            explain_exit("Codex", "starting\n\nloading\npanic: out of memory\nbye\n"),
+            "Codex exited unexpectedly: loading\npanic: out of memory\nbye"
+        );
+        assert!(explain_exit("Codex", "Error: not logged in").contains("not signed in"));
+    }
+
     #[test]
     fn describes_relative_times() {
         let now = 1_000_000;
