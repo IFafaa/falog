@@ -121,6 +121,20 @@ mod tests {
         result["content"][0]["text"].as_str().unwrap()
     }
 
+    /// Calls a tool that must succeed and returns its text.
+    fn ok(server: &Server, tool: &str, args: Value) -> String {
+        let result = call(server, 1, tool, args);
+        assert_ne!(result["isError"], true, "{tool}: {}", text(&result));
+        text(&result).to_owned()
+    }
+
+    /// Calls a tool that must fail in-band and returns its error text.
+    fn fails(server: &Server, tool: &str, args: Value) -> String {
+        let result = call(server, 1, tool, args);
+        assert_eq!(result["isError"], true, "{tool}: {}", text(&result));
+        text(&result).to_owned()
+    }
+
     #[test]
     fn initializes_with_client_version() {
         let response = server()
@@ -376,5 +390,108 @@ mod tests {
         assert!(text(&result).contains("not found"));
         let result = call(&server, 2, "create_task", json!({}));
         assert_eq!(result["isError"], true);
+    }
+
+    /// Task #1 in Work with every field set; due in 2099 so the line does not depend on today.
+    fn full_task(server: &Server) {
+        ok(server, "create_area", json!({ "name": "Work" }));
+        ok(
+            server,
+            "create_task",
+            json!({ "title": "Send the report", "area": "Work", "description": "Numbers from Q3",
+                    "priority": "high", "due_date": "2099-01-02", "requester": "Ana",
+                    "status": "waiting", "recurrence": "every friday" }),
+        );
+    }
+
+    #[test]
+    fn empty_fields_clear_the_area_due_date_and_recurrence() {
+        let server = server();
+        full_task(&server);
+        let updated = ok(
+            &server,
+            "update_task",
+            json!({ "id": 1, "area": "", "due_date": "", "recurrence": "" }),
+        );
+        assert_eq!(
+            updated,
+            "Updated #1 [No area] Send the report — High · Waiting · requested by Ana"
+        );
+    }
+
+    #[test]
+    fn omitted_fields_are_left_alone() {
+        let server = server();
+        full_task(&server);
+        let updated = ok(
+            &server,
+            "update_task",
+            json!({ "id": 1, "title": "Send the Q3 report" }),
+        );
+        assert_eq!(
+            updated,
+            "Updated #1 [Work] Send the Q3 report — High · due 2099-01-02 (Jan 2, 2099) · repeats every \
+             Friday · Waiting · requested by Ana"
+        );
+        assert!(ok(&server, "get_task", json!({ "id": 1 })).contains("Numbers from Q3"));
+        // An empty title keeps the old one too.
+        let updated = ok(&server, "update_task", json!({ "id": 1, "title": " " }));
+        assert!(updated.contains("Send the Q3 report"), "{updated}");
+    }
+
+    #[test]
+    fn update_task_appends_a_note() {
+        let server = server();
+        full_task(&server);
+        let updated = ok(
+            &server,
+            "update_task",
+            json!({ "id": 1, "note": "the numbers are late" }),
+        );
+        assert!(
+            updated.ends_with("\nNote added to the activity log."),
+            "{updated}"
+        );
+        let details = ok(&server, "get_task", json!({ "id": 1 }));
+        assert!(details.contains("\nActivity:\n- "), "{details}");
+        assert!(details.ends_with(" — the numbers are late"), "{details}");
+        let blank = ok(&server, "update_task", json!({ "id": 1, "note": "  " }));
+        assert!(!blank.contains("Note added"), "{blank}");
+    }
+
+    #[test]
+    fn unknown_areas_list_the_registered_ones() {
+        let server = server();
+        assert_eq!(
+            fails(&server, "create_task", json!({ "title": "X", "area": "work" })),
+            "Error: area \"work\" not found (no areas registered yet)"
+        );
+        ok(&server, "create_area", json!({ "name": "Work" }));
+        ok(&server, "create_area", json!({ "name": "Home" }));
+        ok(&server, "create_task", json!({ "title": "X" }));
+        let expected = "Error: area \"school\" not found; registered areas: Home, Work";
+        for (tool, args) in [
+            ("create_task", json!({ "title": "Y", "area": "school" })),
+            ("update_task", json!({ "id": 1, "area": "school" })),
+            ("list_tasks", json!({ "area": "school" })),
+            ("get_focus", json!({ "area": "school" })),
+            ("archive_tasks", json!({ "all_done": true, "area": "school" })),
+            ("update_area", json!({ "area": "school", "name": "Study" })),
+        ] {
+            assert_eq!(fails(&server, tool, args), expected, "{tool}");
+        }
+    }
+
+    #[test]
+    fn ambiguous_areas_list_the_candidates() {
+        let server = server();
+        ok(&server, "create_area", json!({ "name": "Work Projects" }));
+        ok(&server, "create_area", json!({ "name": "Work Admin" }));
+        assert_eq!(
+            fails(&server, "create_task", json!({ "title": "X", "area": "work" })),
+            "Error: \"work\" matches more than one area: Work Admin, Work Projects"
+        );
+        let created = ok(&server, "create_task", json!({ "title": "X", "area": "admin" }));
+        assert!(created.starts_with("Created #1 [Work Admin] X"), "{created}");
     }
 }
